@@ -7,22 +7,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { email, source } = req.body;
+    const { email } = req.body;
 
     if (!email || !email.includes('@')) {
       return res.status(400).json({ error: 'Valid email required' });
     }
 
-    const { data, error } = await supabaseAdmin
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Insert email only — no source column (table may not have it)
+    const { error } = await supabaseAdmin
       .from('waitlist')
       .upsert(
-        { email: email.toLowerCase().trim(), source: source || 'landing' },
+        { email: cleanEmail },
         { onConflict: 'email' }
-      )
-      .select()
-      .single();
+      );
 
-    if (error) throw error;
+    if (error) {
+      // Duplicate is fine
+      if (error.code === '23505') {
+        return res.status(200).json({ success: true, message: "You're already on the list!" });
+      }
+      throw error;
+    }
 
     res.status(200).json({ success: true, message: "You're on the list!" });
   } catch (err) {

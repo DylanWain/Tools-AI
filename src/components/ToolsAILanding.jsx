@@ -65,7 +65,7 @@ export default function ToolsAILanding() {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, source: 'landing' }),
+        body: JSON.stringify({ email }),
       });
       if (res.ok) {
         setSubmitted(true);
@@ -141,13 +141,19 @@ export default function ToolsAILanding() {
             <strong>stores it permanently, and makes it searchable across all platforms.</strong>
           </p>
 
-          {/* Primary CTA - Extension Download */}
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
+          {/* Primary CTAs */}
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
             <a href="/download" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 32px', fontSize: '16px', textDecoration: 'none' }}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/></svg>
               Add to Chrome — free
             </a>
-            <a href="/dashboard" className="btn btn-primary" style={{ background: '#f5f5f5', color: '#1a1a1a', border: '1px solid #e5e5e5', padding: '16px 32px', fontSize: '16px', textDecoration: 'none' }}>
+            <a href="/app" className="btn btn-primary" style={{ background: '#1a1a1a', color: '#fff', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Try AI Chat — 5 free
+            </a>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
+            <a href="/dashboard" className="btn" style={{ background: '#f5f5f5', color: '#1a1a1a', border: '1px solid #e5e5e5', padding: '12px 24px', fontSize: '14px', textDecoration: 'none', borderRadius: '8px' }}>
               Open dashboard
             </a>
           </div>
@@ -462,11 +468,15 @@ export default function ToolsAILanding() {
       <section className="cta-section">
         <div className="cta-content">
           <h2>Stop losing your AI conversations</h2>
-          <p>Install the extension in 60 seconds. Free forever.</p>
-          <div className="waitlist-form" style={{ maxWidth: '400px', margin: '0 auto' }}>
-            <a href="/download" className="btn btn-primary" style={{ width: '100%', background: '#fff', color: '#1a1a1a', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <p>Install the extension in 60 seconds. Or try our AI chat right now — 5 free messages.</p>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', maxWidth: '500px', margin: '0 auto' }}>
+            <a href="/download" className="btn btn-primary" style={{ flex: 1, minWidth: '200px', background: '#fff', color: '#1a1a1a', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/></svg>
               Add to Chrome — free
+            </a>
+            <a href="/app" className="btn btn-primary" style={{ flex: 1, minWidth: '200px', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Try AI Chat
             </a>
           </div>
         </div>
@@ -477,6 +487,7 @@ export default function ToolsAILanding() {
         <div className="footer-inner">
           <span className="footer-logo">Tools AI</span>
           <div className="footer-links">
+            <a href="/app">Chat</a>
             <a href="/download">Download</a>
             <a href="/dashboard">Dashboard</a>
             <a href="/privacy">Privacy</a>
