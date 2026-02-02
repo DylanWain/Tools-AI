@@ -12,7 +12,7 @@ const Home: NextPage = () => {
       <Head>
         <title>Tools AI - Universal Memory Layer for ChatGPT, Claude, and Gemini</title>
         <meta name="description" content="Tools AI captures every AI conversation across ChatGPT, Claude, and Gemini. One Chrome extension. Every conversation stored, searchable, and permanent." />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta property="og:title" content="Tools AI - One Memory Layer for Every AI Conversation" />
         <meta property="og:description" content="Stop losing context across ChatGPT, Claude, and Gemini. Free Chrome extension that captures and organizes everything." />
         <meta property="og:type" content="website" />

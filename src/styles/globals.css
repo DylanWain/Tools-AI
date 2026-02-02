@@ -116,6 +116,10 @@ body {
   line-height: var(--leading-normal);
   color: var(--main-text);
   background: var(--main-bg);
+}
+
+/* Only lock scroll on the chat app page */
+body.chat-app-active {
   overflow: hidden;
 }
 

@@ -87,6 +87,7 @@ export default function ToolsAILanding() {
           <div className="nav-links-desktop">
             <a href="#comparison">Why Tools AI</a>
             <a href="#how-it-works">How it works</a>
+            <a href="/app">Chat</a>
             <a href="/dashboard">Dashboard</a>
             <a href="/download" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
               Get the extension
@@ -112,6 +113,7 @@ export default function ToolsAILanding() {
           <div className="mobile-menu">
             <a href="#comparison" onClick={() => setMobileMenuOpen(false)}>Why Tools AI</a>
             <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it works</a>
+            <a href="/app" onClick={() => setMobileMenuOpen(false)}>Chat</a>
             <a href="/dashboard" onClick={() => setMobileMenuOpen(false)}>Dashboard</a>
             <a
               href="/download"

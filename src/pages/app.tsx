@@ -5,6 +5,7 @@
 import type { NextPage } from 'next';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
+import { useEffect } from 'react';
 
 const ChatPage = dynamic(() => import('../components/ChatPage'), {
   ssr: false,
@@ -23,6 +24,14 @@ const ChatPage = dynamic(() => import('../components/ChatPage'), {
 });
 
 const App: NextPage = () => {
+  // Lock body scroll only on this page
+  useEffect(() => {
+    document.body.classList.add('chat-app-active');
+    return () => {
+      document.body.classList.remove('chat-app-active');
+    };
+  }, []);
+
   return (
     <>
       <Head>
