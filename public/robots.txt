@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /blog/
+Disallow: /api/
+Disallow: /_next/
+
+Sitemap: https://www.thetoolswebsite.com/sitemap.xml
