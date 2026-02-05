@@ -4,10 +4,20 @@
 
 import Head from 'next/head';
 import { GetStaticProps } from 'next';
-import { getAllArticles, CATEGORY_META, type ArticleContent } from '../../lib/articles';
+import { getAllArticles, CATEGORY_META } from '../../lib/articles';
+
+interface BlogArticleMeta {
+  meta: {
+    slug: string;
+    title: string;
+    category: string;
+    readTime: string;
+    wordCount: number;
+  };
+}
 
 interface BlogIndexProps {
-  articles: ArticleContent[];
+  articles: BlogArticleMeta[];
   categories: { slug: string; label: string; count: number }[];
 }
 
@@ -89,7 +99,19 @@ export default function BlogIndex({ articles, categories }: BlogIndexProps) {
 }
 
 export const getStaticProps: GetStaticProps = async () => {
-  const articles = getAllArticles();
+  const fullArticles = getAllArticles();
+
+  // Only pass the fields the index page actually uses — NOT full content
+  const articles = fullArticles.map(a => ({
+    meta: {
+      slug: a.meta.slug,
+      title: a.meta.title,
+      category: a.meta.category,
+      readTime: a.meta.readTime,
+      wordCount: a.meta.wordCount,
+    },
+  }));
+
   const catMap: Record<string, number> = {};
   articles.forEach(a => {
     catMap[a.meta.category] = (catMap[a.meta.category] || 0) + 1;
