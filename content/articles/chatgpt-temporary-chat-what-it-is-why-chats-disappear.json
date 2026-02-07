@@ -545,7 +545,7 @@
     },
     {
       "question": "How do I prevent losing important decisions between ChatGPT sessions when dealing with chatgpt temporary chat?",
-      "answer": "Yes, but the approach depends on your grant writing workflow. The approach matches effort to need — casual users need less, power users need more — most people see meaningful improvement within a few minutes of setup. For daily multi-session grant writing work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
+      "answer": "Yes, but the approach depends on your grant writing workflow. The approach matches effort to need \u2014 casual users need less, power users need more \u2014 most people see meaningful improvement within a few minutes of setup. For daily multi-session grant writing work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
     },
     {
       "question": "How does chatgpt temporary chat affect ChatGPT's file upload feature?",
@@ -605,7 +605,7 @@
     },
     {
       "question": "What should I look for in a memory extension for chatgpt temporary chat?",
-      "answer": "Yes, but the approach depends on your grant writing workflow. The approach matches effort to need — casual users need less, power users need more with each layer solving a different piece of the puzzle. For daily multi-session grant writing work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
+      "answer": "Yes, but the approach depends on your grant writing workflow. The approach matches effort to need \u2014 casual users need less, power users need more with each layer solving a different piece of the puzzle. For daily multi-session grant writing work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
     },
     {
       "question": "Can chatgpt temporary chat cause the AI to give wrong or dangerous advice?",
@@ -677,7 +677,7 @@
     },
     {
       "question": "Is it better to continue a long conversation or start fresh when dealing with chatgpt temporary chat?",
-      "answer": "The grant writing implications of chatgpt temporary chat are substantial. Your AI tool cannot reference decisions made in previous grant writing sessions, constraints you've established, or approaches you've already evaluated and rejected. The straightforward answer matches effort to need — casual users need less, power users need more so even a partial fix delivers noticeable improvement. For grant writing work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The grant writing implications of chatgpt temporary chat are substantial. Your AI tool cannot reference decisions made in previous grant writing sessions, constraints you've established, or approaches you've already evaluated and rejected. The straightforward answer matches effort to need \u2014 casual users need less, power users need more so even a partial fix delivers noticeable improvement. For grant writing work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "How much time am I actually losing to chatgpt temporary chat?",
@@ -1775,31 +1775,31 @@
   "ctaSections": [
     {
       "position": "after-intro",
-      "headline": "You've taught ChatGPT everything. It remembers nothing \u2014 solve chatgpt temporary chat today.",
-      "body": "Tools AI gives your AI conversations permanent memory. No more re-explaining your projects, preferences, or context.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "headline": "Stop re-explaining yourself to AI.",
+      "body": "Tools AI gives your AI conversations permanent memory across ChatGPT, Claude, and Gemini.",
+      "buttonText": "Add to Chrome \u2014 Free",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
       "position": "mid-article",
-      "headline": "One extension. Every AI platform. Total recall \u2014 solve chatgpt temporary chat today.",
-      "body": "After 100+ conversations, your AI should understand your work. Tools AI makes that happen with persistent memory across every platform.",
-      "buttonText": "Get Persistent Memory",
-      "buttonLink": "/"
+      "headline": "Your AI should remember what matters.",
+      "body": "Join 10,000+ professionals who stopped fighting AI memory limits.",
+      "buttonText": "Get the Chrome Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "before-faqs",
-      "headline": "What if your AI never forgot? \u2014 solve chatgpt temporary chat today.",
-      "body": "Every conversation you have contains valuable decisions and context. Tools AI captures it all automatically.",
-      "buttonText": "Start Saving Context",
-      "buttonLink": "/"
+      "position": "after-comparison",
+      "headline": "Works with ChatGPT, Claude, and Gemini.",
+      "body": "One extension. Unlimited memory. All your favorite AI tools.",
+      "buttonText": "Install Free Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "footer",
-      "headline": "AI memory shouldn't be this hard \u2014 solve chatgpt temporary chat today.",
-      "body": "Join thousands of professionals who've solved the \"chatgpt temporary chat\" problem permanently with Tools AI.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "position": "conclusion",
+      "headline": "Ready to never lose context again?",
+      "body": "Tools AI Chrome extension \u2014 permanent memory for all your AI conversations.",
+      "buttonText": "Add to Chrome",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     }
   ],
   "schema": {
@@ -1836,7 +1836,7 @@
       },
       {
         "name": "Use AI normally for 2-3 days",
-        "text": "Have your normal conversations. Your best bet starts with the free options already in your settings — most people see meaningful improvement within a few minutes of setup."
+        "text": "Have your normal conversations. Your best bet starts with the free options already in your settings \u2014 most people see meaningful improvement within a few minutes of setup."
       },
       {
         "name": "Verify persistent memory is working",

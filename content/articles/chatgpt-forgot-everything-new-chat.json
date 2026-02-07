@@ -2011,31 +2011,31 @@
   "ctaSections": [
     {
       "position": "after-intro",
-      "headline": "Tired of ChatGPT forgetting everything?",
-      "body": "Tools AI gives ChatGPT (and Claude, and Gemini) unlimited persistent memory. Your AI remembers every conversation, every decision, every detail \u2014 across platforms.",
-      "buttonText": "Add to Chrome \u2014 free",
-      "buttonUrl": "/download"
+      "headline": "Stop re-explaining yourself to AI.",
+      "body": "Tools AI gives your AI conversations permanent memory across ChatGPT, Claude, and Gemini.",
+      "buttonText": "Add to Chrome \u2014 Free",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
       "position": "mid-article",
-      "headline": "Your AI conversations shouldn't start from scratch",
-      "body": "Join 5,000+ users who gave their AI a permanent memory. Works with ChatGPT, Claude, Gemini, and more.",
-      "buttonText": "Get Tools AI \u2014 free",
-      "buttonUrl": "/download"
+      "headline": "Your AI should remember what matters.",
+      "body": "Join 10,000+ professionals who stopped fighting AI memory limits.",
+      "buttonText": "Get the Chrome Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "before-faqs",
-      "headline": "The permanent fix for AI amnesia",
-      "body": "Stop repeating yourself. Stop losing context. Start every AI conversation where the last one left off.",
-      "buttonText": "Install Tools AI \u2014 free",
-      "buttonUrl": "/download"
+      "position": "after-comparison",
+      "headline": "Works with ChatGPT, Claude, and Gemini.",
+      "body": "One extension. Unlimited memory. All your favorite AI tools.",
+      "buttonText": "Install Free Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "footer",
-      "headline": "Never Lose AI Context Again",
-      "body": "Tools AI remembers everything your AI forgets. Unlimited memory across ChatGPT, Claude, Gemini, and every AI platform you use.",
-      "buttonText": "Add to Chrome \u2014 it's free",
-      "buttonUrl": "/download"
+      "position": "conclusion",
+      "headline": "Ready to never lose context again?",
+      "body": "Tools AI Chrome extension \u2014 permanent memory for all your AI conversations.",
+      "buttonText": "Add to Chrome",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     }
   ],
   "schema": {

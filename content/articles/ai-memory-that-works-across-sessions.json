@@ -681,7 +681,7 @@
     },
     {
       "question": "How does AI memory that works across sessions compare to how human memory works?",
-      "answer": "The sales enablement implications of AI memory that works across sessions are substantial. Your AI tool cannot reference decisions made in previous sales enablement sessions, constraints you've established, or approaches you've already evaluated and rejected. The most effective path matches effort to need — casual users need less, power users need more so even a partial fix delivers noticeable improvement. For sales enablement work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The sales enablement implications of AI memory that works across sessions are substantial. Your AI tool cannot reference decisions made in previous sales enablement sessions, constraints you've established, or approaches you've already evaluated and rejected. The most effective path matches effort to need \u2014 casual users need less, power users need more so even a partial fix delivers noticeable improvement. For sales enablement work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "Why does ChatGPT sometimes create incorrect Memory entries when dealing with AI memory that works across sessions?",
@@ -705,7 +705,7 @@
     },
     {
       "question": "Can I control what a memory extension remembers when dealing with AI memory that works across sessions?",
-      "answer": "The sales enablement implications of AI memory that works across sessions are substantial. Your AI tool cannot reference decisions made in previous sales enablement sessions, constraints you've established, or approaches you've already evaluated and rejected. Your best bet ranges from simple toggles to full automation — most people see meaningful improvement within a few minutes of setup. For sales enablement work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The sales enablement implications of AI memory that works across sessions are substantial. Your AI tool cannot reference decisions made in previous sales enablement sessions, constraints you've established, or approaches you've already evaluated and rejected. Your best bet ranges from simple toggles to full automation \u2014 most people see meaningful improvement within a few minutes of setup. For sales enablement work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "How does AI memory that works across sessions affect research workflows?",
@@ -1775,31 +1775,31 @@
   "ctaSections": [
     {
       "position": "after-intro",
-      "headline": "Turn AI amnesia into AI intelligence \u2014 solve ai memory that works across sessions today.",
-      "body": "Tools AI gives your AI conversations permanent memory. No more re-explaining your projects, preferences, or context.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "headline": "Stop re-explaining yourself to AI.",
+      "body": "Tools AI gives your AI conversations permanent memory across ChatGPT, Claude, and Gemini.",
+      "buttonText": "Add to Chrome \u2014 Free",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
       "position": "mid-article",
-      "headline": "The #1 AI workflow upgrade of 2026 \u2014 solve ai memory that works across sessions today.",
-      "body": "After 100+ conversations, your AI should understand your work. Tools AI makes that happen with persistent memory across every platform.",
-      "buttonText": "Get Persistent Memory",
-      "buttonLink": "/"
+      "headline": "Your AI should remember what matters.",
+      "body": "Join 10,000+ professionals who stopped fighting AI memory limits.",
+      "buttonText": "Get the Chrome Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "before-faqs",
-      "headline": "Your AI conversations are worth remembering \u2014 solve ai memory that works across sessions today.",
-      "body": "Every conversation you have contains valuable decisions and context. Tools AI captures it all automatically.",
-      "buttonText": "Start Saving Context",
-      "buttonLink": "/"
+      "position": "after-comparison",
+      "headline": "Works with ChatGPT, Claude, and Gemini.",
+      "body": "One extension. Unlimited memory. All your favorite AI tools.",
+      "buttonText": "Install Free Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "footer",
-      "headline": "Memory is the feature ChatGPT forgot to build \u2014 solve ai memory that works across sessions today.",
-      "body": "Join thousands of professionals who've solved the \"AI memory that works across sessions\" problem permanently with Tools AI.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "position": "conclusion",
+      "headline": "Ready to never lose context again?",
+      "body": "Tools AI Chrome extension \u2014 permanent memory for all your AI conversations.",
+      "buttonText": "Add to Chrome",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     }
   ],
   "schema": {

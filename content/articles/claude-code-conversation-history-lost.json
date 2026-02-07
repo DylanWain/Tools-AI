@@ -566,7 +566,7 @@
     },
     {
       "question": "How does Claude's context window affect claude code conversation history lost?",
-      "answer": "Yes, but the approach depends on your academic research workflow. What works ranges from simple toggles to full automation — most people see meaningful improvement within a few minutes of setup. For daily multi-session academic research work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
+      "answer": "Yes, but the approach depends on your academic research workflow. What works ranges from simple toggles to full automation \u2014 most people see meaningful improvement within a few minutes of setup. For daily multi-session academic research work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
     },
     {
       "question": "How does claude code conversation history lost affect coding and development?",
@@ -638,7 +638,7 @@
     },
     {
       "question": "How does claude code conversation history lost compare to how human memory works?",
-      "answer": "The academic research implications of claude code conversation history lost are substantial. Your AI tool cannot reference decisions made in previous academic research sessions, constraints you've established, or approaches you've already evaluated and rejected. The way forward matches effort to need — casual users need less, power users need more so even a partial fix delivers noticeable improvement. For academic research work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The academic research implications of claude code conversation history lost are substantial. Your AI tool cannot reference decisions made in previous academic research sessions, constraints you've established, or approaches you've already evaluated and rejected. The way forward matches effort to need \u2014 casual users need less, power users need more so even a partial fix delivers noticeable improvement. For academic research work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "How does claude code conversation history lost affect Claude's file upload feature?",
@@ -698,7 +698,7 @@
     },
     {
       "question": "Are memory extensions safe? Where does my data go when dealing with claude code conversation history lost?",
-      "answer": "The academic research implications of claude code conversation history lost are substantial. Your AI tool cannot reference decisions made in previous academic research sessions, constraints you've established, or approaches you've already evaluated and rejected. What actually helps depends on how heavily you rely on AI day to day — most people see meaningful improvement within a few minutes of setup. For academic research work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The academic research implications of claude code conversation history lost are substantial. Your AI tool cannot reference decisions made in previous academic research sessions, constraints you've established, or approaches you've already evaluated and rejected. What actually helps depends on how heavily you rely on AI day to day \u2014 most people see meaningful improvement within a few minutes of setup. For academic research work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "Can I recover a lost Claude conversation when dealing with claude code conversation history lost?",
@@ -1776,31 +1776,31 @@
   "ctaSections": [
     {
       "position": "after-intro",
-      "headline": "Your future self will thank you for this \u2014 solve claude code conversation history lost today.",
-      "body": "Tools AI gives your AI conversations permanent memory. No more re-explaining your projects, preferences, or context.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "headline": "Stop re-explaining yourself to AI.",
+      "body": "Tools AI gives your AI conversations permanent memory across ChatGPT, Claude, and Gemini.",
+      "buttonText": "Add to Chrome \u2014 Free",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
       "position": "mid-article",
-      "headline": "3 hours of context. Gone in one click \u2014 solve claude code conversation history lost today.",
-      "body": "After 100+ conversations, your AI should understand your work. Tools AI makes that happen with persistent memory across every platform.",
-      "buttonText": "Get Persistent Memory",
-      "buttonLink": "/"
+      "headline": "Your AI should remember what matters.",
+      "body": "Join 10,000+ professionals who stopped fighting AI memory limits.",
+      "buttonText": "Get the Chrome Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "before-faqs",
-      "headline": "The #1 AI workflow upgrade of 2026 \u2014 solve claude code conversation history lost today.",
-      "body": "Every conversation you have contains valuable decisions and context. Tools AI captures it all automatically.",
-      "buttonText": "Start Saving Context",
-      "buttonLink": "/"
+      "position": "after-comparison",
+      "headline": "Works with ChatGPT, Claude, and Gemini.",
+      "body": "One extension. Unlimited memory. All your favorite AI tools.",
+      "buttonText": "Install Free Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "footer",
-      "headline": "Your AI knowledge base is being deleted daily \u2014 solve claude code conversation history lost today.",
-      "body": "Join thousands of professionals who've solved the \"claude code conversation history lost\" problem permanently with Tools AI.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "position": "conclusion",
+      "headline": "Ready to never lose context again?",
+      "body": "Tools AI Chrome extension \u2014 permanent memory for all your AI conversations.",
+      "buttonText": "Add to Chrome",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     }
   ],
   "schema": {

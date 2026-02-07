@@ -631,7 +631,7 @@
     },
     {
       "question": "Why does claude exporter chrome extension feel worse than other software limitations?",
-      "answer": "Yes, but the approach depends on your creative writing workflow. What works matches effort to need — casual users need less, power users need more with more comprehensive options available for heavy users. For daily multi-session creative writing work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
+      "answer": "Yes, but the approach depends on your creative writing workflow. What works matches effort to need \u2014 casual users need less, power users need more with more comprehensive options available for heavy users. For daily multi-session creative writing work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
     },
     {
       "question": "What's the ROI of fixing claude exporter chrome extension for my specific workflow?",
@@ -655,7 +655,7 @@
     },
     {
       "question": "How does claude exporter chrome extension affect coding and development?",
-      "answer": "The creative writing implications of claude exporter chrome extension are substantial. Your AI tool cannot reference decisions made in previous creative writing sessions, constraints you've established, or approaches you've already evaluated and rejected. The way forward matches effort to need — casual users need less, power users need more making the barrier to entry surprisingly low. For creative writing work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The creative writing implications of claude exporter chrome extension are substantial. Your AI tool cannot reference decisions made in previous creative writing sessions, constraints you've established, or approaches you've already evaluated and rejected. The way forward matches effort to need \u2014 casual users need less, power users need more making the barrier to entry surprisingly low. For creative writing work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "Why does Claude sometimes contradict itself in long conversations when dealing with claude exporter chrome extension?",
@@ -1761,31 +1761,31 @@
   "ctaSections": [
     {
       "position": "after-intro",
-      "headline": "AI without memory is like a consultant with amnesia \u2014 solve claude exporter chrome extension today.",
-      "body": "Tools AI gives your AI conversations permanent memory. No more re-explaining your projects, preferences, or context.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "headline": "Stop re-explaining yourself to AI.",
+      "body": "Tools AI gives your AI conversations permanent memory across ChatGPT, Claude, and Gemini.",
+      "buttonText": "Add to Chrome \u2014 Free",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
       "position": "mid-article",
-      "headline": "Works with Claude. And everything else \u2014 solve claude exporter chrome extension today.",
-      "body": "After 100+ conversations, your AI should understand your work. Tools AI makes that happen with persistent memory across every platform.",
-      "buttonText": "Get Persistent Memory",
-      "buttonLink": "/"
+      "headline": "Your AI should remember what matters.",
+      "body": "Join 10,000+ professionals who stopped fighting AI memory limits.",
+      "buttonText": "Get the Chrome Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "before-faqs",
-      "headline": "The fix takes 2 minutes. The payoff lasts forever \u2014 solve claude exporter chrome extension today.",
-      "body": "Every conversation you have contains valuable decisions and context. Tools AI captures it all automatically.",
-      "buttonText": "Start Saving Context",
-      "buttonLink": "/"
+      "position": "after-comparison",
+      "headline": "Works with ChatGPT, Claude, and Gemini.",
+      "body": "One extension. Unlimited memory. All your favorite AI tools.",
+      "buttonText": "Install Free Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "footer",
-      "headline": "Your projects deserve continuity. Your AI should too \u2014 solve claude exporter chrome extension today.",
-      "body": "Join thousands of professionals who've solved the \"claude exporter chrome extension\" problem permanently with Tools AI.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "position": "conclusion",
+      "headline": "Ready to never lose context again?",
+      "body": "Tools AI Chrome extension \u2014 permanent memory for all your AI conversations.",
+      "buttonText": "Add to Chrome",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     }
   ],
   "schema": {

@@ -557,7 +557,7 @@
     },
     {
       "question": "How do I prevent losing important decisions between ChatGPT sessions when dealing with chatgpt memory not working?",
-      "answer": "Yes, but the approach depends on your healthcare systems workflow. The solution starts with the free options already in your settings — most people see meaningful improvement within a few minutes of setup. For daily multi-session healthcare systems work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
+      "answer": "Yes, but the approach depends on your healthcare systems workflow. The solution starts with the free options already in your settings \u2014 most people see meaningful improvement within a few minutes of setup. For daily multi-session healthcare systems work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
     },
     {
       "question": "Is it better to continue a long conversation or start fresh when dealing with chatgpt memory not working?",
@@ -605,7 +605,7 @@
     },
     {
       "question": "Is chatgpt memory not working getting better or worse over time?",
-      "answer": "The healthcare systems implications of chatgpt memory not working are substantial. Your AI tool cannot reference decisions made in previous healthcare systems sessions, constraints you've established, or approaches you've already evaluated and rejected. The proven approach starts with the free options already in your settings — most people see meaningful improvement within a few minutes of setup. For healthcare systems work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The healthcare systems implications of chatgpt memory not working are substantial. Your AI tool cannot reference decisions made in previous healthcare systems sessions, constraints you've established, or approaches you've already evaluated and rejected. The proven approach starts with the free options already in your settings \u2014 most people see meaningful improvement within a few minutes of setup. For healthcare systems work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "How do I convince my team/manager that chatgpt memory not working needs a solution?",
@@ -709,7 +709,7 @@
     },
     {
       "question": "Does clearing ChatGPT's memory affect saved conversations when dealing with chatgpt memory not working?",
-      "answer": "Yes, but the approach depends on your healthcare systems workflow. What works can be as simple as a settings tweak or as thorough as a browser extension — most people see meaningful improvement within a few minutes of setup. For daily multi-session healthcare systems work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
+      "answer": "Yes, but the approach depends on your healthcare systems workflow. What works can be as simple as a settings tweak or as thorough as a browser extension \u2014 most people see meaningful improvement within a few minutes of setup. For daily multi-session healthcare systems work where decisions compound over time, you need automated persistence \u2014 a tool that captures your complete conversation context and makes it available across all future sessions without manual intervention."
     },
     {
       "question": "How does ChatGPT's context window affect chatgpt memory not working?",
@@ -1775,31 +1775,31 @@
   "ctaSections": [
     {
       "position": "after-intro",
-      "headline": "Don't let ChatGPT waste another hour of your time \u2014 solve chatgpt memory not working today.",
-      "body": "Tools AI gives your AI conversations permanent memory. No more re-explaining your projects, preferences, or context.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "headline": "Stop re-explaining yourself to AI.",
+      "body": "Tools AI gives your AI conversations permanent memory across ChatGPT, Claude, and Gemini.",
+      "buttonText": "Add to Chrome \u2014 Free",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
       "position": "mid-article",
-      "headline": "Your 100th conversation should be smarter than your 1st \u2014 solve chatgpt memory not working today.",
-      "body": "After 100+ conversations, your AI should understand your work. Tools AI makes that happen with persistent memory across every platform.",
-      "buttonText": "Get Persistent Memory",
-      "buttonLink": "/"
+      "headline": "Your AI should remember what matters.",
+      "body": "Join 10,000+ professionals who stopped fighting AI memory limits.",
+      "buttonText": "Get the Chrome Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "before-faqs",
-      "headline": "The persistence layer every AI user needs \u2014 solve chatgpt memory not working today.",
-      "body": "Every conversation you have contains valuable decisions and context. Tools AI captures it all automatically.",
-      "buttonText": "Start Saving Context",
-      "buttonLink": "/"
+      "position": "after-comparison",
+      "headline": "Works with ChatGPT, Claude, and Gemini.",
+      "body": "One extension. Unlimited memory. All your favorite AI tools.",
+      "buttonText": "Install Free Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "footer",
-      "headline": "The memory gap is the biggest AI productivity killer \u2014 solve chatgpt memory not working today.",
-      "body": "Join thousands of professionals who've solved the \"chatgpt memory not working\" problem permanently with Tools AI.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "position": "conclusion",
+      "headline": "Ready to never lose context again?",
+      "body": "Tools AI Chrome extension \u2014 permanent memory for all your AI conversations.",
+      "buttonText": "Add to Chrome",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     }
   ],
   "schema": {

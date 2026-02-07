@@ -564,7 +564,7 @@
     },
     {
       "question": "Why does ChatGPT remember some things but not others when dealing with save ai?",
-      "answer": "The grant writing implications of save ai are substantial. Your AI tool cannot reference decisions made in previous grant writing sessions, constraints you've established, or approaches you've already evaluated and rejected. Your best bet matches effort to need — casual users need less, power users need more with more comprehensive options available for heavy users. For grant writing work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The grant writing implications of save ai are substantial. Your AI tool cannot reference decisions made in previous grant writing sessions, constraints you've established, or approaches you've already evaluated and rejected. Your best bet matches effort to need \u2014 casual users need less, power users need more with more comprehensive options available for heavy users. For grant writing work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "Is there a permanent fix for save ai?",
@@ -676,7 +676,7 @@
     },
     {
       "question": "How does save ai affect writing and content creation?",
-      "answer": "The grant writing implications of save ai are substantial. Your AI tool cannot reference decisions made in previous grant writing sessions, constraints you've established, or approaches you've already evaluated and rejected. What works combines platform settings you already have with tools that fill the gaps — most people see meaningful improvement within a few minutes of setup. For grant writing work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The grant writing implications of save ai are substantial. Your AI tool cannot reference decisions made in previous grant writing sessions, constraints you've established, or approaches you've already evaluated and rejected. What works combines platform settings you already have with tools that fill the gaps \u2014 most people see meaningful improvement within a few minutes of setup. For grant writing work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "How does ChatGPT's memory compare to Claude's when dealing with save ai?",
@@ -1754,31 +1754,31 @@
   "ctaSections": [
     {
       "position": "after-intro",
-      "headline": "Ready for AI that actually remembers? \u2014 solve save ai today.",
-      "body": "Tools AI gives your AI conversations permanent memory. No more re-explaining your projects, preferences, or context.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "headline": "Stop re-explaining yourself to AI.",
+      "body": "Tools AI gives your AI conversations permanent memory across ChatGPT, Claude, and Gemini.",
+      "buttonText": "Add to Chrome \u2014 Free",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
       "position": "mid-article",
-      "headline": "Works with ChatGPT. And everything else \u2014 solve save ai today.",
-      "body": "After 100+ conversations, your AI should understand your work. Tools AI makes that happen with persistent memory across every platform.",
-      "buttonText": "Get Persistent Memory",
-      "buttonLink": "/"
+      "headline": "Your AI should remember what matters.",
+      "body": "Join 10,000+ professionals who stopped fighting AI memory limits.",
+      "buttonText": "Get the Chrome Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "before-faqs",
-      "headline": "Stop losing your best AI conversations \u2014 solve save ai today.",
-      "body": "Every conversation you have contains valuable decisions and context. Tools AI captures it all automatically.",
-      "buttonText": "Start Saving Context",
-      "buttonLink": "/"
+      "position": "after-comparison",
+      "headline": "Works with ChatGPT, Claude, and Gemini.",
+      "body": "One extension. Unlimited memory. All your favorite AI tools.",
+      "buttonText": "Install Free Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "footer",
-      "headline": "What if switching AI platforms didn't mean starting over? \u2014 solve save ai today.",
-      "body": "Join thousands of professionals who've solved the \"save ai\" problem permanently with Tools AI.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "position": "conclusion",
+      "headline": "Ready to never lose context again?",
+      "body": "Tools AI Chrome extension \u2014 permanent memory for all your AI conversations.",
+      "buttonText": "Add to Chrome",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     }
   ],
   "schema": {

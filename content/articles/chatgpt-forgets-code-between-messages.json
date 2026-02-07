@@ -705,7 +705,7 @@
     },
     {
       "question": "Can chatgpt forgets code between messages cause the AI to give wrong or dangerous advice?",
-      "answer": "The investor relations implications of chatgpt forgets code between messages are substantial. Your AI tool cannot reference decisions made in previous investor relations sessions, constraints you've established, or approaches you've already evaluated and rejected. The practical answer begins with optimizing what the platform gives you for free — most people see meaningful improvement within a few minutes of setup. For investor relations work spanning multiple sessions, the automated approach delivers the most complete fix."
+      "answer": "The investor relations implications of chatgpt forgets code between messages are substantial. Your AI tool cannot reference decisions made in previous investor relations sessions, constraints you've established, or approaches you've already evaluated and rejected. The practical answer begins with optimizing what the platform gives you for free \u2014 most people see meaningful improvement within a few minutes of setup. For investor relations work spanning multiple sessions, the automated approach delivers the most complete fix."
     },
     {
       "question": "Why does chatgpt forgets code between messages feel worse than other software limitations?",
@@ -1775,31 +1775,31 @@
   "ctaSections": [
     {
       "position": "after-intro",
-      "headline": "The memory gap is the biggest AI productivity killer \u2014 solve chatgpt forgets code between messages today.",
-      "body": "Tools AI gives your AI conversations permanent memory. No more re-explaining your projects, preferences, or context.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "headline": "Stop re-explaining yourself to AI.",
+      "body": "Tools AI gives your AI conversations permanent memory across ChatGPT, Claude, and Gemini.",
+      "buttonText": "Add to Chrome \u2014 Free",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
       "position": "mid-article",
-      "headline": "You've taught ChatGPT everything. It remembers nothing \u2014 solve chatgpt forgets code between messages today.",
-      "body": "After 100+ conversations, your AI should understand your work. Tools AI makes that happen with persistent memory across every platform.",
-      "buttonText": "Get Persistent Memory",
-      "buttonLink": "/"
+      "headline": "Your AI should remember what matters.",
+      "body": "Join 10,000+ professionals who stopped fighting AI memory limits.",
+      "buttonText": "Get the Chrome Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "before-faqs",
-      "headline": "Reclaim the hours you spend re-explaining yourself \u2014 solve chatgpt forgets code between messages today.",
-      "body": "Every conversation you have contains valuable decisions and context. Tools AI captures it all automatically.",
-      "buttonText": "Start Saving Context",
-      "buttonLink": "/"
+      "position": "after-comparison",
+      "headline": "Works with ChatGPT, Claude, and Gemini.",
+      "body": "One extension. Unlimited memory. All your favorite AI tools.",
+      "buttonText": "Install Free Extension",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     },
     {
-      "position": "footer",
-      "headline": "The gap between AI potential and AI reality? Memory \u2014 solve chatgpt forgets code between messages today.",
-      "body": "Join thousands of professionals who've solved the \"chatgpt forgets code between messages\" problem permanently with Tools AI.",
-      "buttonText": "Try Tools AI Free",
-      "buttonLink": "/"
+      "position": "conclusion",
+      "headline": "Ready to never lose context again?",
+      "body": "Tools AI Chrome extension \u2014 permanent memory for all your AI conversations.",
+      "buttonText": "Add to Chrome",
+      "buttonLink": "https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
     }
   ],
   "schema": {

@@ -89,7 +89,7 @@ export default function ToolsAILanding() {
             <a href="#how-it-works">How it works</a>
             <a href="/app">Chat</a>
             <a href="/dashboard">Dashboard</a>
-            <a href="/download" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
+            <a href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
               Get the extension
             </a>
           </div>
@@ -116,7 +116,7 @@ export default function ToolsAILanding() {
             <a href="/app" onClick={() => setMobileMenuOpen(false)}>Chat</a>
             <a href="/dashboard" onClick={() => setMobileMenuOpen(false)}>Dashboard</a>
             <a
-              href="/download"
+              href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
               className="btn btn-primary"
               style={{ width: '100%', marginTop: '8px', textAlign: 'center', textDecoration: 'none' }}
             >
@@ -143,7 +143,7 @@ export default function ToolsAILanding() {
 
           {/* Primary CTAs */}
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
-            <a href="/download" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 32px', fontSize: '16px', textDecoration: 'none' }}>
+            <a href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 32px', fontSize: '16px', textDecoration: 'none' }}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/></svg>
               Add to Chrome — free
             </a>
@@ -470,7 +470,7 @@ export default function ToolsAILanding() {
           <h2>Stop losing your AI conversations</h2>
           <p>Install the extension in 60 seconds. Or try our AI chat right now — 5 free messages.</p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', maxWidth: '500px', margin: '0 auto' }}>
-            <a href="/download" className="btn btn-primary" style={{ flex: 1, minWidth: '200px', background: '#fff', color: '#1a1a1a', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <a href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal" className="btn btn-primary" style={{ flex: 1, minWidth: '200px', background: '#fff', color: '#1a1a1a', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/></svg>
               Add to Chrome — free
             </a>
@@ -488,7 +488,7 @@ export default function ToolsAILanding() {
           <span className="footer-logo">Tools AI</span>
           <div className="footer-links">
             <a href="/app">Chat</a>
-            <a href="/download">Download</a>
+            <a href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal">Download</a>
             <a href="/dashboard">Dashboard</a>
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
