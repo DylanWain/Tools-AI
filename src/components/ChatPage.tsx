@@ -92,17 +92,25 @@ const Icons = {
 };
 
 // Models configuration - Groq FREE models first, then BYOK premium
-const MODELS = [
+type Provider = 'openai' | 'anthropic' | 'google' | 'groq';
+interface Model {
+  id: string;
+  name: string;
+  desc: string;
+  provider: Provider;
+}
+
+const MODELS: Model[] = [
   // FREE - Groq (unlimited)
-  { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', desc: 'Free · Best', provider: 'groq' as const },
-  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', desc: 'Free · Instant', provider: 'groq' as const },
-  { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', desc: 'Free · 32K ctx', provider: 'groq' as const },
+  { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', desc: 'Free · Best', provider: 'groq' },
+  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', desc: 'Free · Instant', provider: 'groq' },
+  { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', desc: 'Free · 32K ctx', provider: 'groq' },
   // PREMIUM - Bring Your Own Key
-  { id: 'gpt-4o', name: 'GPT-4o', desc: 'Requires key', provider: 'openai' as const },
-  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Requires key', provider: 'openai' as const },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', desc: 'Requires key', provider: 'anthropic' as const },
-  { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', desc: 'Requires key', provider: 'anthropic' as const },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Requires key', provider: 'google' as const },
+  { id: 'gpt-4o', name: 'GPT-4o', desc: 'Requires key', provider: 'openai' },
+  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Requires key', provider: 'openai' },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', desc: 'Requires key', provider: 'anthropic' },
+  { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', desc: 'Requires key', provider: 'anthropic' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Requires key', provider: 'google' },
 ];
 
 export default function ChatPage() {
@@ -421,8 +429,8 @@ export default function ChatPage() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         apiKeys={apiKeys}
-        onSaveApiKey={(provider, key) => saveApiKey(provider as 'openai' | 'anthropic' | 'google', key)}
-        onDeleteApiKey={(provider) => removeApiKey(provider as 'openai' | 'anthropic' | 'google')}
+        onSaveApiKey={(provider, key) => saveApiKey(provider as 'openai' | 'anthropic' | 'google' | 'groq', key)}
+        onDeleteApiKey={(provider) => removeApiKey(provider as 'openai' | 'anthropic' | 'google' | 'groq')}
       />
 
       {/* Auth Modal - Sign In / Sign Up */}

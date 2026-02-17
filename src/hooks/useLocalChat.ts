@@ -18,7 +18,7 @@ export interface Conversation {
   title: string;
   messages: Message[];
   model: string;
-  provider: 'openai' | 'anthropic' | 'google';
+  provider: 'openai' | 'anthropic' | 'google' | 'groq';
   createdAt: string;
   updatedAt: string;
 }
@@ -64,7 +64,7 @@ export function useLocalChat() {
   const messages = currentConversation?.messages || [];
 
   // Create new chat
-  const createNewChat = useCallback((model = 'gpt-4o', provider: 'openai' | 'anthropic' | 'google' = 'openai') => {
+  const createNewChat = useCallback((model = 'gpt-4o', provider: 'openai' | 'anthropic' | 'google' | 'groq' = 'openai') => {
     const newConv: Conversation = {
       id: `chat-${Date.now()}`,
       title: 'New chat',
@@ -209,7 +209,7 @@ export function useLocalChat() {
   };
 
   // Send message
-  const sendMessage = useCallback(async (content: string, model?: string, provider?: 'openai' | 'anthropic' | 'google') => {
+  const sendMessage = useCallback(async (content: string, model?: string, provider?: 'openai' | 'anthropic' | 'google' | 'groq') => {
     console.log('sendMessage called with:', { content, model, provider });
     console.log('Current apiKeys:', apiKeys);
     

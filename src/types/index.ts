@@ -5,7 +5,7 @@
 // Enums
 export type SenderType = 'user' | 'assistant';
 export type SummaryLevel = 'daily' | 'weekly' | 'project';
-export type ApiProvider = 'openai' | 'anthropic' | 'google';
+export type ApiProvider = 'openai' | 'anthropic' | 'google' | 'groq';
 export type ExportFormat = 'pdf' | 'csv' | 'markdown' | 'json';
 export type Theme = 'dark' | 'light';
 
