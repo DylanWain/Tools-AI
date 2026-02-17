@@ -100,28 +100,44 @@ export default function ToolsPopup({ isOpen, onClose, onOpenDashboard, onSelectC
     setLoading(true);
     
     try {
-      // Load conversations with stats
-      const convData = await api.get<any>('/extension/conversations?limit=10');
-      setConversations(convData.conversations || []);
-      if (convData.stats) {
+      // Load conversations from the website's conversations table (not extension)
+      const convData = await api.get<any>('/conversations?limit=10');
+      const convList = convData.conversations || convData || [];
+      setConversations(Array.isArray(convList) ? convList.map((c: any) => ({
+        id: c.id,
+        title: c.title || 'Untitled',
+        platform: c.provider || 'groq',
+        message_count: c.message_count || 0,
+        updated_at: c.updated_at,
+      })) : []);
+      
+      // Calculate stats from conversations
+      if (Array.isArray(convList)) {
+        const totalMessages = convList.reduce((sum: number, c: any) => sum + (c.message_count || 0), 0);
         setStats({
-          totalConversations: convData.stats.totalConversations || 0,
-          totalMessages: convData.stats.totalMessages || 0,
-          totalCodeBlocks: convData.stats.totalCodeBlocks || 0,
-          totalFiles: convData.stats.totalFiles || 0,
+          totalConversations: convList.length,
+          totalMessages: totalMessages,
+          totalCodeBlocks: 0, // Will be updated when we load code blocks
+          totalFiles: 0,
         });
       }
 
-      // Load code blocks
-      const filesData = await api.get<any>('/files?type=code&limit=20');
-      if (filesData.files) {
-        setCodeBlocks(filesData.files.map((f: any) => ({
-          id: f.id,
-          language: f.language || 'text',
-          code: f.content || '',
-          conversation_title: f.conversation_title || 'Unknown',
-          created_at: f.created_at,
-        })));
+      // Load code blocks from files endpoint
+      try {
+        const filesData = await api.get<any>('/files?type=code&limit=20');
+        if (filesData.files && Array.isArray(filesData.files)) {
+          setCodeBlocks(filesData.files.map((f: any) => ({
+            id: f.id,
+            language: f.language || 'text',
+            code: f.content || '',
+            conversation_title: f.conversation_title || 'Unknown',
+            created_at: f.created_at,
+          })));
+          setStats(prev => ({ ...prev, totalCodeBlocks: filesData.files.length }));
+        }
+      } catch (e) {
+        // Files endpoint might not exist yet, that's ok
+        console.log('Files endpoint not available');
       }
     } catch (err) {
       console.error('Failed to load popup data:', err);
