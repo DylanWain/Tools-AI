@@ -617,6 +617,33 @@ button {
   height: 18px;
 }
 
+/* Tools AI Plus Button - Opens popup */
+.tools-plus-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #d4d4d4, #fafafa, #b0b0b0);
+  border: 1.5px solid #444;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.tools-plus-btn:hover {
+  background: linear-gradient(135deg, #c0c0c0, #f0f0f0, #a0a0a0);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.tools-plus-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* ============================================================================
    MESSAGES - FIX #16, #17, #18
    ============================================================================ */

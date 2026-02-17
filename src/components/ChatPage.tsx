@@ -9,6 +9,7 @@ import Sidebar from './Sidebar';
 import MessageList, { Message } from './MessageList';
 import Composer from './Composer';
 import SettingsModal from './SettingsModal';
+import ToolsPopup from './ToolsPopup';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerChat } from '../hooks/useServerChat';
 
@@ -67,16 +68,41 @@ const Icons = {
       <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
     </svg>
   ),
+  dashboard: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+  extension: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
+    </svg>
+  ),
+  plus: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
 };
 
-// Models configuration - ORIGINAL WORKING model names
+// Models configuration - Groq FREE models first, then BYOK premium
 const MODELS = [
-  { id: 'gpt-4o', name: 'GPT-4o', desc: 'Most capable', provider: 'openai' as const },
-  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Fast & capable', provider: 'openai' as const },
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5', desc: 'Fast & efficient', provider: 'openai' as const },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', desc: 'Latest Claude', provider: 'anthropic' as const },
-  { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', desc: 'Best Claude 3.5', provider: 'anthropic' as const },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Google AI', provider: 'google' as const },
+  // FREE - Groq (unlimited)
+  { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', desc: 'Free · Best', provider: 'groq' as const },
+  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', desc: 'Free · Instant', provider: 'groq' as const },
+  { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', desc: 'Free · 32K ctx', provider: 'groq' as const },
+  // PREMIUM - Bring Your Own Key
+  { id: 'gpt-4o', name: 'GPT-4o', desc: 'Requires key', provider: 'openai' as const },
+  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Requires key', provider: 'openai' as const },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', desc: 'Requires key', provider: 'anthropic' as const },
+  { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', desc: 'Requires key', provider: 'anthropic' as const },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Requires key', provider: 'google' as const },
 ];
 
 export default function ChatPage() {
@@ -103,7 +129,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
-  const [showGetPlus, setShowGetPlus] = useState(true);
+  const [toolsPopupOpen, setToolsPopupOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -212,7 +238,8 @@ export default function ChatPage() {
   }, [selectConversation]);
 
   // Check if we have API key for selected provider
-  const hasApiKey = isAuthenticated ? apiKeys[selectedModel.provider] : true;
+  // Groq is FREE - no key needed (we use server-side key)
+  const hasApiKey = selectedModel.provider === 'groq' || (isAuthenticated ? apiKeys[selectedModel.provider] : true);
 
   // Show loading while checking auth - AFTER all hooks
   if (authLoading) {
@@ -306,8 +333,8 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            {/* API Key warning */}
-            {!hasApiKey && (
+            {/* API Key warning - only for BYOK models */}
+            {!hasApiKey && selectedModel.provider !== 'groq' && (
               <button 
                 className="api-key-warning-btn"
                 onClick={() => setSettingsOpen(true)}
@@ -316,16 +343,23 @@ export default function ChatPage() {
               </button>
             )}
 
-            {/* Get Plus button */}
-            {showGetPlus && (
-              <button className="get-plus-btn" onClick={() => setShowGetPlus(false)}>
-                {Icons.star}
-                <span>Get Plus</span>
-                <span onClick={(e) => { e.stopPropagation(); setShowGetPlus(false); }}>
-                  {Icons.x}
-                </span>
-              </button>
-            )}
+            {/* Tools AI Popup button - shows stats, conversations, code */}
+            <button 
+              className="tools-plus-btn" 
+              title="Tools AI - Stats, Conversations, Code"
+              onClick={() => setToolsPopupOpen(true)}
+            >
+              {Icons.plus}
+            </button>
+
+            {/* Dashboard button - shows extension synced data */}
+            <button 
+              className="header-icon-btn" 
+              title="Dashboard - View synced conversations"
+              onClick={() => router.push('/dashboard')}
+            >
+              {Icons.dashboard}
+            </button>
 
             {/* Share button - only when messages exist */}
             {transformedMessages.length > 0 && (
@@ -400,6 +434,20 @@ export default function ChatPage() {
           }}
         />
       )}
+
+      {/* Tools AI Popup - Stats, Conversations, Code */}
+      <ToolsPopup
+        isOpen={toolsPopupOpen}
+        onClose={() => setToolsPopupOpen(false)}
+        onOpenDashboard={() => {
+          setToolsPopupOpen(false);
+          router.push('/dashboard');
+        }}
+        onSelectConversation={(id) => {
+          setToolsPopupOpen(false);
+          selectConversation(id);
+        }}
+      />
     </div>
   );
 }

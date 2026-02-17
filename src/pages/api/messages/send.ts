@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { verifyToken, AuthUser } from '../../../lib/auth';
 import { transformMessage } from '../../../lib/transform';
@@ -236,6 +237,33 @@ async function callGoogle(
 }
 
 /**
+ * Call Groq - FREE unlimited AI (same API format as OpenAI)
+ */
+async function callGroq(
+  messages: { role: string; content: string }[],
+  model: string,
+  apiKey: string,
+  systemPrompt: string
+): Promise<string> {
+  const groq = new Groq({ apiKey });
+  
+  const completion = await groq.chat.completions.create({
+    model: model || 'llama-3.1-70b-versatile',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+    ],
+    max_tokens: 4096,
+    temperature: 0.7,
+  });
+
+  return completion.choices[0]?.message?.content || '';
+}
+
+/**
  * Main handler
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -259,37 +287,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // ═══════════════════════════════════════════════════════════
-    // FREE TIER: 5 free messages with Gemini, then require own key
+    // FREE TIER: UNLIMITED messages with Groq (Llama 3.1 70B)
+    // Users can upgrade to GPT-4/Claude/Gemini with their own keys
     // ═══════════════════════════════════════════════════════════
-    const FREE_MESSAGE_LIMIT = 5;
-    const FREE_GEMINI_KEY = process.env.FREE_GEMINI_API_KEY;
+    const FREE_GROQ_KEY = process.env.FREE_GROQ_API_KEY;
     
-    // Count user's total messages
-    const { count: messageCount } = await supabaseAdmin
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('sender', 'user');
-    
-    const userMessageCount = messageCount || 0;
-    const hasFreeTier = FREE_GEMINI_KEY && userMessageCount < FREE_MESSAGE_LIMIT;
-    
-    // Determine which API key to use
+    // Determine which API key and provider to use
     let activeApiKey = apiKey;
     let usingFreeTier = false;
+    let activeModel = '';
+    let activeProvider = '';
     
     if (!apiKey) {
-      if (hasFreeTier) {
-        activeApiKey = FREE_GEMINI_KEY;
+      // No user API key - use free Groq tier
+      if (FREE_GROQ_KEY) {
+        activeApiKey = FREE_GROQ_KEY;
+        activeModel = 'llama-3.1-70b-versatile';
+        activeProvider = 'groq';
         usingFreeTier = true;
-        console.log(`Free tier: ${userMessageCount + 1}/${FREE_MESSAGE_LIMIT} messages`);
+        console.log(`Using FREE Groq tier (unlimited)`);
       } else {
         return res.status(400).json({ 
           error: { 
-            message: 'Free messages used up. Please add your own API key to continue.',
-            code: 'FREE_TIER_EXHAUSTED',
-            messagesUsed: userMessageCount,
-            limit: FREE_MESSAGE_LIMIT
+            message: 'No API key configured. Please add your own API key.',
+            code: 'NO_API_KEY',
           } 
         });
       }
@@ -297,7 +318,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`\n=== New Message ===`);
     console.log(`User: ${user.id}`);
-    console.log(`Free tier: ${usingFreeTier ? `${userMessageCount + 1}/${FREE_MESSAGE_LIMIT}` : 'No (using own key)'}`);
+    console.log(`Free tier: ${usingFreeTier ? 'Yes (Groq - unlimited)' : 'No (using own key)'}`);
     console.log(`Query: ${content.slice(0, 100)}...`);
 
     // Get conversation details
@@ -312,9 +333,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: { message: 'Conversation not found' } });
     }
 
-    // If using free tier, force Gemini model
-    const model = usingFreeTier ? 'gemma-3-4b-it' : (conversation.model || 'gpt-4o');
-    const provider = usingFreeTier ? 'google' : (conversation.provider || 'openai');
+    // Set model and provider (free tier already set above, otherwise use conversation settings)
+    if (!usingFreeTier) {
+      activeModel = conversation.model || 'gpt-4o';
+      activeProvider = conversation.provider || 'openai';
+    }
+    const model = activeModel;
+    const provider = activeProvider;
 
     // Save user message
     const { data: userMessage, error: userMsgError } = await supabaseAdmin
@@ -376,6 +401,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       responseContent = await callAnthropic(apiMessages, model, activeApiKey, systemPrompt);
     } else if (provider === 'google') {
       responseContent = await callGoogle(apiMessages, model, activeApiKey, systemPrompt);
+    } else if (provider === 'groq') {
+      responseContent = await callGroq(apiMessages, model, activeApiKey, systemPrompt);
     } else {
       throw new Error(`Unknown provider: ${provider}`);
     }

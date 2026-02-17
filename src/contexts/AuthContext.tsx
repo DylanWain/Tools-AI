@@ -27,6 +27,7 @@ interface ApiKeys {
   openai: string | null;
   anthropic: string | null;
   google: string | null;
+  groq: string | null;
 }
 
 interface AuthContextType {
@@ -41,9 +42,9 @@ interface AuthContextType {
   logout: () => void;
   error: string | null;
   clearError: () => void;
-  saveApiKey: (provider: 'openai' | 'anthropic' | 'google', key: string) => void;
-  removeApiKey: (provider: 'openai' | 'anthropic' | 'google') => void;
-  hasApiKey: (provider: 'openai' | 'anthropic' | 'google') => boolean;
+  saveApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'groq', key: string) => void;
+  removeApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'groq') => void;
+  hasApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'groq') => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [apiKeys, setApiKeys] = useState<ApiKeys>({ openai: null, anthropic: null, google: null });
+  const [apiKeys, setApiKeys] = useState<ApiKeys>({ openai: null, anthropic: null, google: null, groq: null });
 
   // Initialize auth state - either logged in user OR anonymous user
   useEffect(() => {
