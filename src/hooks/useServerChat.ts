@@ -25,7 +25,7 @@ export interface Conversation {
   id: string;
   title: string;
   model: string;
-  provider: 'openai' | 'anthropic' | 'google';
+  provider: 'openai' | 'anthropic' | 'google' | 'groq';
   createdAt: string;
   updatedAt: string;
 }
@@ -109,7 +109,7 @@ export function useServerChat() {
   const currentConversation = conversations.find(c => c.id === currentConversationId) || null;
 
   // Create new chat
-  const createNewChat = useCallback(async (model = 'gpt-4o', provider: 'openai' | 'anthropic' | 'google' = 'openai') => {
+  const createNewChat = useCallback(async (model = 'gpt-4o', provider: 'openai' | 'anthropic' | 'google' | 'groq' = 'openai') => {
     try {
       const response = await api.post<{ conversation: any }>('/conversations', {
         title: 'New chat',
@@ -159,7 +159,7 @@ export function useServerChat() {
   }, [conversations, currentConversationId]);
 
   // Send message - calls our API which saves to Supabase and calls AI
-  const sendMessage = useCallback(async (content: string, model?: string, provider?: 'openai' | 'anthropic' | 'google') => {
+  const sendMessage = useCallback(async (content: string, model?: string, provider?: 'openai' | 'anthropic' | 'google' | 'groq') => {
     let conv = currentConversation;
     
     // Create new conversation if none exists
