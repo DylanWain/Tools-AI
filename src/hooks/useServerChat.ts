@@ -108,7 +108,7 @@ export function useServerChat() {
   const currentConversation = conversations.find(c => c.id === currentConversationId) || null;
 
   // Create new chat
-  const createNewChat = useCallback(async (model = 'llama-3.1-70b-versatile', provider: 'openai' | 'anthropic' | 'google' | 'groq' = 'groq') => {
+  const createNewChat = useCallback(async (model = 'llama-3.3-70b-versatile', provider: 'openai' | 'anthropic' | 'google' | 'groq' = 'groq') => {
     try {
       const response = await api.post<{ conversation: any }>('/conversations', {
         title: 'New chat',
@@ -161,9 +161,9 @@ export function useServerChat() {
   const sendMessage = useCallback(async (content: string, model?: string, provider?: 'openai' | 'anthropic' | 'google' | 'groq') => {
     let conv = currentConversation;
     
-    // Create new conversation if none exists - default to FREE Groq tier
+    // Create new conversation if none exists
     if (!conv) {
-      conv = await createNewChat(model || 'llama-3.1-70b-versatile', provider || 'groq');
+      conv = await createNewChat(model || 'gpt-4o', provider || 'openai');
     }
 
     const useProvider = provider || conv.provider;

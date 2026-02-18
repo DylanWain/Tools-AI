@@ -1,7 +1,6 @@
 // Simple test endpoint - no auth required
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabaseAdmin } from '../../lib/supabase';
-import { randomUUID } from 'crypto';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const results: Record<string, any> = {
@@ -87,13 +86,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // If success, try to create a conversation
     if (data) {
-      const conversationId = randomUUID();
       const { data: conv, error: convError } = await supabaseAdmin
         .from('conversations')
         .insert({
-          id: conversationId,  // Generate ID
           user_id: testDeviceId,
-          email: `anon_78cdc3c6@anonymous.local`,  // Required field
           title: 'Test Chat',
           model: 'llama-3.1-70b-versatile',
           provider: 'groq',
@@ -103,7 +99,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       results.tests.createConversation = {
         success: !!conv,
-        conversationId: conv?.id || null,
         error: convError?.message || null,
       };
 

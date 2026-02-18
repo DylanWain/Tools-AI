@@ -75,9 +75,9 @@ type Provider = 'groq' | 'openai' | 'anthropic' | 'google';
 
 const MODELS: Array<{ id: string; name: string; desc: string; provider: Provider }> = [
   // FREE - Groq (unlimited)
-  { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', desc: '🆓 Free', provider: 'groq' },
+  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', desc: '🆓 Free', provider: 'groq' },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', desc: '🆓 Free (fast)', provider: 'groq' },
-  { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', desc: '🆓 Free', provider: 'groq' },
+  { id: 'gemma2-9b-it', name: 'Gemma 2 9B', desc: '🆓 Free', provider: 'groq' },
   // BYOK - OpenAI
   { id: 'gpt-4o', name: 'GPT-4o', desc: 'Bring your key', provider: 'openai' },
   { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Bring your key', provider: 'openai' },
@@ -91,7 +91,7 @@ const MODELS: Array<{ id: string; name: string; desc: string; provider: Provider
 
 export default function ChatPage() {
   const router = useRouter();
-  const { user, apiKeys, saveApiKey, removeApiKey, isLoading: authLoading } = useAuth();
+  const { user, apiKeys, saveApiKey, removeApiKey, isAuthenticated } = useAuth();
   const {
     conversations,
     currentConversation,
@@ -112,21 +112,27 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
-  const [showGetPlus, setShowGetPlus] = useState(false); // Hidden - no upsell
+  const [showGetPlus, setShowGetPlus] = useState(false);  // No upsell
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Auto-select Groq (always free, unlimited)
+  // Auto-select a model that has an API key configured
   useEffect(() => {
-    // Groq is always available - no API key needed
+    // Groq is always free, skip if using Groq
     if (selectedModel.provider === 'groq') return;
+    // Check if current model's provider has a key
+    if (apiKeys[selectedModel.provider]) return;
     
-    // If user has their own API keys, let them use those providers
-    const provider = selectedModel.provider as keyof typeof apiKeys;
-    if (apiKeys[provider]) return;
-    
-    // Otherwise default to Groq (free, unlimited)
-    const groqModel = MODELS.find(m => m.provider === 'groq');
-    if (groqModel) setSelectedModel(groqModel);
+    // Find a model with an available API key
+    if (apiKeys.anthropic) {
+      const claudeModel = MODELS.find(m => m.provider === 'anthropic');
+      if (claudeModel) setSelectedModel(claudeModel);
+    } else if (apiKeys.openai) {
+      const openaiModel = MODELS.find(m => m.provider === 'openai');
+      if (openaiModel) setSelectedModel(openaiModel);
+    } else if (apiKeys.google) {
+      const googleModel = MODELS.find(m => m.provider === 'google');
+      if (googleModel) setSelectedModel(googleModel);
+    }
   }, [apiKeys, selectedModel.provider]);
 
   // Transform messages for MessageList component
@@ -192,31 +198,15 @@ export default function ChatPage() {
 
   const handleNewChat = useCallback(() => {
     createNewChat(selectedModel.id, selectedModel.provider);
-  }, [createNewChat, selectedModel]);
+  }, [isAuthenticated, createNewChat, selectedModel]);
 
   const handleSelectConversation = useCallback((id: string) => {
     selectConversation(id);
   }, [selectConversation]);
 
   // Check if we have API key for selected provider
-  // Groq is FREE - no key needed
-  const hasApiKey = selectedModel.provider === 'groq' || !!apiKeys[selectedModel.provider as keyof typeof apiKeys];
-
-  // Show loading while checking auth - AFTER all hooks
-  if (authLoading) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        backgroundColor: '#212121',
-        color: '#ececec',
-      }}>
-        Loading...
-      </div>
-    );
-  }
+  // Groq is FREE - no key needed (we use server-side key)
+  const hasApiKey = selectedModel.provider === 'groq' || (isAuthenticated ? apiKeys[selectedModel.provider as keyof typeof apiKeys] : true);
 
   return (
     <div className="app-container">
