@@ -246,9 +246,9 @@ async function callGroq(
   systemPrompt: string
 ): Promise<string> {
   const groq = new Groq({ apiKey });
-  
+
   const completion = await groq.chat.completions.create({
-    model: model || 'llama-3.1-70b-versatile',
+    model,
     messages: [
       { role: 'system', content: systemPrompt },
       ...messages.map(m => ({
@@ -288,40 +288,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // ═══════════════════════════════════════════════════════════
     // FREE TIER: UNLIMITED messages with Groq (Llama 3.1 70B)
-    // Users can upgrade to GPT-4/Claude/Gemini with their own keys
     // ═══════════════════════════════════════════════════════════
     const FREE_GROQ_KEY = process.env.FREE_GROQ_API_KEY;
     
-    // Determine which API key and provider to use
+    // Determine which API key to use
     let activeApiKey = apiKey;
     let usingFreeTier = false;
-    let activeModel = '';
     let activeProvider = '';
     
-    if (!apiKey) {
-      // No user API key - use free Groq tier
-      if (FREE_GROQ_KEY) {
-        activeApiKey = FREE_GROQ_KEY;
-        activeModel = 'llama-3.1-70b-versatile';
-        activeProvider = 'groq';
-        usingFreeTier = true;
-        console.log(`Using FREE Groq tier (unlimited)`);
-      } else {
-        return res.status(400).json({ 
-          error: { 
-            message: 'No API key configured. Please add your own API key.',
-            code: 'NO_API_KEY',
-          } 
-        });
-      }
-    }
-
-    console.log(`\n=== New Message ===`);
-    console.log(`User: ${user.id}`);
-    console.log(`Free tier: ${usingFreeTier ? 'Yes (Groq - unlimited)' : 'No (using own key)'}`);
-    console.log(`Query: ${content.slice(0, 100)}...`);
-
-    // Get conversation details
+    // Get conversation details first
     const { data: conversation, error: convError } = await supabaseAdmin
       .from('conversations')
       .select('*')
@@ -333,20 +308,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: { message: 'Conversation not found' } });
     }
 
-    // Set model and provider (free tier already set above, otherwise use conversation settings)
-    if (!usingFreeTier) {
-      activeModel = conversation.model || 'gpt-4o';
+    // Provider handling
+    if (conversation.provider === 'groq') {
+      // Groq selected - use free Groq key (unlimited)
+      if (FREE_GROQ_KEY) {
+        activeApiKey = FREE_GROQ_KEY;
+        activeProvider = 'groq';
+        usingFreeTier = true;
+        console.log(`Using FREE Groq tier (unlimited)`);
+      } else if (!apiKey) {
+        return res.status(400).json({ 
+          error: { message: 'Groq API key not configured' } 
+        });
+      }
+    } else if (!apiKey) {
+      // No user API key - use free Groq tier
+      if (FREE_GROQ_KEY) {
+        activeApiKey = FREE_GROQ_KEY;
+        activeProvider = 'groq';
+        usingFreeTier = true;
+        console.log(`Using FREE Groq tier (unlimited)`);
+      } else {
+        return res.status(400).json({ 
+          error: { 
+            message: 'Please add your own API key to continue.',
+            code: 'API_KEY_REQUIRED'
+          } 
+        });
+      }
+    } else {
       activeProvider = conversation.provider || 'openai';
     }
-    const model = activeModel;
-    const provider = activeProvider;
+
+    // If using free tier, force Groq model
+    const model = usingFreeTier ? 'llama-3.1-70b-versatile' : (conversation.model || 'gpt-4o');
+    const provider = usingFreeTier ? 'groq' : activeProvider;
+
+    console.log(`\n=== New Message ===`);
+    console.log(`User: ${user.id}`);
+    console.log(`Free tier: ${usingFreeTier ? 'Yes (Groq - unlimited)' : 'No (using own key)'}`);
+    console.log(`Provider: ${provider}, Model: ${model}`);
+    console.log(`Query: ${content.slice(0, 100)}...`);
+    
+    // Generate email for tracking
+    const userEmail = user.email || `anon_${user.id.slice(0, 8)}@anonymous.local`;
+    const { randomUUID } = await import('crypto');
 
     // Save user message
     const { data: userMessage, error: userMsgError } = await supabaseAdmin
       .from('messages')
       .insert({
+        id: randomUUID(),  // Generate ID
         conversation_id: conversationId,
         user_id: user.id,
+        email: userEmail,  // Required field
+        topic: 'chat',     // Required field
+        extension: 'web',  // Required field - marks as from website
         sender: 'user',
         content,
       })
@@ -411,11 +428,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { data: assistantMessage, error: assistantMsgError } = await supabaseAdmin
       .from('messages')
       .insert({
+        id: randomUUID(),  // Generate ID
         conversation_id: conversationId,
         user_id: user.id,
+        email: userEmail,  // Required field
+        topic: 'chat',     // Required field
+        extension: 'web',  // Required field
         sender: 'assistant',
         content: responseContent,
-        metadata: { model, provider, memoriesLoaded: memories.length },
+        payload: { model, provider, memoriesLoaded: memories.length },  // Use payload instead of metadata
       })
       .select()
       .single();

@@ -1,51 +1,29 @@
-// ============================================================================
-// Homepage - Chat Interface (replaces landing page)
-// SEO pages still at /blog/*, dashboard at /dashboard
-// ============================================================================
-
 import type { NextPage } from 'next';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
-import { useEffect } from 'react';
 
-const ChatPage = dynamic(() => import('../components/ChatPage'), {
+const ToolsAILanding = dynamic(() => import('../components/ToolsAILanding'), {
   ssr: false,
-  loading: () => (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      backgroundColor: '#212121',
-      color: '#ececec',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
-      Loading Tools AI...
-    </div>
-  ),
 });
 
 const Home: NextPage = () => {
-  useEffect(() => {
-    document.body.classList.add('chat-app-active');
-    return () => document.body.classList.remove('chat-app-active');
-  }, []);
-
   return (
     <>
       <Head>
-        <title>Tools AI - Free Unlimited AI Chat with Memory</title>
-        <meta name="description" content="Free unlimited AI chat powered by Llama 3.1. No limits, conversations saved forever. Switch between GPT-4, Claude, Gemini with your own API keys." />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-        <meta property="og:title" content="Tools AI - Free Unlimited AI Chat" />
-        <meta property="og:description" content="Free unlimited AI chat with permanent memory. No signup required." />
+        <title>Tools AI - Universal Memory Layer for ChatGPT, Claude, and Gemini</title>
+        <meta name="description" content="Tools AI captures every AI conversation across ChatGPT, Claude, and Gemini. One Chrome extension. Every conversation stored, searchable, and permanent." />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta property="og:title" content="Tools AI - One Memory Layer for Every AI Conversation" />
+        <meta property="og:description" content="Stop losing context across ChatGPT, Claude, and Gemini. Free Chrome extension that captures and organizes everything." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://thetoolswebsite.com" />
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Tools AI - Universal AI Memory Layer" />
+        <meta name="twitter:description" content="Free Chrome extension that captures every AI conversation across ChatGPT, Claude, and Gemini." />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="canonical" href="https://thetoolswebsite.com" />
       </Head>
-      <ChatPage />
+      <ToolsAILanding />
     </>
   );
 };
