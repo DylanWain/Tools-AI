@@ -109,7 +109,7 @@ export function useServerChat() {
   const currentConversation = conversations.find(c => c.id === currentConversationId) || null;
 
   // Create new chat
-  const createNewChat = useCallback(async (model = 'llama-3.1-70b-versatile', provider: 'openai' | 'anthropic' | 'google' | 'groq' = 'groq') => {
+  const createNewChat = useCallback(async (model = 'gpt-4o', provider: 'openai' | 'anthropic' | 'google' | 'groq' = 'openai') => {
     try {
       const response = await api.post<{ conversation: any }>('/conversations', {
         title: 'New chat',
