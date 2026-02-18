@@ -205,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
   }, []);
 
-  const saveApiKey = useCallback((provider: 'openai' | 'anthropic' | 'google', key: string) => {
+  const saveApiKey = useCallback((provider: 'openai' | 'anthropic' | 'google' | 'groq', key: string) => {
     setApiKeys(prev => {
       const updated = { ...prev, [provider]: key };
       localStorage.setItem(API_KEYS_KEY, JSON.stringify(updated));
@@ -216,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const removeApiKey = useCallback((provider: 'openai' | 'anthropic' | 'google') => {
+  const removeApiKey = useCallback((provider: 'openai' | 'anthropic' | 'google' | 'groq') => {
     setApiKeys(prev => {
       const updated = { ...prev, [provider]: null };
       localStorage.setItem(API_KEYS_KEY, JSON.stringify(updated));
@@ -224,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const hasApiKey = useCallback((provider: 'openai' | 'anthropic' | 'google') => {
+  const hasApiKey = useCallback((provider: 'openai' | 'anthropic' | 'google' | 'groq') => {
     return !!apiKeys[provider];
   }, [apiKeys]);
 

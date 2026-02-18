@@ -9,7 +9,6 @@ import Sidebar from './Sidebar';
 import MessageList, { Message } from './MessageList';
 import Composer from './Composer';
 import SettingsModal from './SettingsModal';
-import ToolsPopup from './ToolsPopup';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerChat } from '../hooks/useServerChat';
 
@@ -68,46 +67,31 @@ const Icons = {
       <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
     </svg>
   ),
-  dashboard: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  ),
-  extension: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2L2 7l10 5 10-5-10-5z" />
-      <path d="M2 17l10 5 10-5" />
-      <path d="M2 12l10 5 10-5" />
-    </svg>
-  ),
-  plus: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  ),
 };
 
+// Models configuration - ORIGINAL WORKING model names
 // Models configuration - Groq FREE models first, then BYOK premium
-const MODELS = [
+type Provider = 'groq' | 'openai' | 'anthropic' | 'google';
+
+const MODELS: Array<{ id: string; name: string; desc: string; provider: Provider }> = [
   // FREE - Groq (unlimited)
-  { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', desc: 'Free · Best', provider: 'groq' as const },
-  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', desc: 'Free · Instant', provider: 'groq' as const },
-  { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', desc: 'Free · 32K ctx', provider: 'groq' as const },
-  // PREMIUM - Bring Your Own Key
-  { id: 'gpt-4o', name: 'GPT-4o', desc: 'Requires key', provider: 'openai' as const },
-  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Requires key', provider: 'openai' as const },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', desc: 'Requires key', provider: 'anthropic' as const },
-  { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', desc: 'Requires key', provider: 'anthropic' as const },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Requires key', provider: 'google' as const },
+  { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', desc: '🆓 Free', provider: 'groq' },
+  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', desc: '🆓 Free (fast)', provider: 'groq' },
+  { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', desc: '🆓 Free', provider: 'groq' },
+  // BYOK - OpenAI
+  { id: 'gpt-4o', name: 'GPT-4o', desc: 'Bring your key', provider: 'openai' },
+  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Bring your key', provider: 'openai' },
+  { id: 'gpt-3.5-turbo', name: 'GPT-3.5', desc: 'Bring your key', provider: 'openai' },
+  // BYOK - Anthropic
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', desc: 'Bring your key', provider: 'anthropic' },
+  { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', desc: 'Bring your key', provider: 'anthropic' },
+  // BYOK - Google
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Bring your key', provider: 'google' },
 ];
 
 export default function ChatPage() {
   const router = useRouter();
-  const { user, apiKeys, saveApiKey, removeApiKey, isAuthenticated, isLoggedIn, isLoading: authLoading, logout, login, register, error: authError, clearError } = useAuth();
+  const { user, apiKeys, saveApiKey, removeApiKey, isLoading: authLoading } = useAuth();
   const {
     conversations,
     currentConversation,
@@ -117,7 +101,6 @@ export default function ChatPage() {
     isStreaming,
     streamingContent,
     error,
-    freeTierExhausted,
     createNewChat,
     selectConversation,
     deleteConversation,
@@ -129,44 +112,22 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
-  const [toolsPopupOpen, setToolsPopupOpen] = useState(false);
+  const [showGetPlus, setShowGetPlus] = useState(false); // Hidden - no upsell
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
-  // Auto-show settings modal when free tier exhausted
+  // Auto-select Groq (always free, unlimited)
   useEffect(() => {
-    if (freeTierExhausted) {
-      setSettingsOpen(true);
-    }
-  }, [freeTierExhausted]);
-
-  // Auto-select a model that has an API key configured
-  useEffect(() => {
-    // Check if current model's provider has a key
-    if (apiKeys[selectedModel.provider]) return;
+    // Groq is always available - no API key needed
+    if (selectedModel.provider === 'groq') return;
     
-    // Find a model with an available API key
-    if (apiKeys.anthropic) {
-      const claudeModel = MODELS.find(m => m.provider === 'anthropic');
-      if (claudeModel) setSelectedModel(claudeModel);
-    } else if (apiKeys.openai) {
-      const openaiModel = MODELS.find(m => m.provider === 'openai');
-      if (openaiModel) setSelectedModel(openaiModel);
-    } else if (apiKeys.google) {
-      const googleModel = MODELS.find(m => m.provider === 'google');
-      if (googleModel) setSelectedModel(googleModel);
-    }
+    // If user has their own API keys, let them use those providers
+    const provider = selectedModel.provider as keyof typeof apiKeys;
+    if (apiKeys[provider]) return;
+    
+    // Otherwise default to Groq (free, unlimited)
+    const groqModel = MODELS.find(m => m.provider === 'groq');
+    if (groqModel) setSelectedModel(groqModel);
   }, [apiKeys, selectedModel.provider]);
-
-  // When user authenticates, send the pending message
-  useEffect(() => {
-    if (isAuthenticated && pendingMessage) {
-      sendMessage(pendingMessage, selectedModel.id, selectedModel.provider);
-      setPendingMessage(null);
-      setShowAuthModal(false);
-    }
-  }, [isAuthenticated, pendingMessage, sendMessage, selectedModel]);
 
   // Transform messages for MessageList component
   const transformedMessages: Message[] = messages.map(m => ({
@@ -231,15 +192,15 @@ export default function ChatPage() {
 
   const handleNewChat = useCallback(() => {
     createNewChat(selectedModel.id, selectedModel.provider);
-  }, [isAuthenticated, createNewChat, selectedModel]);
+  }, [createNewChat, selectedModel]);
 
   const handleSelectConversation = useCallback((id: string) => {
     selectConversation(id);
   }, [selectConversation]);
 
   // Check if we have API key for selected provider
-  // Groq is FREE - no key needed (we use server-side key)
-  const hasApiKey = selectedModel.provider === 'groq' || (isAuthenticated ? apiKeys[selectedModel.provider] : true);
+  // Groq is FREE - no key needed
+  const hasApiKey = selectedModel.provider === 'groq' || !!apiKeys[selectedModel.provider as keyof typeof apiKeys];
 
   // Show loading while checking auth - AFTER all hooks
   if (authLoading) {
@@ -267,10 +228,7 @@ export default function ChatPage() {
         onSelectConversation={handleSelectConversation}
         onNewChat={handleNewChat}
         userName={user?.displayName || 'Guest'}
-        isLoggedIn={isLoggedIn}
         onOpenSettings={() => setSettingsOpen(true)}
-        onLogout={logout}
-        onSignIn={() => setShowAuthModal(true)}
       />
 
       <main className="main-content">
@@ -333,8 +291,8 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            {/* API Key warning - only for BYOK models */}
-            {!hasApiKey && selectedModel.provider !== 'groq' && (
+            {/* API Key warning */}
+            {!hasApiKey && (
               <button 
                 className="api-key-warning-btn"
                 onClick={() => setSettingsOpen(true)}
@@ -343,23 +301,16 @@ export default function ChatPage() {
               </button>
             )}
 
-            {/* Tools AI Popup button - shows stats, conversations, code */}
-            <button 
-              className="tools-plus-btn" 
-              title="Tools AI - Stats, Conversations, Code"
-              onClick={() => setToolsPopupOpen(true)}
-            >
-              {Icons.plus}
-            </button>
-
-            {/* Dashboard button - shows extension synced data */}
-            <button 
-              className="header-icon-btn" 
-              title="Dashboard - View synced conversations"
-              onClick={() => router.push('/dashboard')}
-            >
-              {Icons.dashboard}
-            </button>
+            {/* Get Plus button */}
+            {showGetPlus && (
+              <button className="get-plus-btn" onClick={() => setShowGetPlus(false)}>
+                {Icons.star}
+                <span>Get Plus</span>
+                <span onClick={(e) => { e.stopPropagation(); setShowGetPlus(false); }}>
+                  {Icons.x}
+                </span>
+              </button>
+            )}
 
             {/* Share button - only when messages exist */}
             {transformedMessages.length > 0 && (
@@ -424,159 +375,6 @@ export default function ChatPage() {
         onSaveApiKey={(provider, key) => saveApiKey(provider as 'openai' | 'anthropic' | 'google', key)}
         onDeleteApiKey={(provider) => removeApiKey(provider as 'openai' | 'anthropic' | 'google')}
       />
-
-      {/* Auth Modal - Sign In / Sign Up */}
-      {showAuthModal && (
-        <AuthModal 
-          onClose={() => setShowAuthModal(false)}
-          onSuccess={() => {
-            setShowAuthModal(false);
-          }}
-        />
-      )}
-
-      {/* Tools AI Popup - Stats, Conversations, Code */}
-      <ToolsPopup
-        isOpen={toolsPopupOpen}
-        onClose={() => setToolsPopupOpen(false)}
-        onOpenDashboard={() => {
-          setToolsPopupOpen(false);
-          router.push('/dashboard');
-        }}
-        onSelectConversation={(id) => {
-          setToolsPopupOpen(false);
-          selectConversation(id);
-        }}
-      />
-    </div>
-  );
-}
-
-// ============================================================================
-// Auth Modal Component - Sign In / Sign Up
-// ============================================================================
-function AuthModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const { login, register, error, clearError } = useAuth();
-  const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [localError, setLocalError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError(null);
-    clearError();
-
-    if (!email || !password) {
-      setLocalError('Email and password are required');
-      return;
-    }
-
-    if (password.length < 8) {
-      setLocalError('Password must be at least 8 characters');
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      if (isRegister) {
-        await register(email, password, displayName || undefined);
-      } else {
-        await login(email, password);
-      }
-      onSuccess();
-    } catch (err) {
-      // Error is handled by useAuth
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const switchMode = () => {
-    setIsRegister(!isRegister);
-    setLocalError(null);
-    clearError();
-  };
-
-  return (
-    <div className="auth-modal-overlay" onClick={onClose}>
-      <div className="auth-modal" onClick={e => e.stopPropagation()}>
-        <button className="auth-modal-close" onClick={onClose}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-        
-        <div className="auth-modal-header">
-          <div className="auth-modal-logo">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-          </div>
-          <h2>{isRegister ? 'Create your account' : 'Welcome back'}</h2>
-          <p>{isRegister ? 'Sign up to start chatting' : 'Sign in to continue'}</p>
-        </div>
-
-        <form className="auth-modal-form" onSubmit={handleSubmit}>
-          {isRegister && (
-            <div className="auth-input-group">
-              <label>Name (optional)</label>
-              <input
-                type="text"
-                placeholder="Your name"
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-              />
-            </div>
-          )}
-
-          <div className="auth-input-group">
-            <label>Email</label>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="auth-input-group">
-            <label>Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-          </div>
-
-          {(localError || error) && (
-            <div className="auth-error">
-              {localError || error}
-            </div>
-          )}
-
-          <button type="submit" className="auth-submit-btn" disabled={submitting}>
-            {submitting ? 'Please wait...' : (isRegister ? 'Sign Up' : 'Sign In')}
-          </button>
-        </form>
-
-        <div className="auth-modal-footer">
-          {isRegister ? (
-            <p>Already have an account? <button onClick={switchMode}>Sign in</button></p>
-          ) : (
-            <p>Don't have an account? <button onClick={switchMode}>Sign up</button></p>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

@@ -39,7 +39,6 @@ export function useServerChat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [freeTierExhausted, setFreeTierExhausted] = useState(false);
 
   // Set token on api client when auth changes
   useEffect(() => {
@@ -109,7 +108,7 @@ export function useServerChat() {
   const currentConversation = conversations.find(c => c.id === currentConversationId) || null;
 
   // Create new chat
-  const createNewChat = useCallback(async (model = 'gpt-4o', provider: 'openai' | 'anthropic' | 'google' | 'groq' = 'openai') => {
+  const createNewChat = useCallback(async (model = 'llama-3.1-70b-versatile', provider: 'openai' | 'anthropic' | 'google' | 'groq' = 'groq') => {
     try {
       const response = await api.post<{ conversation: any }>('/conversations', {
         title: 'New chat',
@@ -162,9 +161,9 @@ export function useServerChat() {
   const sendMessage = useCallback(async (content: string, model?: string, provider?: 'openai' | 'anthropic' | 'google' | 'groq') => {
     let conv = currentConversation;
     
-    // Create new conversation if none exists
+    // Create new conversation if none exists - default to FREE Groq tier
     if (!conv) {
-      conv = await createNewChat(model || 'gpt-4o', provider || 'openai');
+      conv = await createNewChat(model || 'llama-3.1-70b-versatile', provider || 'groq');
     }
 
     const useProvider = provider || conv.provider;
@@ -226,14 +225,7 @@ export function useServerChat() {
     } catch (err: any) {
       console.error('Send message failed:', err);
       setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
-      
-      // Check if free tier exhausted
-      if (err?.code === 'FREE_TIER_EXHAUSTED' || err?.message?.includes('Free messages used up')) {
-        setFreeTierExhausted(true);
-        setError('Free messages used up. Add your API key to continue.');
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to send message');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setIsLoading(false);
     }
@@ -253,7 +245,6 @@ export function useServerChat() {
     isStreaming,
     streamingContent,
     error,
-    freeTierExhausted,
     createNewChat,
     selectConversation,
     deleteConversation,

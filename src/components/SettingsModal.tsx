@@ -39,10 +39,9 @@ const TrashIcon = () => (
   </svg>
 );
 
-type ApiProvider = 'openai' | 'anthropic' | 'google' | 'groq';
+type ApiProvider = 'openai' | 'anthropic' | 'google';
 
-const PROVIDERS: { value: ApiProvider; label: string; placeholder: string; link: string; note?: string }[] = [
-  { value: 'groq', label: 'Groq (FREE)', placeholder: 'gsk_...', link: 'https://console.groq.com/keys', note: 'Already free by default - add your own for higher limits' },
+const PROVIDERS: { value: ApiProvider; label: string; placeholder: string; link: string }[] = [
   { value: 'openai', label: 'OpenAI', placeholder: 'sk-...', link: 'https://platform.openai.com/api-keys' },
   { value: 'anthropic', label: 'Anthropic (Claude)', placeholder: 'sk-ant-...', link: 'https://console.anthropic.com/' },
   { value: 'google', label: 'Google (Gemini)', placeholder: 'AIza...', link: 'https://aistudio.google.com/apikey' },
@@ -52,7 +51,6 @@ interface ApiKeys {
   openai: string | null;
   anthropic: string | null;
   google: string | null;
-  groq: string | null;
 }
 
 interface SettingsModalProps {
@@ -74,13 +72,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     openai: '',
     anthropic: '',
     google: '',
-    groq: '',
   });
   const [showKeys, setShowKeys] = useState<Record<ApiProvider, boolean>>({
     openai: false,
     anthropic: false,
     google: false,
-    groq: false,
   });
 
   const handleSaveKey = (provider: ApiProvider) => {
@@ -112,8 +108,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="settings-section">
             <h3 className="settings-section-title">API Keys</h3>
             <p className="settings-section-desc">
-              <strong>Free tier:</strong> Unlimited AI chat via Llama 3.1 70B — no key needed!<br />
-              Add your own keys below for GPT-4, Claude, or Gemini.
+              Add your API keys to enable AI responses. Keys are stored locally in your browser.
             </p>
 
             <div className="api-keys-list">

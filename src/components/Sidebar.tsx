@@ -89,10 +89,7 @@ interface SidebarProps {
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
   userName?: string;
-  isLoggedIn?: boolean;
   onOpenSettings?: () => void;
-  onLogout?: () => void;
-  onSignIn?: () => void;
 }
 
 export default function Sidebar({
@@ -103,10 +100,7 @@ export default function Sidebar({
   onSelectConversation,
   onNewChat,
   userName = 'Guest',
-  isLoggedIn = false,
   onOpenSettings,
-  onLogout,
-  onSignIn,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [gptsExpanded, setGptsExpanded] = useState(true);
@@ -171,15 +165,15 @@ export default function Sidebar({
           />
         </div>
 
-        {/* Nav items - Dashboard and Images */}
+        {/* Nav items - Images and Apps */}
         <nav className="sidebar-nav">
-          <a href="/dashboard" className="sidebar-nav-item">
-            {Icons.grid}
-            <span>Dashboard</span>
-          </a>
           <button className="sidebar-nav-item">
             {Icons.image}
             <span>Images</span>
+          </button>
+          <button className="sidebar-nav-item">
+            {Icons.grid}
+            <span>Apps</span>
           </button>
         </nav>
 
@@ -321,7 +315,7 @@ export default function Sidebar({
               <div className="user-avatar">{userInitials}</div>
               <div className="user-info">
                 <div className="user-name">{userName}</div>
-                <div className="user-plan">{isLoggedIn ? 'Personal account' : 'Guest user'}</div>
+                <div className="user-plan">Free unlimited</div>
               </div>
               <span className={`user-menu-chevron ${userMenuOpen ? 'open' : ''}`}>
                 {Icons.chevronDown}
@@ -343,40 +337,10 @@ export default function Sidebar({
                     </svg>
                     <span>Settings</span>
                   </button>
-                  <div className="user-menu-divider" />
-                  {isLoggedIn ? (
-                    <button className="user-menu-item logout" onClick={() => {
-                      setUserMenuOpen(false);
-                      onLogout?.();
-                    }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16,17 21,12 16,7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
-                      <span>Log out</span>
-                    </button>
-                  ) : (
-                    <button className="user-menu-item signin" onClick={() => {
-                      setUserMenuOpen(false);
-                      onSignIn?.();
-                    }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                        <polyline points="10,17 15,12 10,7" />
-                        <line x1="15" y1="12" x2="3" y2="12" />
-                      </svg>
-                      <span>Sign in / Sign up</span>
-                    </button>
-                  )}
                 </div>
               </>
             )}
           </div>
-          <button className="upgrade-btn">
-            {Icons.star}
-            <span>Upgrade</span>
-          </button>
         </div>
       </aside>
     </>

@@ -5,14 +5,15 @@
 // Enums
 export type SenderType = 'user' | 'assistant';
 export type SummaryLevel = 'daily' | 'weekly' | 'project';
-export type ApiProvider = 'openai' | 'anthropic' | 'google';
+export type ApiProvider = 'openai' | 'anthropic' | 'google' | 'groq';
 export type ExportFormat = 'pdf' | 'csv' | 'markdown' | 'json';
 export type Theme = 'dark' | 'light';
 
 export type ModelType =
   | 'gpt-4' | 'gpt-4-turbo' | 'gpt-4o' | 'gpt-3.5-turbo'
-  | 'claude-3-opus' | 'claude-3-sonnet' | 'claude-3-haiku' | 'claude-3.5-sonnet'
-  | 'gemini-pro' | 'gemini-1.5-pro' | 'gemini-1.5-flash';
+  | 'claude-3-opus' | 'claude-3-sonnet' | 'claude-3-haiku' | 'claude-3.5-sonnet' | 'claude-sonnet-4-20250514'
+  | 'gemini-pro' | 'gemini-1.5-pro' | 'gemini-1.5-flash'
+  | 'llama-3.1-70b-versatile' | 'llama-3.1-8b-instant' | 'mixtral-8x7b-32768';
 
 // ============================================================================
 // USER
