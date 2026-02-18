@@ -342,8 +342,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         conversation_id: conversationId,
         user_id: user.id,
         email: userEmail,  // Required field
-        topic: 'chat',     // Required field
-        extension: 'web',  // Required field - marks as from website
         sender: 'user',
         content,
       })
@@ -412,11 +410,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         conversation_id: conversationId,
         user_id: user.id,
         email: userEmail,  // Required field
-        topic: 'chat',     // Required field
-        extension: 'web',  // Required field
         sender: 'assistant',
         content: responseContent,
-        payload: { model, provider, memoriesLoaded: memories.length },  // Use payload instead of metadata
       })
       .select()
       .single();

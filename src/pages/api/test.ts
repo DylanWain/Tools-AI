@@ -97,7 +97,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           title: 'Test Chat',
           model: 'llama-3.1-70b-versatile',
           provider: 'groq',
-          platform: 'toolsai-web',  // Required field
         })
         .select()
         .single();

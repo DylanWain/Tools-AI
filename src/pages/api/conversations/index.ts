@@ -72,11 +72,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .insert({
           id: conversationId,  // Generate ID here since db doesn't auto-generate
           user_id: user.id,
-          email: userEmail,    // Required field for extension compatibility
+          email: userEmail,    // Required field
           title: title || 'New Chat',
           model: model || 'llama-3.1-70b-versatile',
           provider: provider || 'groq',
-          platform: 'toolsai-web',  // Mark as from website
         })
         .select()
         .single();
