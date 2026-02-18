@@ -1,3 +1,9 @@
+// ============================================================================
+// Dashboard API — reads from the SAME tables the Chrome extension writes to:
+//   conversations, messages, code_blocks, files
+// Queries by email OR user_id to show both extension + web app data
+// ============================================================================
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { verifyToken } from '../../../lib/auth';
@@ -14,71 +20,84 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Build email for anonymous users (matches send.ts)
+  const userEmail = user.email || `anon_${user.id.slice(0, 8)}@anonymous.local`;
+
   if (req.method === 'GET') {
     try {
       const { platform, search, page = '1', limit = '20' } = req.query;
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+      const lim = parseInt(limit as string);
 
-      // Search mode
+      // Search mode — search messages content
       if (search && typeof search === 'string' && search.trim()) {
+        const searchTerm = `%${search.trim()}%`;
+        
         const { data: results, error } = await supabaseAdmin
-          .rpc('search_extension_messages', {
-            search_user_id: user.id,
-            search_query: search.trim(),
-            result_limit: parseInt(limit as string),
-          });
+          .from('messages')
+          .select('id, conversation_id, sender, content, created_at')
+          .or(`user_id.eq.${user.id},email.eq.${userEmail}`)
+          .ilike('content', searchTerm)
+          .order('created_at', { ascending: false })
+          .limit(lim);
 
         if (error) throw error;
         return res.json({ results: results || [], type: 'search' });
       }
 
-      // List conversations
+      // ═══════════════════════════════════════════════════════════
+      // List conversations from the REAL conversations table
+      // Extension saves with email, web app saves with user_id + email
+      // ═══════════════════════════════════════════════════════════
       let query = supabaseAdmin
-        .from('extension_conversations')
+        .from('conversations')
         .select('*')
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`)
         .order('updated_at', { ascending: false })
-        .range(offset, offset + parseInt(limit as string) - 1);
+        .range(offset, offset + lim - 1);
 
-      if (platform && typeof platform === 'string') {
+      if (platform && typeof platform === 'string' && platform !== 'all') {
         query = query.eq('platform', platform);
       }
 
       const { data: conversations, error } = await query;
       if (error) throw error;
 
-      // Get total count
+      // Total count
       const { count } = await supabaseAdmin
-        .from('extension_conversations')
+        .from('conversations')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`);
 
-      // Get stats
-      const { data: stats } = await supabaseAdmin
-        .from('extension_conversations')
+      // Platform stats
+      const { data: platformData } = await supabaseAdmin
+        .from('conversations')
         .select('platform')
-        .eq('user_id', user.id);
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`);
 
       const platformCounts: Record<string, number> = {};
-      (stats || []).forEach(s => {
-        platformCounts[s.platform] = (platformCounts[s.platform] || 0) + 1;
+      (platformData || []).forEach((s: any) => {
+        const p = s.platform || 'unknown';
+        platformCounts[p] = (platformCounts[p] || 0) + 1;
       });
 
+      // Message count
       const { count: messageCount } = await supabaseAdmin
-        .from('extension_messages')
+        .from('messages')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`);
 
+      // File count
       const { count: fileCount } = await supabaseAdmin
-        .from('extension_files')
+        .from('files')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .or(`email.eq.${userEmail}`);
 
+      // Code block count
       const { count: codeCount } = await supabaseAdmin
-        .from('extension_messages')
+        .from('code_blocks')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('has_code', true);
+        .or(`email.eq.${userEmail}`);
 
       res.json({
         conversations: conversations || [],
@@ -92,9 +111,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
         type: 'list',
       });
-    } catch (err) {
-      console.error('Extension conversations error:', err);
-      res.status(500).json({ error: 'Failed to fetch conversations' });
+    } catch (err: any) {
+      console.error('Dashboard conversations error:', err);
+      res.status(500).json({ error: 'Failed to fetch conversations', details: err.message });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

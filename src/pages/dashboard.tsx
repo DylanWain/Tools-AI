@@ -15,16 +15,19 @@ interface Conversation {
   title: string;
   message_count: number;
   code_block_count: number;
+  file_count: number;
   updated_at: string;
-  platform_url: string | null;
+  created_at: string;
+  url: string | null;
+  email: string;
 }
 
 interface Message {
   id: string;
   sender: string;
   content: string;
-  has_code: boolean;
-  message_index: number;
+  created_at: string;
+  conversation_id: string;
 }
 
 interface Stats {
@@ -38,6 +41,7 @@ interface Stats {
 export default function Dashboard() {
   const router = useRouter();
   const { user, token, isLoading: authLoading, isLoggedIn } = useAuth();
+  const isAuthenticated = !!token; // True for both anonymous and logged-in users
   
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -71,8 +75,8 @@ export default function Dashboard() {
   }, [token, filterPlatform]);
 
   useEffect(() => {
-    if (isLoggedIn) loadConversations();
-  }, [isLoggedIn, loadConversations]);
+    if (isAuthenticated) loadConversations();
+  }, [isAuthenticated, loadConversations]);
 
   // Load conversation messages
   const loadMessages = async (conv: Conversation) => {
@@ -131,83 +135,6 @@ export default function Dashboard() {
   };
 
   if (authLoading) return null;
-
-  // Show sign-in prompt if not logged in
-  if (!isLoggedIn) {
-    return (
-      <>
-        <Head>
-          <title>Dashboard - Tools AI</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        </Head>
-        <div style={{
-          minHeight: '100vh',
-          background: '#fff',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        }}>
-          <header style={{
-            padding: '16px 24px',
-            borderBottom: '1px solid #f0f0f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <a href="/" style={{ fontWeight: 700, fontSize: 18, color: '#1a1a1a', textDecoration: 'none' }}>Tools AI</a>
-            <a href="/app" style={{ fontSize: 14, color: '#888', textDecoration: 'none' }}>Open Chat →</a>
-          </header>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 'calc(100vh - 57px)',
-            padding: '40px 20px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: 16,
-              background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginBottom: 24, border: '1px solid #e5e5e5',
-            }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-            </div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a', margin: '0 0 12px', letterSpacing: '-0.5px' }}>
-              Your synced conversations
-            </h1>
-            <p style={{ fontSize: 16, color: '#888', margin: '0 0 32px', maxWidth: 420, lineHeight: 1.6 }}>
-              Sign in to see conversations synced from the Tools AI Chrome extension across ChatGPT, Claude, and Gemini.
-            </p>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <a href="/login?redirect=dashboard" style={{
-                padding: '14px 32px', background: '#1a1a1a', color: '#fff', borderRadius: 8,
-                fontSize: 15, fontWeight: 600, textDecoration: 'none', transition: 'background 0.2s',
-              }}>
-                Sign in
-              </a>
-              <a href="/login?redirect=dashboard" style={{
-                padding: '14px 32px', background: '#f5f5f5', color: '#1a1a1a', borderRadius: 8,
-                fontSize: 15, fontWeight: 500, textDecoration: 'none', border: '1px solid #e5e5e5',
-              }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.location.href = '/login?redirect=dashboard';
-                  // The login page will show register by default if coming from here
-                }}
-              >
-                Create account
-              </a>
-            </div>
-            <p style={{ fontSize: 13, color: '#bbb', marginTop: 24 }}>
-              Don't have the extension? <a href="/download" style={{ color: '#888' }}>Download it here</a>
-            </p>
-          </div>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
@@ -353,8 +280,8 @@ export default function Dashboard() {
                       <span>Last updated {timeAgo(selectedConv.updated_at)}</span>
                     </div>
                   </div>
-                  {selectedConv.platform_url && (
-                    <a href={selectedConv.platform_url} target="_blank" rel="noopener noreferrer" className="conv-link">
+                  {selectedConv.url && (
+                    <a href={selectedConv.url} target="_blank" rel="noopener noreferrer" className="conv-link">
                       Open original →
                     </a>
                   )}

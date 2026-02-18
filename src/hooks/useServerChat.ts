@@ -163,7 +163,7 @@ export function useServerChat() {
     
     // Create new conversation if none exists
     if (!conv) {
-      conv = await createNewChat(model || 'gpt-4o', provider || 'openai');
+      conv = await createNewChat(model || 'llama-3.3-70b-versatile', provider || 'groq');
     }
 
     const useProvider = provider || conv.provider;

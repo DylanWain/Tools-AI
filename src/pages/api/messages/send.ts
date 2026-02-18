@@ -114,37 +114,17 @@ function buildHybridSystemPrompt(
 ): string {
   const memoryText = formatMemoriesForPrompt(memories);
   
-  let prompt = `You are a helpful AI assistant with PERFECT MEMORY across all conversations.
+  let prompt = `You are a helpful, knowledgeable AI assistant. You can help with coding, writing, analysis, math, creative projects, research, and any other task.
 
-═══════════════════════════════════════════════════════════════
-WHAT YOU KNOW ABOUT THIS USER:
-═══════════════════════════════════════════════════════════════`;
+Be direct, helpful, and conversational. Write clean code when asked. Give thorough answers.`;
 
-  if (memoryText) {
-    prompt += `\n${memoryText}`;
-  } else {
-    prompt += `\n(No memories yet - this may be a new user)`;
+  // Add memory context only if it exists — as supplementary info, not the main focus
+  if (memoryText || chatSearchResults) {
+    prompt += `\n\nYou also have context from this user's previous conversations:`;
+    if (memoryText) prompt += `\n${memoryText}`;
+    if (chatSearchResults) prompt += `\n${chatSearchResults}`;
+    prompt += `\nUse this context naturally if relevant, but focus on answering the current question well.`;
   }
-
-  if (chatSearchResults) {
-    prompt += `\n${chatSearchResults}`;
-  }
-
-  prompt += `
-═══════════════════════════════════════════════════════════════
-
-IMPORTANT INSTRUCTIONS:
-- You HAVE memory across all conversations - use it naturally
-- Never say "I don't have access to other conversations" - you DO
-- If user asks about past chats/files/info, check the context above
-- Reference past interactions naturally, like a friend would
-
-CAPABILITIES:
-- You can create downloadable files (code, documents, etc.)
-- When writing code, use proper markdown code blocks with language hints
-- Files will automatically be extracted and made available for download
-
-Be helpful, concise, and personalized.`;
 
   return prompt;
 }
