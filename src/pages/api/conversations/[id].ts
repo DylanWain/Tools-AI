@@ -10,21 +10,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { id } = req.query;
+  const userEmail = user.email || `anon_${user.id.slice(0, 8)}@anonymous.local`;
 
   if (req.method === 'GET') {
     try {
+      // Find conversation by id, owned by this user (user_id or email)
       const { data: conversation, error } = await supabaseAdmin
         .from('conversations')
         .select('*')
         .eq('id', id)
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`)
         .single();
 
       if (error || !conversation) {
         return res.status(404).json({ error: { message: 'Conversation not found' } });
       }
 
-      // Get messages
       const { data: messages } = await supabaseAdmin
         .from('messages')
         .select('*')
@@ -47,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .from('conversations')
         .update({ title, updated_at: new Date().toISOString() })
         .eq('id', id)
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`)
         .select()
         .single();
 
@@ -60,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   } else if (req.method === 'DELETE') {
     try {
-      // Delete messages first
+      // Delete messages first (by conversation_id)
       await supabaseAdmin
         .from('messages')
         .delete()
@@ -71,7 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .from('conversations')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id);
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`);
 
       if (error) throw error;
 

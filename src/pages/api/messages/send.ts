@@ -1,7 +1,6 @@
 // ============================================================================
 // Messages Send API - HYBRID MEMORY SYSTEM + FILE GENERATION
-// 1. Always loads extracted memories (key facts)
-// 2. Also searches raw chat history for specific context
+// Fixed to match LIVE Supabase schema exactly
 // ============================================================================
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -11,7 +10,7 @@ import Groq from 'groq-sdk';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { verifyToken, AuthUser } from '../../../lib/auth';
 import { transformMessage } from '../../../lib/transform';
-import { processResponseFiles } from '../../../lib/file-generator';
+import { extractCodeBlocks } from '../../../lib/file-generator';
 import { 
   loadUserMemories, 
   extractMemories,
@@ -19,8 +18,21 @@ import {
   Memory
 } from '../../../lib/memory-system';
 
+// Generate a UUID string (works in all Node versions)
+function generateId(): string {
+  try {
+    return require('crypto').randomUUID();
+  } catch {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+}
+
 /**
- * Ensure user exists in database (creates anonymous users on first call)
+ * Ensure user exists in database
  */
 async function ensureUserExists(user: AuthUser): Promise<void> {
   const { data: existingUser } = await supabaseAdmin
@@ -46,16 +58,17 @@ async function ensureUserExists(user: AuthUser): Promise<void> {
 }
 
 /**
- * Search ALL past messages for relevant context
+ * Search past messages for relevant context
+ * NOTE: No foreign key join - query conversations separately
  */
 async function searchPastChats(
   userId: string,
+  userEmail: string,
   query: string,
   currentConversationId: string,
   limit: number = 10
 ): Promise<string> {
   try {
-    // Extract key terms from query
     const keywords = query
       .toLowerCase()
       .replace(/[^\w\s]/g, '')
@@ -64,20 +77,11 @@ async function searchPastChats(
     
     if (keywords.length === 0) return '';
     
-    // Build search query - search in message content
-    const searchTerms = keywords.slice(0, 5).join(' | ');
-    
+    // Search messages by user_id or email (no FK join needed)
     const { data: messages, error } = await supabaseAdmin
       .from('messages')
-      .select(`
-        id,
-        content,
-        sender,
-        created_at,
-        conversation_id,
-        conversations!inner(title)
-      `)
-      .eq('user_id', userId)
+      .select('id, content, sender, created_at, conversation_id')
+      .or(`user_id.eq.${userId},email.eq.${userEmail}`)
       .neq('conversation_id', currentConversationId)
       .or(keywords.map(k => `content.ilike.%${k}%`).join(','))
       .order('created_at', { ascending: false })
@@ -87,13 +91,11 @@ async function searchPastChats(
       return '';
     }
 
-    // Format found messages as context
     let context = '\n\n**Relevant messages from past conversations:**\n';
     for (const msg of messages) {
-      const convTitle = (msg as any).conversations?.title || 'Previous chat';
       const role = msg.sender === 'user' ? 'User' : 'Assistant';
-      const preview = msg.content.slice(0, 300) + (msg.content.length > 300 ? '...' : '');
-      context += `\n[${convTitle}] ${role}: ${preview}\n`;
+      const preview = msg.content?.slice(0, 300) + ((msg.content?.length || 0) > 300 ? '...' : '');
+      context += `\n[Past chat] ${role}: ${preview}\n`;
     }
     
     return context;
@@ -104,7 +106,7 @@ async function searchPastChats(
 }
 
 /**
- * Build combined system prompt with memories AND chat search results
+ * Build system prompt with memories and chat context
  */
 function buildHybridSystemPrompt(
   memories: Memory[],
@@ -147,9 +149,10 @@ Be helpful, concise, and personalized.`;
   return prompt;
 }
 
-/**
- * Call OpenAI
- */
+// ============================================================================
+// AI PROVIDER CALLS
+// ============================================================================
+
 async function callOpenAI(
   messages: { role: string; content: string }[],
   model: string,
@@ -157,7 +160,6 @@ async function callOpenAI(
   systemPrompt: string
 ): Promise<string> {
   const openai = new OpenAI({ apiKey });
-  
   const completion = await openai.chat.completions.create({
     model,
     messages: [
@@ -169,13 +171,9 @@ async function callOpenAI(
     ],
     max_tokens: 4096,
   });
-
   return completion.choices[0]?.message?.content || '';
 }
 
-/**
- * Call Anthropic
- */
 async function callAnthropic(
   messages: { role: string; content: string }[],
   model: string,
@@ -183,7 +181,6 @@ async function callAnthropic(
   systemPrompt: string
 ): Promise<string> {
   const anthropic = new Anthropic({ apiKey });
-  
   const response = await anthropic.messages.create({
     model,
     max_tokens: 4096,
@@ -193,14 +190,10 @@ async function callAnthropic(
       content: m.content,
     })),
   });
-
   const textBlock = response.content.find((block: any) => block.type === 'text');
   return (textBlock as any)?.text || '';
 }
 
-/**
- * Call Google using official SDK
- */
 async function callGoogle(
   messages: { role: string; content: string }[],
   model: string,
@@ -208,17 +201,14 @@ async function callGoogle(
   systemPrompt: string
 ): Promise<string> {
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  
   const genAI = new GoogleGenerativeAI(apiKey);
   const geminiModel = genAI.getGenerativeModel({ model });
   
-  // Build chat history
   const history = [
     { role: 'user' as const, parts: [{ text: systemPrompt }] },
     { role: 'model' as const, parts: [{ text: 'Understood. I have perfect memory and will use the context provided.' }] },
   ];
   
-  // Add all messages except the last one to history
   for (let i = 0; i < messages.length - 1; i++) {
     history.push({
       role: messages[i].role === 'user' ? 'user' as const : 'model' as const,
@@ -227,18 +217,12 @@ async function callGoogle(
   }
   
   const chat = geminiModel.startChat({ history });
-  
-  // Send the last message
   const lastMessage = messages[messages.length - 1];
   const result = await chat.sendMessage(lastMessage.content);
   const response = await result.response;
-  
   return response.text();
 }
 
-/**
- * Call Groq - FREE unlimited AI (same API format as OpenAI)
- */
 async function callGroq(
   messages: { role: string; content: string }[],
   model: string,
@@ -246,7 +230,6 @@ async function callGroq(
   systemPrompt: string
 ): Promise<string> {
   const groq = new Groq({ apiKey });
-
   const completion = await groq.chat.completions.create({
     model,
     messages: [
@@ -259,13 +242,62 @@ async function callGroq(
     max_tokens: 4096,
     temperature: 0.7,
   });
-
   return completion.choices[0]?.message?.content || '';
 }
 
-/**
- * Main handler
- */
+// ============================================================================
+// Save files to DB matching LIVE schema
+// LIVE files table: id(TEXT), conversation_id(TEXT), email(TEXT NOT NULL),
+//   filename, title, description, mime_type, platform, created_at, file_content
+// ============================================================================
+
+async function saveFilesToDB(
+  responseContent: string,
+  userEmail: string,
+  conversationId: string,
+): Promise<{ files: any[]; zipUrl?: string }> {
+  const extractedFiles = extractCodeBlocks(responseContent);
+  if (extractedFiles.length === 0) return { files: [] };
+
+  console.log(`Extracted ${extractedFiles.length} code blocks from response`);
+
+  const savedFiles: any[] = [];
+  for (const file of extractedFiles) {
+    const fileId = generateId();
+    const { error } = await supabaseAdmin
+      .from('files')
+      .insert({
+        id: fileId,
+        email: userEmail,
+        conversation_id: conversationId,
+        filename: file.filename,
+        title: file.filename,
+        mime_type: `text/${file.fileType}`,
+        platform: 'toolsai',
+        file_content: file.content,
+      });
+
+    if (error) {
+      console.error('Failed to save file:', error);
+      continue;
+    }
+
+    savedFiles.push({
+      id: fileId,
+      filename: file.filename,
+      fileType: file.fileType,
+      fileSize: file.content.length,
+      downloadUrl: `/api/files/${fileId}`,
+    });
+  }
+
+  return { files: savedFiles };
+}
+
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -276,8 +308,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: { message: 'Unauthorized' } });
   }
 
-  // Ensure user exists in database (creates anonymous users on first call)
   await ensureUserExists(user);
+  
+  const userEmail = user.email || `anon_${user.id.slice(0, 8)}@anonymous.local`;
 
   try {
     const { conversationId, content, apiKey } = req.body;
@@ -287,21 +320,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // ═══════════════════════════════════════════════════════════
-    // FREE TIER: UNLIMITED messages with Groq (Llama 3.1 70B)
+    // FREE TIER: UNLIMITED messages with Groq
     // ═══════════════════════════════════════════════════════════
     const FREE_GROQ_KEY = process.env.FREE_GROQ_API_KEY;
     
-    // Determine which API key to use
     let activeApiKey = apiKey;
     let usingFreeTier = false;
     let activeProvider = '';
     
-    // Get conversation details first
+    // Get conversation
     const { data: conversation, error: convError } = await supabaseAdmin
       .from('conversations')
       .select('*')
       .eq('id', conversationId)
-      .eq('user_id', user.id)
       .single();
 
     if (convError || !conversation) {
@@ -310,51 +341,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Provider handling
     if (conversation.provider === 'groq') {
-      // Groq selected - use free Groq key (unlimited)
       if (FREE_GROQ_KEY) {
         activeApiKey = FREE_GROQ_KEY;
         activeProvider = 'groq';
         usingFreeTier = true;
-        console.log(`Using FREE Groq tier (unlimited)`);
       } else if (!apiKey) {
-        return res.status(400).json({ 
-          error: { message: 'Groq API key not configured' } 
-        });
+        return res.status(400).json({ error: { message: 'Groq API key not configured' } });
       }
     } else if (!apiKey) {
-      // No user API key - use free Groq tier
       if (FREE_GROQ_KEY) {
         activeApiKey = FREE_GROQ_KEY;
         activeProvider = 'groq';
         usingFreeTier = true;
-        console.log(`Using FREE Groq tier (unlimited)`);
       } else {
-        return res.status(400).json({ 
-          error: { 
-            message: 'Please add your own API key to continue.',
-            code: 'API_KEY_REQUIRED'
-          } 
-        });
+        return res.status(400).json({ error: { message: 'Please add your own API key.', code: 'API_KEY_REQUIRED' } });
       }
     } else {
       activeProvider = conversation.provider || 'openai';
     }
 
-    // If using free tier, force Groq model
     const model = usingFreeTier ? 'llama-3.3-70b-versatile' : (conversation.model || 'gpt-4o');
     const provider = usingFreeTier ? 'groq' : activeProvider;
 
-    console.log(`\n=== New Message ===`);
-    console.log(`User: ${user.id}`);
-    console.log(`Free tier: ${usingFreeTier ? 'Yes (Groq - unlimited)' : 'No (using own key)'}`);
-    console.log(`Provider: ${provider}, Model: ${model}`);
-    console.log(`Query: ${content.slice(0, 100)}...`);
+    console.log(`\n=== Message: ${provider}/${model} | Free: ${usingFreeTier} ===`);
 
-    // Save user message
+    // ═══════════════════════════════════════════════════════════
+    // SAVE USER MESSAGE
+    // LIVE DB: messages
+    //   id (TEXT NOT NULL), conversation_id (TEXT NOT NULL),
+    //   email (TEXT NOT NULL), sender, content, user_id (UUID nullable),
+    //   content_hash, metadata, created_at
+    // ═══════════════════════════════════════════════════════════
+    const userMsgId = generateId();
     const { data: userMessage, error: userMsgError } = await supabaseAdmin
       .from('messages')
       .insert({
+        id: userMsgId,
         conversation_id: conversationId,
+        email: userEmail,
         user_id: user.id,
         sender: 'user',
         content,
@@ -363,31 +387,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .single();
 
     if (userMsgError) {
-      console.error('Failed to save user message:', userMsgError);
-      throw userMsgError;
+      console.error('Failed to save user message:', JSON.stringify(userMsgError));
+      throw new Error(`Save user message failed: ${userMsgError.message}`);
     }
 
     // ═══════════════════════════════════════════════════════════
-    // HYBRID MEMORY SYSTEM
-    // 1. Load extracted memories (key facts - always)
-    // 2. Search past chats (for specific context - always)
+    // MEMORY SYSTEM
     // ═══════════════════════════════════════════════════════════
-    console.log('Loading memories and searching past chats...');
-    
-    // Load extracted memories (fast - indexed query)
     const memories = await loadUserMemories(user.id);
-    console.log(`✓ Loaded ${memories.length} extracted memories`);
-    
-    // Search past chats for relevant context (parallel)
-    const chatSearchResults = await searchPastChats(user.id, content, conversationId, 10);
-    if (chatSearchResults) {
-      console.log(`✓ Found relevant past chat messages`);
-    }
-
-    // Build combined system prompt
+    const chatSearchResults = await searchPastChats(user.id, userEmail, content, conversationId, 10);
     const systemPrompt = buildHybridSystemPrompt(memories, chatSearchResults);
 
-    // Get current conversation history
+    // Get conversation history
     const { data: history } = await supabaseAdmin
       .from('messages')
       .select('sender, content')
@@ -399,9 +410,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       content: m.content,
     }));
 
-    console.log(`Calling ${provider}/${model} with ${apiMessages.length} messages`);
-
-    // Call AI
+    // ═══════════════════════════════════════════════════════════
+    // CALL AI
+    // ═══════════════════════════════════════════════════════════
     let responseContent: string;
     
     if (provider === 'openai') {
@@ -416,95 +427,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(`Unknown provider: ${provider}`);
     }
 
-    // Save assistant message
+    // ═══════════════════════════════════════════════════════════
+    // SAVE ASSISTANT MESSAGE
+    // ═══════════════════════════════════════════════════════════
+    const assistantMsgId = generateId();
     const { data: assistantMessage, error: assistantMsgError } = await supabaseAdmin
       .from('messages')
       .insert({
+        id: assistantMsgId,
         conversation_id: conversationId,
+        email: userEmail,
         user_id: user.id,
         sender: 'assistant',
         content: responseContent,
-        metadata: { model, provider, memoriesLoaded: memories.length },
       })
       .select()
       .single();
 
     if (assistantMsgError) {
-      console.error('Failed to save assistant message:', assistantMsgError);
-      throw assistantMsgError;
+      console.error('Failed to save assistant message:', JSON.stringify(assistantMsgError));
+      throw new Error(`Save assistant message failed: ${assistantMsgError.message}`);
     }
 
     // ═══════════════════════════════════════════════════════════
-    // FILE GENERATION - Extract code blocks and create downloadable files
+    // FILE GENERATION
     // ═══════════════════════════════════════════════════════════
     let files: any[] = [];
     let zipUrl: string | undefined;
     
     try {
-      const fileResult = await processResponseFiles(
-        responseContent,
-        user.id,
-        conversationId,
-        assistantMessage.id
-      );
+      const fileResult = await saveFilesToDB(responseContent, userEmail, conversationId);
       files = fileResult.files;
       zipUrl = fileResult.zipUrl;
       
       if (files.length > 0) {
         console.log(`✓ Created ${files.length} downloadable files`);
         
-        // Update message metadata with file info
-        await supabaseAdmin
-          .from('messages')
-          .update({
-            metadata: { 
-              model, 
-              provider, 
-              memoriesLoaded: memories.length,
-              files: files.map(f => ({ id: f.id, filename: f.filename, fileType: f.fileType })),
-              zipUrl,
-            },
-          })
-          .eq('id', assistantMessage.id);
-        
-        // ═══════════════════════════════════════════════════════════
-        // SAVE FILE CREATION AS MEMORY - So AI remembers what files it made
-        // ═══════════════════════════════════════════════════════════
-        const fileNames = files.map(f => f.filename).join(', ');
-        const fileMemory = files.length === 1 
-          ? `Created file "${fileNames}" for user`
-          : `Created ${files.length} files for user: ${fileNames}`;
-        
+        // Save file creation as memory
+        const fileNames = files.map((f: any) => f.filename).join(', ');
         await supabaseAdmin
           .from('memories')
           .insert({
             user_id: user.id,
-            content: fileMemory,
+            content: `Created file(s): ${fileNames}`,
             category: 'files',
             importance: 8,
             source: 'system',
-            last_used_at: new Date().toISOString(),
-            use_count: 1,
           });
-        console.log(`✓ Saved file creation to memories`);
       }
     } catch (fileErr) {
       console.error('File generation error (non-fatal):', fileErr);
     }
 
     // ═══════════════════════════════════════════════════════════
-    // MEMORY EXTRACTION - Extract new facts from this conversation
-    // Runs async in background, doesn't block response
-    // Uses Anthropic Haiku for fast/cheap extraction
+    // BACKGROUND MEMORY EXTRACTION
     // ═══════════════════════════════════════════════════════════
-    // Get Anthropic key for memory extraction (prefer user's key, or use provider key if Anthropic)
     const anthropicKey = provider === 'anthropic' ? activeApiKey : process.env.ANTHROPIC_API_KEY;
     if (anthropicKey) {
       extractMemories(user.id, content, responseContent, anthropicKey)
         .catch(err => console.error('Background memory extraction failed:', err));
     }
 
-    // Update conversation title if needed
+    // Update conversation title + timestamp
     const updates: any = { updated_at: new Date().toISOString() };
     if (conversation.title === 'New Chat') {
       updates.title = content.substring(0, 50) + (content.length > 50 ? '...' : '');

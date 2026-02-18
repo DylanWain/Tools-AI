@@ -1,6 +1,6 @@
 // ============================================================================
 // Memory Search - Works with ANY AI provider (no OpenAI required)
-// Uses PostgreSQL full-text search built into Supabase
+// Uses PostgreSQL text search - NO foreign key joins (live DB has no FKs)
 // ============================================================================
 
 import { supabaseAdmin } from './supabase';
@@ -16,39 +16,61 @@ interface MemoryResult {
 }
 
 /**
+ * Helper to get conversation titles for a set of conversation IDs
+ */
+async function getConversationTitles(conversationIds: string[]): Promise<Record<string, string>> {
+  if (conversationIds.length === 0) return {};
+  
+  const uniqueIds = [...new Set(conversationIds)];
+  const { data } = await supabaseAdmin
+    .from('conversations')
+    .select('id, title')
+    .in('id', uniqueIds);
+  
+  const titleMap: Record<string, string> = {};
+  for (const conv of data || []) {
+    titleMap[conv.id] = conv.title || 'Untitled';
+  }
+  return titleMap;
+}
+
+/**
+ * Build user filter for queries (user_id or email)
+ */
+function getUserFilter(userId: string, userEmail?: string): string {
+  if (userEmail) {
+    return `user_id.eq.${userId},email.eq.${userEmail}`;
+  }
+  return `user_id.eq.${userId}`;
+}
+
+/**
  * Full-text search across all user's messages
- * Uses PostgreSQL's built-in text search - no external API needed
  */
 export async function searchAllMemory(
   userId: string,
   query: string,
   excludeConversationId?: string,
-  limit: number = 20
+  limit: number = 20,
+  userEmail?: string
 ): Promise<MemoryResult[]> {
   try {
-    // Method 1: Try full-text search first
-    const results = await fullTextSearch(userId, query, excludeConversationId, limit);
+    // Method 1: keyword search (most reliable)
+    const results = await keywordSearch(userId, query, excludeConversationId, limit, userEmail);
     if (results.length > 0) {
-      console.log(`Full-text search found ${results.length} results`);
+      console.log(`Keyword search found ${results.length} results`);
       return results;
     }
 
-    // Method 2: Try keyword search
-    const keywordResults = await keywordSearch(userId, query, excludeConversationId, limit);
-    if (keywordResults.length > 0) {
-      console.log(`Keyword search found ${keywordResults.length} results`);
-      return keywordResults;
-    }
-
-    // Method 3: Try fuzzy search (handles typos)
-    const fuzzyResults = await fuzzySearch(userId, query, excludeConversationId, limit);
+    // Method 2: fuzzy search (handles typos)
+    const fuzzyResults = await fuzzySearch(userId, query, excludeConversationId, limit, userEmail);
     if (fuzzyResults.length > 0) {
-      console.log(`Fuzzy search found ${fuzzyResults.length} results (typo correction)`);
+      console.log(`Fuzzy search found ${fuzzyResults.length} results`);
       return fuzzyResults;
     }
 
-    // Method 4: Get recent messages from other conversations as context
-    const recentResults = await getRecentFromAllConversations(userId, excludeConversationId, limit);
+    // Method 3: recent messages as fallback
+    const recentResults = await getRecentFromAllConversations(userId, excludeConversationId, limit, userEmail);
     console.log(`Loaded ${recentResults.length} recent messages as fallback`);
     return recentResults;
 
@@ -59,73 +81,14 @@ export async function searchAllMemory(
 }
 
 /**
- * PostgreSQL full-text search
- */
-async function fullTextSearch(
-  userId: string,
-  query: string,
-  excludeConversationId?: string,
-  limit: number = 20
-): Promise<MemoryResult[]> {
-  try {
-    // Convert query to tsquery format
-    const searchTerms = query
-      .toLowerCase()
-      .replace(/[^\w\s]/g, '') // Remove special chars
-      .split(/\s+/)
-      .filter(w => w.length > 2)
-      .join(' | '); // OR search
-
-    if (!searchTerms) return [];
-
-    let queryBuilder = supabaseAdmin
-      .from('messages')
-      .select(`
-        id,
-        conversation_id,
-        content,
-        sender,
-        created_at,
-        conversations(title)
-      `)
-      .eq('user_id', userId)
-      .textSearch('content', searchTerms, { type: 'websearch' })
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (excludeConversationId) {
-      queryBuilder = queryBuilder.neq('conversation_id', excludeConversationId);
-    }
-
-    const { data, error } = await queryBuilder;
-
-    if (error) {
-      console.log('Full-text search not available, falling back:', error.message);
-      return [];
-    }
-
-    return (data || []).map(m => ({
-      messageId: m.id,
-      conversationId: m.conversation_id,
-      conversationTitle: (m.conversations as any)?.title || 'Unknown',
-      content: m.content,
-      sender: m.sender,
-      createdAt: m.created_at,
-    }));
-  } catch (err) {
-    console.log('fullTextSearch error:', err);
-    return [];
-  }
-}
-
-/**
- * Simple keyword search using ILIKE
+ * Simple keyword search using ILIKE - most reliable method
  */
 async function keywordSearch(
   userId: string,
   query: string,
   excludeConversationId?: string,
-  limit: number = 20
+  limit: number = 20,
+  userEmail?: string
 ): Promise<MemoryResult[]> {
   try {
     const keywords = query
@@ -137,20 +100,12 @@ async function keywordSearch(
 
     if (keywords.length === 0) return [];
 
-    // Build OR conditions for each keyword
     const orConditions = keywords.map(k => `content.ilike.%${k}%`).join(',');
 
     let queryBuilder = supabaseAdmin
       .from('messages')
-      .select(`
-        id,
-        conversation_id,
-        content,
-        sender,
-        created_at,
-        conversations(title)
-      `)
-      .eq('user_id', userId)
+      .select('id, conversation_id, content, sender, created_at')
+      .or(getUserFilter(userId, userEmail))
       .or(orConditions)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -160,18 +115,17 @@ async function keywordSearch(
     }
 
     const { data, error } = await queryBuilder;
+    if (error || !data) return [];
 
-    if (error) {
-      console.error('Keyword search error:', error);
-      return [];
-    }
+    // Get titles for conversations
+    const titleMap = await getConversationTitles(data.map(m => m.conversation_id));
 
-    return (data || []).map(m => ({
+    return data.map(m => ({
       messageId: m.id,
       conversationId: m.conversation_id,
-      conversationTitle: (m.conversations as any)?.title || 'Unknown',
-      content: m.content,
-      sender: m.sender,
+      conversationTitle: titleMap[m.conversation_id] || 'Unknown',
+      content: m.content || '',
+      sender: m.sender || 'unknown',
       createdAt: m.created_at,
     }));
   } catch (err) {
@@ -181,14 +135,14 @@ async function keywordSearch(
 }
 
 /**
- * Fuzzy search - handles typos using word similarity
- * Matches "coe" to "code", "secrt" to "secret", etc.
+ * Fuzzy search - handles typos
  */
 async function fuzzySearch(
   userId: string,
   query: string,
   excludeConversationId?: string,
-  limit: number = 20
+  limit: number = 20,
+  userEmail?: string
 ): Promise<MemoryResult[]> {
   try {
     const keywords = query
@@ -199,69 +153,52 @@ async function fuzzySearch(
 
     if (keywords.length === 0) return [];
 
-    // Get all recent messages and filter client-side with fuzzy matching
     let queryBuilder = supabaseAdmin
       .from('messages')
-      .select(`
-        id,
-        conversation_id,
-        content,
-        sender,
-        created_at,
-        conversations(title)
-      `)
-      .eq('user_id', userId)
+      .select('id, conversation_id, content, sender, created_at')
+      .or(getUserFilter(userId, userEmail))
       .order('created_at', { ascending: false })
-      .limit(200); // Get more to filter
+      .limit(200);
 
     if (excludeConversationId) {
       queryBuilder = queryBuilder.neq('conversation_id', excludeConversationId);
     }
 
     const { data, error } = await queryBuilder;
-
     if (error || !data) return [];
 
-    // Fuzzy match helper - checks if words are similar
     const isSimilar = (word1: string, word2: string): boolean => {
       if (word1 === word2) return true;
       if (Math.abs(word1.length - word2.length) > 2) return false;
-      
-      // Check if one contains the other
       if (word1.includes(word2) || word2.includes(word1)) return true;
       
-      // Simple Levenshtein-like check (1-2 char difference)
       let differences = 0;
       const shorter = word1.length < word2.length ? word1 : word2;
       const longer = word1.length < word2.length ? word2 : word1;
-      
       let j = 0;
       for (let i = 0; i < longer.length && j < shorter.length; i++) {
-        if (longer[i] === shorter[j]) {
-          j++;
-        } else {
-          differences++;
-        }
+        if (longer[i] === shorter[j]) j++;
+        else differences++;
       }
       differences += shorter.length - j;
-      
       return differences <= 2;
     };
 
-    // Filter messages that contain similar words
     const matches = data.filter(m => {
-      const contentWords: string[] = m.content.toLowerCase().split(/\s+/);
+      const contentWords: string[] = (m.content || '').toLowerCase().split(/\s+/);
       return keywords.some((kw: string) => 
         contentWords.some((cw: string) => isSimilar(kw, cw))
       );
     });
 
+    const titleMap = await getConversationTitles(matches.map(m => m.conversation_id));
+
     return matches.slice(0, limit).map(m => ({
       messageId: m.id,
       conversationId: m.conversation_id,
-      conversationTitle: (m.conversations as any)?.title || 'Unknown',
-      content: m.content,
-      sender: m.sender,
+      conversationTitle: titleMap[m.conversation_id] || 'Unknown',
+      content: m.content || '',
+      sender: m.sender || 'unknown',
       createdAt: m.created_at,
     }));
   } catch (err) {
@@ -271,26 +208,19 @@ async function fuzzySearch(
 }
 
 /**
- * Get recent messages from ALL conversations (not just current one)
- * Useful as fallback context
+ * Get recent messages from ALL conversations as fallback context
  */
 async function getRecentFromAllConversations(
   userId: string,
   excludeConversationId?: string,
-  limit: number = 20
+  limit: number = 20,
+  userEmail?: string
 ): Promise<MemoryResult[]> {
   try {
     let queryBuilder = supabaseAdmin
       .from('messages')
-      .select(`
-        id,
-        conversation_id,
-        content,
-        sender,
-        created_at,
-        conversations(title)
-      `)
-      .eq('user_id', userId)
+      .select('id, conversation_id, content, sender, created_at')
+      .or(getUserFilter(userId, userEmail))
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -299,18 +229,16 @@ async function getRecentFromAllConversations(
     }
 
     const { data, error } = await queryBuilder;
+    if (error || !data) return [];
 
-    if (error) {
-      console.error('Recent messages error:', error);
-      return [];
-    }
+    const titleMap = await getConversationTitles(data.map(m => m.conversation_id));
 
-    return (data || []).map(m => ({
+    return data.map(m => ({
       messageId: m.id,
       conversationId: m.conversation_id,
-      conversationTitle: (m.conversations as any)?.title || 'Unknown',
-      content: m.content,
-      sender: m.sender,
+      conversationTitle: titleMap[m.conversation_id] || 'Unknown',
+      content: m.content || '',
+      sender: m.sender || 'unknown',
       createdAt: m.created_at,
     }));
   } catch (err) {
@@ -320,23 +248,29 @@ async function getRecentFromAllConversations(
 }
 
 /**
- * Get conversation summaries for quick context
+ * Get conversation summaries
  */
 export async function getConversationSummaries(
   userId: string,
-  limit: number = 10
+  limit: number = 10,
+  userEmail?: string
 ): Promise<Array<{ id: string; title: string; lastMessage: string; updatedAt: string }>> {
   try {
-    const { data, error } = await supabaseAdmin
+    let queryBuilder = supabaseAdmin
       .from('conversations')
       .select('id, title, updated_at')
-      .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(limit);
 
+    if (userEmail) {
+      queryBuilder = queryBuilder.or(`user_id.eq.${userId},email.eq.${userEmail}`);
+    } else {
+      queryBuilder = queryBuilder.eq('user_id', userId);
+    }
+
+    const { data, error } = await queryBuilder;
     if (error || !data) return [];
 
-    // Get last message from each conversation
     const summaries = await Promise.all(
       data.map(async (conv) => {
         const { data: lastMsg } = await supabaseAdmin
@@ -349,7 +283,7 @@ export async function getConversationSummaries(
 
         return {
           id: conv.id,
-          title: conv.title,
+          title: conv.title || 'Untitled',
           lastMessage: lastMsg?.content?.slice(0, 200) || '',
           updatedAt: conv.updated_at,
         };
@@ -365,52 +299,35 @@ export async function getConversationSummaries(
 
 /**
  * Build memory context string for AI prompt
- * Only searches when query seems to reference past information
  */
 export async function buildMemoryContext(
   userId: string,
   currentConversationId: string,
-  userQuery: string
+  userQuery: string,
+  userEmail?: string
 ): Promise<string> {
   const queryLower = userQuery.toLowerCase().trim();
   
-  // SKIP memory search ONLY for these obvious standalone queries
-  // Everything else gets memory search
   const skipMemoryPatterns = [
-    // Simple greetings (exact or near-exact)
     /^(hi|hello|hey|sup|yo)[\s!.]*$/i,
     /^good (morning|afternoon|evening|night)[\s!.]*$/i,
     /^thanks?( you)?[\s!.]*$/i,
     /^(ok|okay|got it|understood|sure|yes|no|yep|nope)[\s!.]*$/i,
-    
-    // Pure how-to questions with no personal reference
-    /^how (do|does|to|can|would) (i|you|we|one) .{0,20}(in general|typically|usually)/i,
-    
-    // Explicit "new topic" indicators
     /^(new topic|different question|unrelated|changing subject)/i,
   ];
   
-  // Check if this is a simple standalone query we should skip
   const shouldSkip = skipMemoryPatterns.some(pattern => pattern.test(queryLower));
-  
-  // Also skip very short queries (under 3 words) that are likely greetings
   const wordCount = queryLower.split(/\s+/).length;
   const isTooShort = wordCount <= 2 && !queryLower.includes('my') && !queryLower.includes('the');
   
   if (shouldSkip || isTooShort) {
-    console.log('Skipping memory search - standalone query');
     return '';
   }
   
-  // ALWAYS search memory for everything else
-  console.log('Searching memory for context...');
-  const memories = await searchAllMemory(userId, userQuery, currentConversationId, 15);
+  const memories = await searchAllMemory(userId, userQuery, currentConversationId, 15, userEmail);
 
-  if (memories.length === 0) {
-    return '';
-  }
+  if (memories.length === 0) return '';
 
-  // Group by conversation for cleaner context
   const byConversation = new Map<string, MemoryResult[]>();
   for (const m of memories) {
     const existing = byConversation.get(m.conversationId) || [];
@@ -418,12 +335,10 @@ export async function buildMemoryContext(
     byConversation.set(m.conversationId, existing);
   }
 
-  // Format for AI
   let context = '';
   let convIndex = 1;
   
-  const conversations = Array.from(byConversation.entries());
-  for (const [_convId, messages] of conversations) {
+  for (const [, messages] of byConversation.entries()) {
     const title = messages[0]?.conversationTitle || 'Previous conversation';
     const date = messages[0]?.createdAt 
       ? new Date(messages[0].createdAt).toLocaleDateString()
@@ -431,7 +346,7 @@ export async function buildMemoryContext(
     
     context += `\n[Previous Conversation ${convIndex}: "${title}" - ${date}]\n`;
     
-    for (const msg of messages.slice(0, 3)) { // Max 3 messages per conversation
+    for (const msg of messages.slice(0, 3)) {
       const role = msg.sender === 'user' ? 'User' : 'Assistant';
       const preview = msg.content.length > 500 
         ? msg.content.slice(0, 500) + '...' 

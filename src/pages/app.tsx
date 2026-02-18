@@ -35,10 +35,11 @@ const App: NextPage = () => {
   return (
     <>
       <Head>
-        <title>Tools AI - Chat</title>
-        <meta name="description" content="Tools AI - AI Chat with Permanent Memory" />
+        <title>Tools AI - Free AI Chat</title>
+        <meta name="description" content="Tools AI - Free unlimited AI chat with memory across all conversations." />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="canonical" href="https://www.thetoolswebsite.com" />
       </Head>
       <ChatPage />
     </>

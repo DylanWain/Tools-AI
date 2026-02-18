@@ -27,7 +27,7 @@ export default function BlogIndex({ articles, categories }: BlogIndexProps) {
       <Head>
         <title>AI Memory & Context Blog | Tools AI</title>
         <meta name="description" content="Guides, fixes, and deep dives for ChatGPT, Claude, and Gemini memory problems. Learn how to never lose AI context again." />
-        <link rel="canonical" href="https://toolsai.com/blog" />
+        <link rel="canonical" href="https://www.thetoolswebsite.com/blog" />
       </Head>
       <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', color: '#1a1a1a', background: '#fff' }}>
         {/* Nav */}

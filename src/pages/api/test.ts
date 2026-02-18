@@ -1,5 +1,6 @@
 // Simple test endpoint - no auth required
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '../../lib/supabase';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -89,9 +90,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { data: conv, error: convError } = await supabaseAdmin
         .from('conversations')
         .insert({
+          id: randomUUID(),
           user_id: testDeviceId,
           title: 'Test Chat',
-          model: 'llama-3.1-70b-versatile',
+          model: 'llama-3.3-70b-versatile',
           provider: 'groq',
         })
         .select()

@@ -1,7 +1,3 @@
-// ============================================================================
-// Zip Download API - Download a zip file by ID
-// ============================================================================
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabaseAdmin } from '../../../../lib/supabase';
 import { verifyToken } from '../../../../lib/auth';
@@ -12,37 +8,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { id } = req.query;
-  
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: { message: 'File ID required' } });
   }
 
   const user = verifyToken(req);
+  const userEmail = user ? (user.email || `anon_${user.id.slice(0, 8)}@anonymous.local`) : null;
 
   try {
-    let query = supabaseAdmin
-      .from('files')
-      .select('*')
-      .eq('id', id)
-      .eq('file_type', 'zip');
-    
-    if (user) {
-      query = query.eq('user_id', user.id);
-    }
+    let query = supabaseAdmin.from('files').select('*').eq('id', id);
+    if (userEmail) query = query.eq('email', userEmail);
 
     const { data: file, error } = await query.single();
-
     if (error || !file) {
       return res.status(404).json({ error: { message: 'File not found' } });
     }
 
-    // Convert base64 back to buffer
-    const zipBuffer = Buffer.from(file.content, 'base64');
-
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
-    res.setHeader('Content-Length', zipBuffer.length);
-    res.send(zipBuffer);
+    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename || 'download'}"`);
+    res.send(file.file_content || '');
   } catch (err) {
     console.error('Zip download error:', err);
     res.status(500).json({ error: { message: 'Download failed' } });

@@ -9,6 +9,7 @@ import Sidebar from './Sidebar';
 import MessageList, { Message } from './MessageList';
 import Composer from './Composer';
 import SettingsModal from './SettingsModal';
+import ToolsPopup from './ToolsPopup';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerChat } from '../hooks/useServerChat';
 
@@ -67,6 +68,20 @@ const Icons = {
       <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
     </svg>
   ),
+  dashboard: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+  plus: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
 };
 
 // Models configuration - ORIGINAL WORKING model names
@@ -112,7 +127,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
-  const [showGetPlus, setShowGetPlus] = useState(false);  // No upsell
+  const [toolsPopupOpen, setToolsPopupOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Auto-select a model that has an API key configured
@@ -281,8 +296,8 @@ export default function ChatPage() {
           </div>
 
           <div className="header-right">
-            {/* API Key warning */}
-            {!hasApiKey && (
+            {/* API Key warning - only for BYOK models */}
+            {!hasApiKey && selectedModel.provider !== 'groq' && (
               <button 
                 className="api-key-warning-btn"
                 onClick={() => setSettingsOpen(true)}
@@ -291,16 +306,23 @@ export default function ChatPage() {
               </button>
             )}
 
-            {/* Get Plus button */}
-            {showGetPlus && (
-              <button className="get-plus-btn" onClick={() => setShowGetPlus(false)}>
-                {Icons.star}
-                <span>Get Plus</span>
-                <span onClick={(e) => { e.stopPropagation(); setShowGetPlus(false); }}>
-                  {Icons.x}
-                </span>
-              </button>
-            )}
+            {/* Tools AI Popup button - shows stats, conversations, code */}
+            <button 
+              className="tools-plus-btn" 
+              title="Tools AI - Stats, Conversations, Code"
+              onClick={() => setToolsPopupOpen(true)}
+            >
+              {Icons.plus}
+            </button>
+
+            {/* Dashboard button - shows extension synced data */}
+            <button 
+              className="header-icon-btn" 
+              title="Dashboard - View synced conversations"
+              onClick={() => router.push('/dashboard')}
+            >
+              {Icons.dashboard}
+            </button>
 
             {/* Share button - only when messages exist */}
             {transformedMessages.length > 0 && (
@@ -364,6 +386,20 @@ export default function ChatPage() {
         apiKeys={apiKeys}
         onSaveApiKey={(provider, key) => saveApiKey(provider as 'openai' | 'anthropic' | 'google', key)}
         onDeleteApiKey={(provider) => removeApiKey(provider as 'openai' | 'anthropic' | 'google')}
+      />
+
+      {/* Tools AI Popup - Stats, Conversations, Code */}
+      <ToolsPopup
+        isOpen={toolsPopupOpen}
+        onClose={() => setToolsPopupOpen(false)}
+        onOpenDashboard={() => {
+          setToolsPopupOpen(false);
+          router.push('/dashboard');
+        }}
+        onSelectConversation={(id) => {
+          setToolsPopupOpen(false);
+          selectConversation(id);
+        }}
       />
     </div>
   );

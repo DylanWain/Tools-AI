@@ -25,11 +25,11 @@ export default function BlogArticle({ article }: BlogArticleProps) {
             '@type': 'Article',
             headline: meta.title,
             description: meta.description,
-            author: { '@type': 'Organization', name: 'Tools AI', url: 'https://toolsai.com' },
-            publisher: { '@type': 'Organization', name: 'Tools AI', logo: { '@type': 'ImageObject', url: 'https://toolsai.com/favicon.svg' } },
+            author: { '@type': 'Organization', name: 'Tools AI', url: 'https://www.thetoolswebsite.com' },
+            publisher: { '@type': 'Organization', name: 'Tools AI', logo: { '@type': 'ImageObject', url: 'https://www.thetoolswebsite.com/favicon.svg' } },
             datePublished: meta.publishDate,
             dateModified: meta.updateDate,
-            mainEntityOfPage: { '@type': 'WebPage', '@id': `https://toolsai.com/blog/${meta.slug}` },
+            mainEntityOfPage: { '@type': 'WebPage', '@id': `https://www.thetoolswebsite.com/blog/${meta.slug}` },
             wordCount: meta.wordCount,
           }),
         }}
@@ -57,9 +57,9 @@ export default function BlogArticle({ article }: BlogArticleProps) {
             '@context': 'https://schema.org',
             '@type': 'BreadcrumbList',
             itemListElement: [
-              { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://toolsai.com' },
-              { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://toolsai.com/blog' },
-              { '@type': 'ListItem', position: 3, name: meta.title, item: `https://toolsai.com/blog/${meta.slug}` },
+              { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.thetoolswebsite.com' },
+              { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://www.thetoolswebsite.com/blog' },
+              { '@type': 'ListItem', position: 3, name: meta.title, item: `https://www.thetoolswebsite.com/blog/${meta.slug}` },
             ],
           }),
         }}

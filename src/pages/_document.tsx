@@ -35,7 +35,7 @@ export default function Document() {
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         
         {/* Meta tags */}
-        <meta name="description" content="Tools AI - ChatGPT clone with unlimited memory. Never forget a conversation." />
+        <meta name="description" content="Tools AI - Free unlimited AI chat with memory. Sync conversations across ChatGPT, Claude, and Gemini." />
         <meta name="theme-color" content="#212121" />
       </Head>
       <body>

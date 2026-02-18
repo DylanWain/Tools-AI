@@ -241,12 +241,19 @@ Extract EVERYTHING worth remembering. If nothing to extract, return: []`;
         .limit(1);
 
       if (existing && existing.length > 0) {
-        // Update existing memory's last_used_at and use_count
+        // Update existing memory's last_used_at
+        // Increment use_count with raw SQL since no RPC exists
+        const { data: currentMem } = await supabaseAdmin
+          .from('memories')
+          .select('use_count')
+          .eq('id', existing[0].id)
+          .single();
+        
         await supabaseAdmin
           .from('memories')
           .update({
             last_used_at: new Date().toISOString(),
-            use_count: supabaseAdmin.rpc('increment_use_count', { row_id: existing[0].id }),
+            use_count: (currentMem?.use_count || 0) + 1,
           })
           .eq('id', existing[0].id);
       } else {

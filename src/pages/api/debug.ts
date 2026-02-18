@@ -13,36 +13,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: { message: 'Unauthorized' } });
   }
 
+  const userEmail = user.email || `anon_${user.id.slice(0, 8)}@anonymous.local`;
+
   if (req.method === 'GET') {
     try {
-      // Count messages
+      // Count messages (by user_id or email)
       const { count: messageCount } = await supabaseAdmin
         .from('messages')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`);
 
       // Count conversations
       const { count: conversationCount } = await supabaseAdmin
         .from('conversations')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`);
 
-      // Count files
+      // Count files (files table uses email, no user_id)
       const { count: fileCount } = await supabaseAdmin
         .from('files')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .eq('email', userEmail);
 
       // Get recent messages
       const { data: recentMessages } = await supabaseAdmin
         .from('messages')
         .select('id, content, sender, created_at, conversation_id')
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},email.eq.${userEmail}`)
         .order('created_at', { ascending: false })
         .limit(5);
 
       res.json({
         userId: user.id,
+        email: userEmail,
         stats: {
           messages: messageCount || 0,
           conversations: conversationCount || 0,
@@ -62,18 +65,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(500).json({ error: { message: err.message } });
     }
   } else if (req.method === 'POST') {
-    // Test memory search
     try {
       const { query } = req.body;
-
       if (!query) {
         return res.status(400).json({ error: { message: 'query required' } });
       }
 
-      console.log(`Testing memory search for: "${query}"`);
-
-      // Test the search
-      const results = await searchAllMemory(user.id, query, undefined, 10);
+      const results = await searchAllMemory(user.id, query, undefined, 10, userEmail);
 
       res.json({
         success: true,
@@ -89,10 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     } catch (err: any) {
       console.error('Memory test error:', err);
-      res.status(500).json({ 
-        success: false,
-        error: err.message,
-      });
+      res.status(500).json({ success: false, error: err.message });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

@@ -12,6 +12,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: { message: 'Unauthorized' } });
   }
 
+  const userEmail = user.email || `anon_${user.id.slice(0, 8)}@anonymous.local`;
+
   try {
     const { query, conversationId, limit = 20 } = req.body;
 
@@ -19,18 +21,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: { message: 'Search query required' } });
     }
 
-    // Text search in messages
+    // Search messages - no FK join, query by user_id or email
     let queryBuilder = supabaseAdmin
       .from('messages')
-      .select(`
-        id,
-        role,
-        content,
-        created_at,
-        conversation_id,
-        conversations!inner(id, title, user_id)
-      `)
-      .eq('conversations.user_id', user.id)
+      .select('id, sender, content, created_at, conversation_id')
+      .or(`user_id.eq.${user.id},email.eq.${userEmail}`)
       .ilike('content', `%${query}%`)
       .order('created_at', { ascending: false })
       .limit(limit);

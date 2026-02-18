@@ -15,7 +15,7 @@ interface BlogPostProps {
 
 export default function BlogPost({ article }: BlogPostProps) {
   const { meta } = article;
-  const canonicalUrl = `https://toolsai.com/blog/${meta.slug}`;
+  const canonicalUrl = `https://www.thetoolswebsite.com/blog/${meta.slug}`;
 
   return (
     <>
@@ -31,7 +31,7 @@ export default function BlogPost({ article }: BlogPostProps) {
         <meta property="og:description" content={meta.description} />
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:site_name" content="Tools AI" />
-        <meta property="og:image" content={meta.ogImage || 'https://toolsai.com/og-default.png'} />
+        <meta property="og:image" content={meta.ogImage || 'https://www.thetoolswebsite.com/og-default.png'} />
         <meta property="article:published_time" content={meta.publishDate} />
         <meta property="article:modified_time" content={meta.updateDate} />
         <meta property="article:author" content={meta.author} />
@@ -40,7 +40,7 @@ export default function BlogPost({ article }: BlogPostProps) {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={meta.title} />
         <meta name="twitter:description" content={meta.description} />
-        <meta name="twitter:image" content={meta.ogImage || 'https://toolsai.com/og-default.png'} />
+        <meta name="twitter:image" content={meta.ogImage || 'https://www.thetoolswebsite.com/og-default.png'} />
 
         {/* Robots */}
         <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />

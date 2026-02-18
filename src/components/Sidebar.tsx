@@ -165,15 +165,15 @@ export default function Sidebar({
           />
         </div>
 
-        {/* Nav items - Images and Apps */}
+        {/* Nav items - Dashboard and Images */}
         <nav className="sidebar-nav">
+          <a href="/dashboard" className="sidebar-nav-item">
+            {Icons.grid}
+            <span>Dashboard</span>
+          </a>
           <button className="sidebar-nav-item">
             {Icons.image}
             <span>Images</span>
-          </button>
-          <button className="sidebar-nav-item">
-            {Icons.grid}
-            <span>Apps</span>
           </button>
         </nav>
 

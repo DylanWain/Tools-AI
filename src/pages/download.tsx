@@ -7,10 +7,16 @@ export default function Download() {
   return (
     <>
       <Head>
-        <title>Download Tools AI - Chrome Extension</title>
-        <meta name="description" content="Install the Tools AI Chrome extension to capture every AI conversation across ChatGPT, Claude, and Gemini." />
+        <title>Download Tools AI Chrome Extension - Save Every AI Conversation</title>
+        <meta name="description" content="Install the Tools AI Chrome extension to capture every AI conversation across ChatGPT, Claude, and Gemini. Auto-save messages, code blocks, and files." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="canonical" href="https://www.thetoolswebsite.com/download" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Download Tools AI Chrome Extension" />
+        <meta property="og:description" content="Save every AI conversation across ChatGPT, Claude, and Gemini." />
+        <meta property="og:url" content="https://www.thetoolswebsite.com/download" />
+        <meta name="twitter:card" content="summary_large_image" />
       </Head>
 
       <div className="download-page">
