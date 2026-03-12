@@ -53,7 +53,7 @@ a{color:#3b82f6;text-decoration:none}
 #app{display:none}
 .topbar{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-light);position:sticky;top:0;background:var(--bg-primary);z-index:10}
 .topbar-logo{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--gray-700);text-decoration:none}
-.topbar-icon{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#6366f1,#3b82f6);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.topbar-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
 .badge-view{margin-left:auto;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.2)}
 .cta{position:fixed;bottom:0;left:0;right:0;padding:12px 16px 20px;background:linear-gradient(transparent,var(--bg-primary) 40%);z-index:15;text-align:center}
 .cta-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border-radius:12px;border:none;background:linear-gradient(135deg,#6366f1,#3b82f6);color:white;font-family:var(--font-sans);font-size:14px;font-weight:600;text-decoration:none;box-shadow:0 4px 20px rgba(99,102,241,0.25)}
@@ -79,13 +79,13 @@ a{color:#3b82f6;text-decoration:none}
 <div id="app">
   <div class="topbar">
     <a href="https://thetoolswebsite.com" class="topbar-logo">
-      <div class="topbar-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+      <div class="topbar-icon"><svg width="16" height="16" viewBox="0 0 256 256"><rect width="256" height="256" rx="56" fill="#111"/><rect x="52" y="152" width="152" height="56" rx="10" fill="#333"/><rect x="56" y="120" width="144" height="56" rx="10" fill="#444"/><rect x="60" y="88" width="136" height="56" rx="10" fill="#666"/><rect x="64" y="56" width="128" height="56" rx="10" fill="#999"/><rect x="68" y="40" width="120" height="44" rx="10" fill="#ccc"/><rect x="52" y="156" width="4" height="48" rx="2" fill="#20808d" opacity=".7"/><rect x="56" y="124" width="4" height="48" rx="2" fill="#888" opacity=".6"/><rect x="60" y="92" width="4" height="48" rx="2" fill="#4285f4" opacity=".6"/><rect x="64" y="60" width="4" height="48" rx="2" fill="#d97706" opacity=".6"/><rect x="68" y="44" width="4" height="36" rx="2" fill="#10a37f" opacity=".6"/></svg></div>
       Tools AI
     </a>
     <span class="badge-view">View Only</span>
   </div>
   <div id="pContent" style="max-width:800px;margin:0 auto;padding:16px 20px 120px;"></div>
-  <div class="cta"><a href="https://thetoolswebsite.com" class="cta-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Get Tools AI — Free</a><div class="cta-sub">Every AI platform in one app</div></div>
+  <div class="cta"><a href="https://thetoolswebsite.com" class="cta-btn"><svg width="16" height="16" viewBox="0 0 256 256"><rect width="256" height="256" rx="56" fill="#fff3"/><rect x="52" y="152" width="152" height="56" rx="10" fill="#fff3"/><rect x="56" y="120" width="144" height="56" rx="10" fill="#fff4"/><rect x="60" y="88" width="136" height="56" rx="10" fill="#fff5"/><rect x="64" y="56" width="128" height="56" rx="10" fill="#fff7"/><rect x="68" y="40" width="120" height="44" rx="10" fill="#fff9"/></svg>Get Tools AI — Free</a><div class="cta-sub">Every AI platform in one app</div></div>
 </div>
 
 <div id="detail">
