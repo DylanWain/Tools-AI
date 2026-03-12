@@ -32,7 +32,9 @@ export default function Document() {
         />
         
         {/* Favicon */}
+        <link rel="icon" href="/favicon.png" type="image/png" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         
         {/* Meta tags */}
         <meta name="description" content="Tools AI - Free unlimited AI chat with memory. Sync conversations across ChatGPT, Claude, and Gemini." />
