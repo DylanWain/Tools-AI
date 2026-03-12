@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta property="og:title" content="Tools AI — Shared Project">
+<meta property="og:description" content="View this shared project from Tools AI">
+<title>Tools AI — Shared Project</title>
+<style>
+/* ═══ EXACT CSS VARIABLES FROM APP index.html ═══ */
+:root {
+  --bg-primary: #0a0a0a; --bg-secondary: #111111; --bg-tertiary: #1a1a1a; --bg-elevated: #141414;
+  --border: #2a2a2a; --border-light: #1e1e1e;
+  --text-primary: #e5e5e5; --text-secondary: #888888; --text-muted: #666666; --text-dim: #555555; --text-faint: #444444;
+  --white: #111111;
+  --gray-50: #1a1a1a; --gray-100: #222222; --gray-200: #2a2a2a; --gray-300: #333333;
+  --gray-400: #666666; --gray-500: #888888; --gray-600: #aaaaaa; --gray-700: #cccccc; --gray-800: #dddddd; --gray-900: #e5e5e5;
+  --accent: #6b7280; --accent-hover: #9ca3af; --accent-light: rgba(107,114,128,0.2);
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{min-height:100vh;font-family:var(--font-sans);font-size:14px;color:var(--gray-900);background:var(--bg-primary);-webkit-font-smoothing:antialiased}
+::selection{background:rgba(99,102,241,0.3)}
+a{color:#3b82f6;text-decoration:none}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+
+/* ═══ EXACT WORKFLOW CSS FROM APP ═══ */
+.wf-handle{width:10px;height:10px;border-radius:50%;background:#1a1a1a;border:2px solid #444;position:absolute;z-index:2}
+.wf-node:hover .wf-handle{border-color:#666}
+.wf-canvas-grid{background-image:radial-gradient(circle,#1a1a1a 1px,transparent 1px);background-size:20px 20px}
+
+/* ═══ EXACT PLATFORM BADGE FROM APP ═══ */
+.platform-badge{display:inline-flex;padding:2px 5px;border-radius:4px;font-size:11px;font-weight:500;text-transform:uppercase;background:#1a1a1a;color:#aaa}
+
+/* ═══ EXACT PROJ-ITEM STYLES FROM APP ═══ */
+.proj-item-card{display:flex;align-items:center;gap:12px;padding:9px 8px;border-radius:10px;cursor:pointer;transition:background 0.12s}
+.proj-item-card:hover{background:var(--gray-50)}
+
+/* Chat typing dots from app */
+.chat-typing{display:flex;gap:4px;padding:10px 0;align-self:flex-start}
+.chat-typing-dot{width:6px;height:6px;border-radius:50%;background:#444;animation:chatBounce 1.2s ease-in-out infinite}
+.chat-typing-dot:nth-child(2){animation-delay:0.15s}.chat-typing-dot:nth-child(3){animation-delay:0.3s}
+@keyframes chatBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+
+/* ═══ SHARE-SPECIFIC ═══ */
+#loading{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:12px}
+.spinner{width:28px;height:28px;border:2.5px solid var(--gray-100);border-top:2.5px solid #818cf8;border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error{display:none;text-align:center;padding:60px 20px}
+#app{display:none}
+.topbar{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-light);position:sticky;top:0;background:var(--bg-primary);z-index:10}
+.topbar-logo{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--gray-700);text-decoration:none}
+.topbar-icon{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#6366f1,#3b82f6);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.badge-view{margin-left:auto;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.2)}
+.cta{position:fixed;bottom:0;left:0;right:0;padding:12px 16px 20px;background:linear-gradient(transparent,var(--bg-primary) 40%);z-index:15;text-align:center}
+.cta-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border-radius:12px;border:none;background:linear-gradient(135deg,#6366f1,#3b82f6);color:white;font-family:var(--font-sans);font-size:14px;font-weight:600;text-decoration:none;box-shadow:0 4px 20px rgba(99,102,241,0.25)}
+.cta-sub{font-size:11px;color:var(--text-dim);margin-top:6px}
+
+/* Detail overlay */
+#detail{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg-primary);z-index:20;overflow-y:auto}
+.detail-top{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-light);position:sticky;top:0;background:var(--bg-primary);z-index:1}
+.back-btn{background:none;border:none;color:#3b82f6;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;font-family:var(--font-sans);padding:6px 0}
+.detail-title{font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary)}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><div style="font-size:12px;color:var(--gray-400);margin-top:4px;">Loading project…</div></div>
+<div id="error">
+  <div style="font-size:44px;margin-bottom:12px;opacity:0.3;">🔗</div>
+  <div style="font-size:18px;font-weight:600;margin-bottom:6px;color:var(--text-primary);">Project Not Found</div>
+  <div style="font-size:13px;color:var(--gray-400);max-width:300px;margin:0 auto;">This share link may have expired or been removed.</div>
+  <a href="https://thetoolswebsite.com" style="display:inline-block;margin-top:20px;padding:10px 24px;border-radius:8px;background:var(--bg-elevated);border:1px solid var(--border);color:var(--gray-700);font-size:13px;font-weight:500;">Go to Tools AI →</a>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <a href="https://thetoolswebsite.com" class="topbar-logo">
+      <div class="topbar-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+      Tools AI
+    </a>
+    <span class="badge-view">View Only</span>
+  </div>
+  <div id="pContent" style="max-width:800px;margin:0 auto;padding:16px 20px 120px;"></div>
+  <div class="cta"><a href="https://thetoolswebsite.com" class="cta-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Get Tools AI — Free</a><div class="cta-sub">Every AI platform in one app</div></div>
+</div>
+
+<div id="detail">
+  <div class="detail-top">
+    <button class="back-btn" id="dBack"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Back</button>
+    <div class="detail-title" id="dTitle"></div>
+  </div>
+  <div id="dBody" style="padding:16px 20px 80px;max-width:800px;margin:0 auto;"></div>
+</div>
+
+<script>
+var SB_URL = 'https://synpjcammfjebwsmtfpz.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0OTU3NDcsImV4cCI6MjA4NTA3MTc0N30.iHXwtPV10JGPL5OKgkpd6WxerTQoI4YE4-ld9g38eRQ';
+
+/* ═══ EXACT HELPER FUNCTIONS FROM APP ═══ */
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// EXACT from index.html:3609
+function formatTimeAgo(ts) {
+  if (!ts) return '';
+  var diff = Date.now() - ts;
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  var days = Math.floor(hrs / 24);
+  if (days < 7) return days + 'd ago';
+  return new Date(ts).toLocaleDateString();
+}
+
+// EXACT from index.html:3622
+function buildActivityHtml(activity) {
+  if (!activity || activity.length === 0) return '';
+  var h = '<div style="border-top:1px solid #2a2a2a;padding:12px 24px;">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  h += '<div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Recent Activity</div>';
+  if (activity.length > 5) {
+    h += '<button class="brief-activity-toggle" style="background:none;border:none;color:#666;font-size:10px;cursor:pointer;font-family:inherit;">View all (' + activity.length + ')</button>';
+  }
+  h += '</div>';
+  var actIcons = { item_added: '＋', item_removed: '−', task_added: '☐', task_completed: '✓', task_uncompleted: '↺', brief_generated: '◆' };
+  activity.forEach(function(a, ai) {
+    var icon = actIcons[a.type] || '•';
+    var ago = formatTimeAgo(a.timestamp);
+    h += '<div class="brief-activity-row"' + (ai >= 5 ? ' data-activity-extra="1" style="display:none;"' : '') + '>';
+    h += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;">';
+    h += '<span style="color:#666;flex-shrink:0;width:16px;text-align:center;">' + icon + '</span>';
+    h += '<span style="color:#aaa;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (a.description || '') + '</span>';
+    h += '<span style="color:#555;flex-shrink:0;font-size:10px;">' + ago + '</span>';
+    h += '</div></div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+var data = null, items = [], tasks = [], workflow = [], activity = [], brief = null;
+
+var parts = location.pathname.split('/');
+var token = parts[parts.length - 1] || new URLSearchParams(location.search).get('token');
+
+if (!token) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('error').style.display = 'block';
+} else {
+  fetch(SB_URL + '/rest/v1/shared_projects?share_token=eq.' + encodeURIComponent(token) + '&select=*', {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  }).then(function(r) { return r.json(); }).then(function(rows) {
+    document.getElementById('loading').style.display = 'none';
+    if (!rows || !rows.length) { document.getElementById('error').style.display = 'block'; return; }
+    var row = rows[0];
+    try { data = JSON.parse(row.project_data); } catch(e) { data = {}; }
+    items = data.items || [];
+    tasks = data.tasks || [];
+    workflow = data.workflow || [];
+    activity = data.activity || [];
+    brief = data.brief || null;
+
+    var name = row.project_name || data.name || 'Untitled Project';
+    document.title = name + ' — Tools AI';
+    document.getElementById('app').style.display = 'block';
+    renderProject(name, row);
+  }).catch(function() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'block';
+  });
+}
+
+/* ═══ RENDER — EXACT COPY OF index.html renderProjectInOverlay (lines 3646-3878) ═══
+   Stripped: Share/Upload/Library buttons, Remove buttons, Chat input/send, Node drag */
+function renderProject(name, row) {
+  var container = document.getElementById('pContent');
+  var convItems = items.filter(function(i) { return i.type === 'conversation'; });
+  var codeItems = items.filter(function(i) { return i.type === 'code'; });
+  var fileItems = items.filter(function(i) { return i.type === 'file'; });
+  var toolColors = { chatgpt:"#10a37f", claude:"#d97706", gemini:"#4285f4", grok:"#1d9bf0", perplexity:"#20b8cd" };
+
+  var doneTasks = tasks.filter(function(t) { return t.completed || t.done; }).length;
+  var totalTasks = tasks.length;
+
+  var html = '';
+
+  // ═══ HEADER — EXACT from app line 3665 ═══
+  html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">';
+  html += '<div>';
+  html += '<h2 style="font-size:22px;font-weight:700;color:#f5f5f5;margin:0;letter-spacing:-0.3px;">' + esc(name) + '</h2>';
+  html += '<div style="font-size:12px;color:#666;margin-top:3px;">';
+  if (totalTasks > 0) html += doneTasks + ' of ' + totalTasks + ' tasks · ';
+  html += items.length + ' item' + (items.length !== 1 ? 's' : '');
+  if (row.updated_at) html += ' · Updated ' + formatTimeAgo(new Date(row.updated_at).getTime());
+  html += '</div></div></div>';
+
+  // ═══ BRIEF — EXACT from app line 3681 ═══
+  html += '<div id="proj-brief-section" style="margin-bottom:16px;">';
+  if (brief && brief.html) {
+    html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;overflow:hidden;">';
+    html += '<div id="proj-brief-content">' + brief.html + buildActivityHtml(activity) + '</div>';
+    html += '</div>';
+  } else if (activity.length > 0) {
+    html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;overflow:hidden;">';
+    html += buildActivityHtml(activity);
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // ═══ WORKFLOW BOARD — EXACT from app line 3732 (view-only: zoom/pan, no drag) ═══
+  if (workflow.length > 0) {
+    html += '<div id="proj-workflow-section" style="margin-bottom:20px;">';
+    html += '<div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;"><span style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:1px;">Workflow</span><div style="flex:1;height:1px;background:#1e1e1e;"></div></div>';
+
+    var nodeW = 200, nodeH = 72;
+    var stepX = nodeW + 100, nodesPerRow = 3, rowH = nodeH + 80;
+    var positions = [];
+    workflow.forEach(function(n, ni) {
+      var row = Math.floor(ni / nodesPerRow);
+      var colInRow = ni % nodesPerRow;
+      var col = (row % 2 === 0) ? colInRow : (nodesPerRow - 1 - colInRow);
+      positions.push({ x: 40 + col * stepX, y: 40 + row * rowH });
+    });
+    var maxX = 0, maxY = 0;
+    positions.forEach(function(p) { if (p.x + nodeW > maxX) maxX = p.x + nodeW; if (p.y + nodeH > maxY) maxY = p.y + nodeH; });
+    var canvasH = maxY + 60;
+
+    html += '<div id="wf-viewport" style="position:relative;width:100%;height:' + Math.max(canvasH, 260) + 'px;background:#0a0a0a;border:1px solid #1e1e1e;border-radius:14px;overflow:hidden;cursor:grab;">';
+    html += '<div id="wf-canvas" class="wf-canvas-grid" style="position:absolute;top:0;left:0;width:' + (maxX + 80) + 'px;height:' + canvasH + 'px;transform-origin:0 0;">';
+
+    // SVG connections — EXACT from app line 3760
+    html += '<svg id="wf-svg" width="' + (maxX + 80) + '" height="' + canvasH + '" style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible;">';
+    workflow.forEach(function(n, ni) {
+      if (ni >= workflow.length - 1) return;
+      var from = positions[ni], to = positions[ni + 1];
+      var fromRow = Math.floor(ni / nodesPerRow), toRow = Math.floor((ni + 1) / nodesPerRow);
+      var x1, y1, x2, y2, pathD;
+      if (fromRow !== toRow) {
+        x1 = from.x + nodeW / 2; y1 = from.y + nodeH;
+        x2 = to.x + nodeW / 2; y2 = to.y;
+        var midY = (y1 + y2) / 2;
+        pathD = "M" + x1 + "," + y1 + " C" + x1 + "," + midY + " " + x2 + "," + midY + " " + x2 + "," + y2;
+      } else {
+        x1 = from.x + nodeW; y1 = from.y + nodeH / 2;
+        x2 = to.x; y2 = to.y + nodeH / 2;
+        var dx = Math.abs(x2 - x1) * 0.45;
+        pathD = "M" + x1 + "," + y1 + " C" + (x1 + dx) + "," + y1 + " " + (x2 - dx) + "," + y2 + " " + x2 + "," + y2;
+      }
+      var cc = n.status === "done" ? "#22c55e" : "#333";
+      html += '<path d="' + pathD + '" fill="none" stroke="' + cc + '" stroke-width="2" opacity="0.5"/>';
+      html += '<circle r="3" fill="#4285f4" opacity="0.9"><animateMotion dur="2s" repeatCount="indefinite" path="' + pathD + '"/></circle>';
+      html += '<circle cx="' + x2 + '" cy="' + y2 + '" r="4" fill="' + cc + '" opacity="0.4"/>';
+    });
+    html += '</svg>';
+
+    // Nodes — EXACT from app line 3789
+    workflow.forEach(function(node, ni) {
+      var p = positions[ni];
+      var plat = (node.platform || "").toLowerCase();
+      var nc = toolColors[plat] || "#888";
+      var isDone = node.status === "done";
+      var bc = isDone ? "#22c55e" : "#2a2a2a";
+
+      html += '<div class="wf-node" style="position:absolute;left:' + p.x + 'px;top:' + p.y + 'px;width:' + nodeW + 'px;height:' + nodeH + 'px;background:#141414;border:2px solid ' + bc + ';border-radius:10px;padding:0 14px;box-sizing:border-box;z-index:1;display:flex;align-items:center;">';
+      if (ni > 0) html += '<div class="wf-handle" style="left:-7px;top:' + (nodeH / 2 - 6) + 'px;"></div>';
+      if (ni < workflow.length - 1) html += '<div class="wf-handle" style="right:-7px;top:' + (nodeH / 2 - 6) + 'px;"></div>';
+
+      html += '<div style="width:36px;height:36px;border-radius:8px;background:' + nc + '15;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid ' + nc + '25;">';
+      if (isDone) {
+        html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+      } else {
+        html += '<span style="font-size:16px;font-weight:700;color:' + nc + ';">' + (node.platform || '?')[0].toUpperCase() + '</span>';
+      }
+      html += '</div>';
+      html += '<div style="flex:1;min-width:0;overflow:hidden;margin-left:10px;">';
+      html += '<div style="font-size:12px;font-weight:600;color:' + (isDone ? '#555' : '#e5e5e5') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (isDone ? 'text-decoration:line-through;' : '') + '">' + esc(node.title || 'Step ' + (ni + 1)) + '</div>';
+      html += '<div style="font-size:10px;color:' + nc + ';margin-top:2px;text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">' + esc(node.platform || 'any tool') + '</div>';
+      html += '</div></div>';
+    });
+
+    // Zoom controls — EXACT from app line 3824
+    html += '<div style="position:absolute;bottom:10px;right:10px;display:flex;gap:4px;z-index:10;">';
+    html += '<button id="wf-zoom-in" style="width:28px;height:28px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;color:#888;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>';
+    html += '<button id="wf-zoom-out" style="width:28px;height:28px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;color:#888;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">−</button>';
+    html += '<button id="wf-zoom-fit" style="height:28px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;color:#888;font-size:10px;padding:0 8px;cursor:pointer;font-family:inherit;">Fit</button>';
+    html += '</div></div></div></div>';
+  }
+
+  // ═══ PROJECT ITEMS — EXACT from app line 3840 ═══
+  if (items.length > 0) {
+    html += '<div style="margin-top:16px;margin-bottom:8px;display:flex;align-items:center;gap:10px;"><span style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:1px;">Project Items</span><div style="flex:1;height:1px;background:#1e1e1e;"></div><span style="font-size:10px;color:#555;">' + items.length + '</span></div>';
+    html += '<div style="margin-bottom:12px;"><input type="text" id="proj-items-search" placeholder="Search..." style="width:100%;box-sizing:border-box;background:#141414;border:1px solid #1e1e1e;border-radius:8px;color:#e5e5e5;padding:8px 12px;font-size:12px;font-family:inherit;outline:none;" /></div>';
+
+    var sortedItems = items.slice().sort(function(a, b) { return (b.addedAt || 0) - (a.addedAt || 0); });
+    html += '<div id="proj-items-list">';
+    sortedItems.forEach(function(item, i) {
+      var title = '', subtitle = '', icon = '', typeColor = '';
+      // EXACT from app line 3848
+      if (item.type === 'conversation') {
+        title = item.title || 'Untitled';
+        subtitle = (item.content || '').replace(/\n/g, ' ').slice(0, 60);
+        if (item.platform) subtitle = item.platform + ' · ' + subtitle;
+        icon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+        typeColor = '#3b82f6';
+      } else if (item.type === 'code') {
+        title = (item.language || 'Code') + ' block';
+        subtitle = (item.content || '').replace(/\n/g, ' ').slice(0, 60);
+        icon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+        typeColor = '#22c55e';
+      } else if (item.type === 'file') {
+        title = item.title || item.name || 'File';
+        subtitle = (item.content || '').replace(/\n/g, ' ').slice(0, 60) || 'Shared file';
+        icon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>';
+        typeColor = '#f59e0b';
+      }
+      // EXACT from app line 3867
+      html += '<div class="proj-item-card" data-idx="' + i + '" data-type="' + item.type + '">';
+      html += '<div style="width:28px;height:28px;border-radius:8px;background:' + typeColor + '12;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' + icon + '</div>';
+      html += '<div style="flex:1;min-width:0;"><div style="font-size:13px;color:#e5e5e5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(title) + '</div>';
+      html += '<div style="font-size:11px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(subtitle) + '</div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="text-align:center;padding:40px;color:#555;">This project has no items yet.</div>';
+  }
+
+  container.innerHTML = html;
+
+  // ═══ WIRE EVENTS ═══
+
+  // Workflow zoom/pan — EXACT from app line 3884 (no drag)
+  (function() {
+    var viewport = document.getElementById('wf-viewport');
+    var canvas = document.getElementById('wf-canvas');
+    if (!viewport || !canvas) return;
+    var scale = 1, panX = 0, panY = 0;
+    var isPanning = false, panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
+    function applyTransform() { canvas.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')'; }
+    viewport.addEventListener('wheel', function(e) {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) { scale = Math.min(2, Math.max(0.3, scale + (e.deltaY > 0 ? -0.02 : 0.02))); }
+      else { panX -= e.deltaX; panY -= e.deltaY; }
+      applyTransform();
+    }, { passive: false });
+    document.getElementById('wf-zoom-in')?.addEventListener('click', function() { scale = Math.min(2, scale + 0.15); applyTransform(); });
+    document.getElementById('wf-zoom-out')?.addEventListener('click', function() { scale = Math.max(0.3, scale - 0.15); applyTransform(); });
+    document.getElementById('wf-zoom-fit')?.addEventListener('click', function() { scale = 1; panX = 0; panY = 0; applyTransform(); });
+    viewport.addEventListener('mousedown', function(e) {
+      if (e.target === viewport || e.target === canvas || e.target.tagName === 'svg' || e.target.classList.contains('wf-canvas-grid')) {
+        isPanning = true; panStartX = e.clientX; panStartY = e.clientY; panStartPanX = panX; panStartPanY = panY; viewport.style.cursor = 'grabbing';
+      }
+    });
+    window.addEventListener('mousemove', function(e) {
+      if (!isPanning) return;
+      panX = panStartPanX + (e.clientX - panStartX); panY = panStartPanY + (e.clientY - panStartY); applyTransform();
+    });
+    window.addEventListener('mouseup', function() { isPanning = false; if (viewport) viewport.style.cursor = 'grab'; });
+  })();
+
+  // Activity toggle
+  document.querySelectorAll('.brief-activity-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var showing = this.textContent.includes('View all');
+      document.querySelectorAll('[data-activity-extra]').forEach(function(r) { r.style.display = showing ? '' : 'none'; });
+      this.textContent = showing ? 'Show less' : 'View all (' + activity.length + ')';
+    });
+  });
+
+  // Item search
+  var searchInput = document.getElementById('proj-items-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      var q = this.value.toLowerCase().trim();
+      document.querySelectorAll('.proj-item-card').forEach(function(card) {
+        if (!q) { card.style.display = ''; return; }
+        var text = card.textContent.toLowerCase();
+        card.style.display = text.includes(q) ? '' : 'none';
+      });
+    });
+  }
+
+  // Item click → detail
+  var sortedForClick = items.slice().sort(function(a, b) { return (b.addedAt || 0) - (a.addedAt || 0); });
+  document.querySelectorAll('.proj-item-card').forEach(function(card) {
+    card.addEventListener('click', function() {
+      var item = sortedForClick[parseInt(this.dataset.idx)];
+      if (item) openDetail(item);
+    });
+  });
+}
+
+/* ═══ DETAIL VIEW ═══ */
+function openDetail(item) {
+  var det = document.getElementById('detail');
+  det.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  document.getElementById('dTitle').textContent = item.title || item.name || 'Untitled';
+
+  var html = '';
+
+  if (item.type === 'conversation') {
+    var content = item.content || '';
+    var messages = [];
+    var lines = content.split('\n');
+    var role = '', text = '';
+    lines.forEach(function(line) {
+      var uM = line.match(/^(User|Human|You):\s*/i);
+      var aM = line.match(/^(Assistant|AI|Claude|ChatGPT|Gemini|Grok|Perplexity):\s*/i);
+      if (uM) { if (text.trim()) messages.push({role:role,text:text.trim()}); role='user'; text=line.replace(uM[0],''); }
+      else if (aM) { if (text.trim()) messages.push({role:role,text:text.trim()}); role='assistant'; text=line.replace(aM[0],''); }
+      else { text += '\n' + line; }
+    });
+    if (text.trim()) messages.push({role:role||'assistant',text:text.trim()});
+
+    if (item.platform) {
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #1e1e1e;">';
+      html += '<span class="platform-badge">' + esc(item.platform) + '</span>';
+      html += '<span style="font-size:11px;color:#555;">' + messages.length + ' messages</span></div>';
+    }
+    if (messages.length > 0) {
+      messages.forEach(function(m) {
+        var isU = m.role === 'user';
+        html += '<div style="' + (isU ? 'text-align:right;' : '') + 'margin-bottom:8px;">';
+        html += '<div style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;margin-bottom:2px;' + (isU ? 'text-align:right;' : '') + '">' + (isU ? 'You' : esc(item.platform || 'AI')) + '</div>';
+        html += '<div style="display:inline-block;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-width:85%;text-align:left;' +
+          (isU ? 'background:rgba(99,102,241,0.1);border-radius:12px 12px 2px 12px;' : 'background:#1a1a1a;border:1px solid #1e1e1e;border-radius:12px 12px 12px 2px;') + '">' + esc(m.text) + '</div></div>';
+      });
+    } else {
+      html += '<div style="font-size:14px;line-height:1.7;white-space:pre-wrap;color:#ccc;">' + esc(content) + '</div>';
+    }
+  } else if (item.type === 'code') {
+    if (item.language) {
+      html += '<div style="font-size:10px;font-weight:600;color:#22c55e;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;display:flex;align-items:center;gap:6px;">';
+      html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> ' + esc(item.language);
+      html += '<button onclick="navigator.clipboard.writeText(this.closest(\'div\').nextElementSibling.textContent).then(function(){});" style="margin-left:auto;padding:3px 8px;border-radius:4px;border:1px solid #2a2a2a;background:#141414;color:#888;cursor:pointer;font-size:10px;font-family:inherit;">Copy</button>';
+      html += '</div>';
+    }
+    html += '<pre style="background:#0d0d0d;border:1px solid #1e1e1e;border-radius:10px;padding:14px 16px;font-family:var(--font-mono);font-size:13px;line-height:1.6;overflow-x:auto;white-space:pre;color:#ccc;">' + esc(item.content || '') + '</pre>';
+  } else {
+    html += '<div style="display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a1a;border:1px solid #1e1e1e;border-radius:10px;margin-bottom:12px;">';
+    html += '<div style="width:40px;height:40px;border-radius:10px;background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg></div>';
+    html += '<div><div style="font-size:14px;font-weight:600;color:#e5e5e5;">' + esc(item.title || item.name || 'File') + '</div><div style="font-size:11px;color:#666;margin-top:2px;">Shared file</div></div></div>';
+    if (item.content) html += '<div style="font-size:14px;line-height:1.7;white-space:pre-wrap;color:#ccc;">' + esc(item.content) + '</div>';
+  }
+
+  document.getElementById('dBody').innerHTML = html;
+  det.scrollTop = 0;
+}
+
+document.getElementById('dBack').addEventListener('click', function() {
+  document.getElementById('detail').style.display = 'none';
+  document.body.style.overflow = '';
+});
+</script>
+</body>
+</html>

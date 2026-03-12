@@ -1,4 +1,8 @@
 {
   "buildCommand": "rm -rf backend frontend && npm run build",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "rewrites": [
+    { "source": "/share/:token", "destination": "/share/index.html" },
+    { "source": "/notes", "destination": "/notes/index.html" }
+  ]
 }

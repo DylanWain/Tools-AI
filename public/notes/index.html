@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tools AI Notes">
+<meta name="theme-color" content="#111111">
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiVG9vbHMgQUkgTm90ZXMiLCJzaG9ydF9uYW1lIjoiTm90ZXMiLCJzdGFydF91cmwiOiIuL25vdGVzIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzExMTExMSIsInRoZW1lX2NvbG9yIjoiIzExMTExMSJ9">
+<title>Tools AI Notes</title>
+<style>
+/* ═══ EXACT CSS VARIABLES FROM APP index.html ═══ */
+:root {
+  --bg-primary:#0a0a0a;--bg-secondary:#111111;--bg-tertiary:#1a1a1a;--bg-elevated:#141414;
+  --border:#2a2a2a;--border-light:#1e1e1e;
+  --text-primary:#e5e5e5;--text-secondary:#888888;--text-muted:#666666;
+  --gray-50:#1a1a1a;--gray-100:#222222;--gray-200:#2a2a2a;--gray-300:#333333;
+  --gray-400:#666666;--gray-500:#888888;--gray-600:#aaaaaa;--gray-700:#cccccc;
+  --accent:#6366f1;
+  --font-sans:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg-secondary);color:var(--text-primary);font-family:var(--font-sans);overflow:hidden;-webkit-font-smoothing:antialiased}
+body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+
+/* ═══ EXACT TWO-COLUMN LAYOUT FROM APP renderNotesView ═══ */
+#notes-split{display:flex;height:100%;overflow:hidden}
+
+/* LEFT: Notes list — EXACT from app line 2013 */
+#notes-list-col{width:280px;min-width:220px;max-width:360px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;background:var(--bg-secondary)}
+
+/* RIGHT: Editor — EXACT from app line 2029 */
+#notes-editor-col{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:#0e0e0e}
+
+/* ═══ EXACT NOTE ROW STYLES FROM APP renderNotesListHTML ═══ */
+.notes-group-label{font-size:10px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;padding:10px 10px 4px;font-family:var(--font-sans)}
+.notes-row{padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px;position:relative;transition:background 0.1s}
+
+/* ═══ EXACT TOOLBAR BUTTON STYLES FROM APP wireToolbar ═══ */
+.ntb{background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:4px 7px;border-radius:4px;font-size:13px;font-family:var(--font-sans);display:flex;align-items:center;justify-content:center;min-width:26px;height:28px}
+.ntb:hover{background:var(--gray-200)}
+.note-act{background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:4px 7px;border-radius:4px;display:flex;align-items:center;min-width:26px;height:28px}
+.note-act:hover{background:var(--gray-200)}
+
+/* ═══ EXACT EDITOR :first-child FROM APP buildEditorHTML ═══ */
+#note-editor > div:first-child{font-size:26px !important;font-weight:700 !important;line-height:1.3 !important;color:var(--text-primary) !important;letter-spacing:-0.3px}
+#note-editor > div:not(:first-child){font-size:15px !important;font-weight:400 !important;line-height:1.7 !important;color:var(--text-secondary) !important}
+
+/* Sync indicator */
+#sync-status{position:fixed;top:env(safe-area-inset-top,0);right:8px;padding:4px 8px;font-size:10px;border-radius:0 0 6px 6px;z-index:10;transition:opacity 0.3s;opacity:0}
+.syncing{background:#3b82f6;color:white;opacity:1 !important}
+.synced{background:#22c55e;color:white;opacity:1 !important}
+.sync-err{background:#ef4444;color:white;opacity:1 !important}
+
+/* ═══ MOBILE: single column, list → editor navigation ═══ */
+@media(max-width:640px){
+  #notes-list-col{width:100% !important;max-width:100% !important;min-width:100% !important;border-right:none !important}
+  #notes-editor-col{display:none !important}
+  #notes-split.editing #notes-list-col{display:none !important}
+  #notes-split.editing #notes-editor-col{display:flex !important;width:100%}
+  /* Back button - only shows on mobile */
+  #mobile-back{display:flex !important}
+}
+@media(min-width:641px){
+  #mobile-back{display:none !important}
+}
+</style>
+</head>
+<body>
+<div id="sync-status"></div>
+<div id="notes-split"></div>
+
+<script>
+/* ═══ SUPABASE — SAME KEYS AS DESKTOP APP ═══ */
+var SB_URL='https://synpjcammfjebwsmtfpz.supabase.co';
+var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0OTU3NDcsImV4cCI6MjA4NTA3MTc0N30.iHXwtPV10JGPL5OKgkpd6WxerTQoI4YE4-ld9g38eRQ';
+
+/* ═══ USER LINKING — uid from QR code URL ═══ */
+var urlParams=new URLSearchParams(location.search);
+var USER_ID=urlParams.get('uid')||localStorage.getItem('toolsai_notes_uid')||'';
+if(USER_ID)localStorage.setItem('toolsai_notes_uid',USER_ID);
+var _activeNoteId=null;
+
+/* ═══ EXACT HELPER FUNCTIONS FROM APP popup.js ═══ */
+
+// EXACT from popup.js:1933
+function getNotes(){try{return JSON.parse(localStorage.getItem('toolsai_notes_'+USER_ID)||'[]')}catch(e){return[]}}
+
+// EXACT from popup.js:1936 (with cloud sync)
+function saveNotes(notes){
+  try{localStorage.setItem('toolsai_notes_'+USER_ID,JSON.stringify(notes))}catch(e){}
+  syncToCloud(notes);
+}
+
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// EXACT from popup.js:1959
+function getNoteTitle(note){var body=note.body||note.text||'';var firstLine=body.split('\n')[0].trim();return firstLine||'New Note'}
+
+// EXACT from popup.js:1964
+function getNotePreview(note){var body=note.body||note.text||'';var lines=body.split('\n');return(lines[1]||'').trim().slice(0,60)||'No additional text'}
+
+// EXACT from popup.js:1969
+function timeAgo(ts){var diff=Date.now()-ts;var mins=Math.floor(diff/60000);if(mins<1)return'now';if(mins<60)return mins+'m';var hrs=Math.floor(mins/60);if(hrs<24)return hrs+'h';var days=Math.floor(hrs/24);if(days<7)return days+'d';return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+
+// EXACT from popup.js:1980
+function groupNotesByDate(notes){var now=new Date();var today=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();var week=today-6*86400000;var month=today-29*86400000;var groups={pinned:[],today:[],week:[],month:[],older:[]};notes.forEach(function(n){if(n.pinned){groups.pinned.push(n);return}var t=n.updatedAt||n.createdAt;if(t>=today)groups.today.push(n);else if(t>=week)groups.week.push(n);else if(t>=month)groups.month.push(n);else groups.older.push(n)});return groups}
+
+// EXACT from popup.js:1950
+function addNote(text,source){var notes=getNotes();var n={id:'note_'+Date.now(),body:text||'',source:source||'mobile',createdAt:Date.now(),updatedAt:Date.now(),pinned:false};notes.unshift(n);saveNotes(notes);return n}
+
+/* ═══ SYNC — bidirectional cloud sync ═══ */
+var _syncTimer=null;
+function syncToCloud(notes){
+  if(!SB_URL||!USER_ID)return;
+  clearTimeout(_syncTimer);
+  _syncTimer=setTimeout(function(){
+    showSync('syncing','Syncing...');
+    fetch(SB_URL+'/rest/v1/notes_sync',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({user_id:USER_ID,notes_data:JSON.stringify(notes),updated_at:new Date().toISOString()})
+    }).then(function(r){if(r.ok)showSync('synced','Synced');else showSync('sync-err','Failed')}).catch(function(){showSync('sync-err','Offline')});
+  },1500);
+}
+function pullFromCloud(cb){
+  if(!SB_URL||!USER_ID){cb(null);return}
+  showSync('syncing','Loading...');
+  fetch(SB_URL+'/rest/v1/notes_sync?user_id=eq.'+encodeURIComponent(USER_ID)+'&select=notes_data,updated_at&limit=1',{
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+  }).then(function(r){return r.json()}).then(function(rows){
+    if(rows&&rows.length>0&&rows[0].notes_data){try{var cn=JSON.parse(rows[0].notes_data);showSync('synced','Loaded');cb(cn)}catch(e){cb(null)}}
+    else{showSync('synced','Ready');cb(null)}
+  }).catch(function(){showSync('sync-err','Offline');cb(null)});
+}
+function mergeNotes(local,cloud){
+  if(!cloud||!cloud.length)return local;if(!local||!local.length)return cloud;
+  var map={};cloud.forEach(function(n){map[n.id]=n});
+  local.forEach(function(n){if(!map[n.id])map[n.id]=n;else{if((n.updatedAt||0)>(map[n.id].updatedAt||0))map[n.id]=n}});
+  var m=Object.values(map);m.sort(function(a,b){return(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)});return m;
+}
+function showSync(cls,text){var s=document.getElementById('sync-status');s.className=cls;s.textContent=text;if(cls==='synced')setTimeout(function(){s.style.opacity='0'},2000)}
+
+/* ═══ RENDER — EXACT COPY OF APP renderNotesView (popup.js:2006) ═══ */
+function renderNotesView(){
+  var container=document.getElementById('notes-split');
+  var notes=getNotes();
+  if(!_activeNoteId&&notes.length>0)_activeNoteId=notes[0].id;
+
+  // EXACT from popup.js:2010-2035
+  var html='';
+  // LEFT: Notes list
+  html+='<div id="notes-list-col">';
+  html+='<div style="display:flex;align-items:center;gap:8px;padding:12px 12px 8px;">';
+  html+='<div style="flex:1;position:relative;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>';
+  html+='<input id="notes-search" type="text" placeholder="Search" style="width:100%;padding:6px 10px 6px 28px;border:none;border-radius:6px;font-size:12px;font-family:var(--font-sans);background:var(--bg-tertiary);color:var(--text-primary);outline:none;box-sizing:border-box;" /></div>';
+  html+='<button id="notes-new-btn" title="New Note" style="width:28px;height:28px;border-radius:6px;border:none;background:none;color:#3b82f6;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>';
+  html+='</div>';
+  html+='<div id="notes-list-items" style="flex:1;overflow-y:auto;padding:2px 6px;">';
+  html+=renderNotesListHTML(notes,_activeNoteId);
+  html+='</div>';
+  html+='<div style="padding:8px 12px;border-top:1px solid var(--border-light);font-size:9px;color:var(--gray-500);text-align:center;">';
+  html+=notes.length+' note'+(notes.length!==1?'s':'');
+  html+='</div></div>';
+
+  // RIGHT: Editor
+  html+='<div id="notes-editor-col">';
+  if(_activeNoteId){html+=buildEditorHTML(_activeNoteId)}
+  else{html+=emptyEditorHTML()}
+  html+='</div>';
+
+  container.innerHTML=html;
+  wireAllNotes(container);
+}
+
+// EXACT from popup.js:2045
+function renderNotesListHTML(notes,activeId){
+  if(!notes.length)return'<div style="padding:40px 20px;text-align:center;color:var(--gray-400);"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:8px;opacity:.3;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style="font-size:14px;font-weight:500;color:var(--gray-500);">No Notes</div><div style="font-size:12px;margin-top:4px;">Tap + to create one</div></div>';
+  var groups=groupNotesByDate(notes);
+  var sections=[{label:'Pinned',items:groups.pinned},{label:'Today',items:groups.today},{label:'Previous 7 Days',items:groups.week},{label:'Previous 30 Days',items:groups.month},{label:'Older',items:groups.older}];
+  var html='';
+  sections.forEach(function(sec){
+    if(!sec.items.length)return;
+    html+='<div class="notes-group-label">'+sec.label+'</div>';
+    sec.items.forEach(function(n){
+      var title=esc(getNoteTitle(n));var preview=esc(getNotePreview(n));var time=timeAgo(n.updatedAt||n.createdAt);var active=n.id===activeId;
+      html+='<div class="notes-row" data-note-id="'+n.id+'" style="padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px;position:relative;background:'+(active?'rgba(59,130,246,.85)':'transparent')+';transition:background 0.1s;">';
+      html+='<div style="font-size:13px;font-weight:600;color:'+(active?'#fff':'var(--text-primary)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-sans);letter-spacing:-0.1px;">'+title+'</div>';
+      html+='<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
+      html+='<span style="font-size:11px;font-weight:500;color:'+(active?'rgba(255,255,255,.85)':'var(--text-secondary)')+';flex-shrink:0;">'+time+'</span>';
+      html+='<span style="font-size:11px;color:'+(active?'rgba(255,255,255,.55)':'var(--gray-500)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+preview+'</span>';
+      html+='</div>';
+      if(n.pinned)html+='<svg width="9" height="9" viewBox="0 0 24 24" fill="'+(active?'rgba(255,255,255,.8)':'var(--accent)')+'" stroke="none" style="position:absolute;right:8px;top:8px;"><path d="M9 2h6l-1 7h4l-7 8 1-5H8z"/></svg>';
+      html+='</div>';
+    });
+  });
+  return html;
+}
+
+// EXACT from popup.js:2077
+function emptyEditorHTML(){
+  return'<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--gray-500);flex-direction:column;gap:16px;font-family:var(--font-sans);padding:20px;">'+
+    '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity:.3;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'+
+    '<div style="font-size:14px;color:var(--gray-400);">No Note Selected</div></div>';
+}
+
+// EXACT from popup.js:2087 (minus "Send to AI" button)
+function buildEditorHTML(noteId){
+  var note=getNotes().find(function(n){return n.id===noteId});
+  if(!note)return emptyEditorHTML();
+  var html='';
+  // Mobile back button
+  html+='<button id="mobile-back" style="display:none;align-items:center;gap:4px;background:none;border:none;color:#3b82f6;cursor:pointer;font-size:15px;font-family:var(--font-sans);padding:10px 12px;border-bottom:1px solid var(--border-light);flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Notes</button>';
+  // Toolbar
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid var(--border-light);flex-shrink:0;background:var(--bg-secondary);">';
+  html+='<div style="display:flex;align-items:center;gap:1px;">';
+  html+='<button class="ntb" data-cmd="bold" title="Bold" style="font-weight:800;">B</button>';
+  html+='<button class="ntb" data-cmd="italic" title="Italic" style="font-style:italic;">I</button>';
+  html+='<button class="ntb" data-cmd="underline" title="Underline" style="text-decoration:underline;">U</button>';
+  html+='<button class="ntb" data-cmd="strikethrough" title="Strikethrough" style="text-decoration:line-through;">S</button>';
+  html+='<div style="width:1px;height:16px;background:var(--border);margin:0 6px;"></div>';
+  html+='<button class="ntb" data-cmd="insertUnorderedList" title="Bullets"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor"/><circle cx="4" cy="12" r="1.5" fill="currentColor"/><circle cx="4" cy="18" r="1.5" fill="currentColor"/></svg></button>';
+  html+='<button class="ntb" data-cmd="insertOrderedList" title="Numbers"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/></svg></button>';
+  html+='</div>';
+  html+='<div style="display:flex;align-items:center;gap:2px;">';
+  html+='<button class="note-act" data-act="pin" title="'+(note.pinned?'Unpin':'Pin')+'" style="color:'+(note.pinned?'var(--accent)':'')+'"><svg width="14" height="14" viewBox="0 0 24 24" fill="'+(note.pinned?'currentColor':'none')+'" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M9 2h6l-1 7h4l-7 8 1-5H8z"/></svg></button>';
+  html+='<button class="note-act" data-act="delete" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
+  html+='</div></div>';
+  // Timestamp
+  var d=new Date(note.updatedAt||note.createdAt);
+  html+='<div style="text-align:center;font-size:11px;color:var(--gray-500);padding:12px 0 4px;font-family:var(--font-sans);">'+d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+' at '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})+'</div>';
+  // Editor
+  html+='<div id="note-editor" contenteditable="true" spellcheck="true" data-note-id="'+note.id+'" style="flex:1;outline:none;padding:8px 24px 60px;overflow-y:auto;-webkit-overflow-scrolling:touch;word-break:break-word;font-family:var(--font-sans);"></div>';
+  return html;
+}
+
+/* ═══ WIRE EVERYTHING — EXACT FROM APP ═══ */
+function wireAllNotes(container){
+  initEditorContent(container);
+  wireListClicks(container);
+  wireToolbar(container);
+  wireActions(container);
+  wireSearch(container);
+  // New note
+  container.querySelector('#notes-new-btn')?.addEventListener('click',function(){
+    saveEditorContent(container);
+    var n=addNote('');
+    _activeNoteId=n.id;
+    refreshList(container);
+    refreshEditor(container);
+    // Mobile: switch to editor
+    container.classList.add('editing');
+  });
+  // Mobile back
+  container.querySelector('#mobile-back')?.addEventListener('click',function(){
+    saveEditorContent(container);
+    container.classList.remove('editing');
+    refreshList(container);
+  });
+}
+
+// EXACT from popup.js:2139
+function wireListClicks(container){
+  container.querySelectorAll('.notes-row').forEach(function(el){
+    el.addEventListener('mouseenter',function(){if(el.dataset.noteId!==_activeNoteId)el.style.background='rgba(255,255,255,.05)'});
+    el.addEventListener('mouseleave',function(){if(el.dataset.noteId!==_activeNoteId)el.style.background='transparent'});
+    el.addEventListener('click',function(){
+      saveEditorContent(container);
+      _activeNoteId=el.dataset.noteId;
+      refreshList(container);
+      refreshEditor(container);
+      // Mobile: switch to editor
+      container.classList.add('editing');
+    });
+  });
+}
+
+// EXACT from popup.js:2152
+function wireToolbar(container){
+  container.querySelectorAll('.ntb[data-cmd]').forEach(function(btn){
+    btn.addEventListener('mousedown',function(e){e.preventDefault()});
+    btn.addEventListener('click',function(){document.execCommand(btn.dataset.cmd,false,null);var ed=container.querySelector('#note-editor');if(ed)ed.focus()});
+  });
+}
+
+// EXACT from popup.js:2162 (minus "chat" action since no AI helper on mobile)
+function wireActions(container){
+  container.querySelectorAll('.note-act').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var act=btn.dataset.act;
+      if(act==='pin'){
+        saveEditorContent(container);
+        var all=getNotes();var n=all.find(function(x){return x.id===_activeNoteId});
+        if(n){n.pinned=!n.pinned;saveNotes(all);refreshList(container);refreshEditor(container)}
+      }else if(act==='delete'){
+        if(!confirm('Delete this note?'))return;
+        var all=getNotes().filter(function(x){return x.id!==_activeNoteId});
+        saveNotes(all);
+        _activeNoteId=all.length>0?all[0].id:null;
+        refreshList(container);refreshEditor(container);
+        container.classList.remove('editing');
+      }
+    });
+  });
+}
+
+// EXACT from popup.js:2190
+function wireSearch(container){
+  var si=container.querySelector('#notes-search');
+  if(!si)return;
+  si.addEventListener('input',function(){
+    var q=si.value.toLowerCase().trim();
+    var allNotes=getNotes();
+    container.querySelectorAll('.notes-row').forEach(function(r){
+      var n=allNotes.find(function(x){return x.id===r.dataset.noteId});
+      if(!n)return;
+      r.style.display=(!q||((n.body||'')+getNoteTitle(n)).toLowerCase().indexOf(q)>=0)?'':'none';
+    });
+    container.querySelectorAll('.notes-group-label').forEach(function(l){
+      var nx=l.nextElementSibling,vis=false;
+      while(nx&&!nx.classList.contains('notes-group-label')){if(nx.classList.contains('notes-row')&&nx.style.display!=='none')vis=true;nx=nx.nextElementSibling}
+      l.style.display=vis?'':'none';
+    });
+  });
+}
+
+// EXACT from popup.js:2209
+function initEditorContent(container){
+  var editor=container.querySelector('#note-editor');
+  if(!editor)return;
+  var note=getNotes().find(function(n){return n.id===editor.dataset.noteId});
+  if(!note)return;
+  var body=note.body||note.text||'';
+  var lines=body.split('\n');
+  var editorHTML='';
+  if(lines[0]||lines.length<=1)editorHTML+='<div>'+(esc(lines[0])||'<br>')+'</div>';
+  for(var i=1;i<lines.length;i++)editorHTML+='<div>'+(esc(lines[i])||'<br>')+'</div>';
+  if(lines.length<=1&&lines[0])editorHTML+='<div><br></div>';
+  if(!editorHTML)editorHTML='<div><br></div><div><br></div>';
+  editor.innerHTML=editorHTML;
+  editor.focus();
+  try{var sel=window.getSelection();var firstDiv=editor.firstElementChild;if(firstDiv){var range=document.createRange();if(!lines[0])range.setStart(firstDiv,0);else{range.selectNodeContents(firstDiv);range.collapse(false)}sel.removeAllRanges();sel.addRange(range)}}catch(e){}
+  // Auto-save + real-time title sync — EXACT from popup.js:2247
+  var timer=null;
+  editor.addEventListener('input',function(){
+    clearTimeout(timer);
+    timer=setTimeout(function(){saveEditorContent(container)},400);
+    var listItems=container.querySelector('#notes-list-items');
+    if(listItems){var activeRow=listItems.querySelector('.notes-row[data-note-id="'+editor.dataset.noteId+'"] > div:first-child');if(activeRow){var firstLine=(editor.firstElementChild?.innerText||'').trim()||'New Note';activeRow.textContent=firstLine}}
+  });
+  // Enter on title — EXACT from popup.js:2264
+  editor.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){var sel=window.getSelection();var firstDiv=editor.firstElementChild;if(firstDiv&&sel.anchorNode&&(firstDiv.contains(sel.anchorNode)||firstDiv===sel.anchorNode)){e.preventDefault();var newDiv=document.createElement('div');newDiv.innerHTML='<br>';firstDiv.after(newDiv);var range=document.createRange();range.setStart(newDiv,0);range.collapse(true);sel.removeAllRanges();sel.addRange(range)}}
+  });
+}
+
+// EXACT from popup.js:2283
+function saveEditorContent(container){
+  var editor=container.querySelector('#note-editor');
+  if(!editor)return;
+  var nid=editor.dataset.noteId;if(!nid)return;
+  var all=getNotes();var n=all.find(function(x){return x.id===nid});if(!n)return;
+  var ch=editor.children,lines=[];
+  for(var i=0;i<ch.length;i++)lines.push(ch[i].innerText||'');
+  if(!lines.length)lines=[editor.innerText||''];
+  n.body=lines.join('\n');n.updatedAt=Date.now();
+  if(!n.body.trim()){all=all.filter(function(x){return x.id!==n.id});if(_activeNoteId===n.id)_activeNoteId=all.length?all[0].id:null}
+  saveNotes(all);
+}
+
+function refreshList(container){
+  var el=container.querySelector('#notes-list-items');if(!el)return;
+  el.innerHTML=renderNotesListHTML(getNotes(),_activeNoteId);wireListClicks(container);
+  // Update footer count
+  var footer=container.querySelector('#notes-list-col > div:last-child');
+  if(footer){var notes=getNotes();footer.textContent=notes.length+' note'+(notes.length!==1?'s':'')}
+}
+
+function refreshEditor(container){
+  var col=container.querySelector('#notes-editor-col');if(!col)return;
+  col.innerHTML=_activeNoteId?buildEditorHTML(_activeNoteId):emptyEditorHTML();
+  wireToolbar(container);wireActions(container);initEditorContent(container);
+  // Re-wire mobile back
+  col.querySelector('#mobile-back')?.addEventListener('click',function(){
+    saveEditorContent(container);container.classList.remove('editing');refreshList(container);
+  });
+}
+
+/* ═══ STARTUP ═══ */
+if(!USER_ID){
+  document.getElementById('notes-split').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;"><div style="text-align:center;padding:40px 20px;">'+
+    '<div style="font-size:40px;margin-bottom:12px;opacity:0.3;">🔗</div>'+
+    '<div style="font-size:18px;font-weight:600;margin-bottom:6px;">Scan QR Code to Connect</div>'+
+    '<div style="font-size:13px;color:#666;max-width:280px;margin:0 auto;">Open Tools AI on your desktop, go to Notes, and click the phone icon to get your unique QR code.</div></div></div>';
+}else{
+  pullFromCloud(function(cloudNotes){
+    var local=getNotes();
+    if(cloudNotes){var merged=mergeNotes(local,cloudNotes);saveNotes(merged)}
+    renderNotesView();
+  });
+  // Poll every 30s
+  setInterval(function(){
+    if(document.querySelector('#note-editor:focus'))return;
+    pullFromCloud(function(cloudNotes){
+      if(cloudNotes){var local=getNotes();var merged=mergeNotes(local,cloudNotes);
+        localStorage.setItem('toolsai_notes_'+USER_ID,JSON.stringify(merged));
+        var container=document.getElementById('notes-split');
+        refreshList(container);
+      }
+    });
+  },30000);
+}
+</script>
+</body>
+</html>

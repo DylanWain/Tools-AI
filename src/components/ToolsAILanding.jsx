@@ -1,1491 +1,449 @@
-import React, { useState } from 'react';
+import { useState, useEffect, useRef } from "react";
 
-// Custom SVG Icons for "Who it's for" section
-const Icons = {
-  developer: (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="12 8 4 20 12 32" />
-      <polyline points="28 8 36 20 28 32" />
-      <line x1="22" y1="6" x2="18" y2="34" />
-    </svg>
-  ),
-  founder: (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 4 L20 14" />
-      <path d="M20 14 L28 22 L28 36 L12 36 L12 22 L20 14" />
-      <circle cx="20" cy="8" r="4" />
-      <path d="M16 26 L24 26" />
-      <path d="M16 30 L24 30" />
-    </svg>
-  ),
-  researcher: (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="16" cy="16" r="10" />
-      <line x1="23" y1="23" x2="36" y2="36" />
-      <path d="M12 14 L16 18 L20 12" />
-    </svg>
-  ),
-  therapy: (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="20" cy="14" r="8" />
-      <path d="M8 36 C8 26 14 22 20 22 C26 22 32 26 32 36" />
-      <path d="M16 12 Q20 18 24 12" />
-      <circle cx="16" cy="10" r="1.5" fill="currentColor" />
-      <circle cx="24" cy="10" r="1.5" fill="currentColor" />
-    </svg>
-  ),
-  writer: (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M28 4 L36 12 L14 34 L4 36 L6 26 L28 4" />
-      <path d="M24 8 L32 16" />
-      <path d="M6 26 L14 34" />
-    </svg>
-  ),
-  student: (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 16 L20 8 L36 16 L20 24 L4 16" />
-      <path d="M10 19 L10 30 Q20 36 30 30 L30 19" />
-      <line x1="36" y1="16" x2="36" y2="28" />
-      <circle cx="36" cy="30" r="2" />
-    </svg>
-  ),
+/* ═══ REAL ICONS FROM THE APP (base64 PNGs) ═══ */
+const IC = {
+  chatgpt: "data:image/png;base64,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",
+  claude: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAYAAAByDd+UAAAABmJLR0QA/wD/AP+gvaeTAAAFO0lEQVRIiaWWeWxUVRTGf+dOKUyxLFoFDWggTFtAQCLBEJWEQFwSSqI4nQoorsQokRjCTIEQn0igHUsgbkTQSoIK0xFcICGAxhKNOxL+qHSmbMYFaoBSih1KZ+7xj5lpp8sUjN9f957z3fO97773zr1CFjQ48wfZWPw74HoRXVxYUbOzO+fEikeHtdvEgvwBsU23OLtbs9XKhMmWSMTanwPGAcNVpUIdpwe3PW6rUalqaXUvuxaxPgVRcyJjNiYSO1rSJe04BmFWkmou/2/BSxcGfQbUpeciLM3MR1si1wO5AGJtJDMXCfgejAR89RG/b8s1C07ZvLndWPtCR0C5N+L3Tu1YmBu/KT22Lvm1Q8xfNhP4BChCeCa6zHtHr4JRv+/hiL90b9TvezId87wWPigQ7mSbVR3jODemRi3F/cceSzmbhOguoH8qd8kdp4v7DkEV/Ig8oEJ1fcBX/ftLXjdAPO5aBsRSLmdHl5fdBWCNuTm5Uo6I49ijyx+6IeVsUOeuyPMjN4RjvQoiEuoYwpOtuebbaPm80ePWf/SbIus7ts/q6iSdkcma9hf1el3G5u4ARnXW482i4I5tdINkTur9ZXNE9D2gIBVqVnQRenmviLsBGJZUlenqso+IyouiPKVGPKguzyj1Q9xtp493wle6C3b5aIqDOz5XlUkK+1OhwYKEBHcVEOx8TC1HpSDpkEJUAxkOmhJxl683sR4O01CQaLnvaZQqYHCK2KDgSVHagHpgUo+CytzCYGhXb3WzCqZxbGXZSBvXLQr398XLqLanqCJU8pdTknexzT1ZEjIZkYmgE4CxCrtEQQQ0Ww0FaSgve1ZVq4D8q0h+BQwBJgA5PZ9HqiUS8NUDtwJNopxX4TzQhMgFxTaLmkbQP1Q0T1Q2AAOuyS20AIdBD4H8mHD1Ozhu7Qenc0T0FbU8jsgQFfKBEQITrGp/QfLS5kX73H2As4LWWuQbl+XrMafsEQmHEz1dXgOOB7yD40buxsqnQL8stATQCPwtSAJAsc1gzgp6TuGYab341lUFG/zzR1iTWIPqYyR/ozY6W1cmvhRhn8J0Ue5WGNqdoLA/a/Ouc7zXRctLVyckHkF1IWijoKtItrm2XpbMRCkorAjN8bjHFljsRJDFwA7gT6Bd0IZeHUb8pQsR1oHcDKjCViOuNaqJA8AoFdaKshLkHOgNqWVtQH+F90+7GxfNcGrj3Q2Md8KXugjWLfMOdxmzWSB92J4SNYs8we1fRAK+zwRKUNar0WOiskmFUpStAnmCfqzIEGAWwp78Aa2+3q4dnaeF45gcYw6nxKyKvn45kXt7YXD7gWjAF0jFf4rn2RVGpQjAtrt+RKUi+X5kriAbFd5Bmd0SG7jveMA7OKtgLbUG+B741Bh7T3FFzZJJVdv+iZaXzgLWAM0irrLxTviKplqaOz+30RVrDgJHAVHVTS53jl8EP+i0OKb2xIpHh2UK9vmV/rp03m2unMTPQIGivuLKmhp1HBONHW0CbFFlaChAw3LvNGvNN4BBebcoGHq23l86Q4QPQZqKKkPjezjsjpPOEwNycuxOoAD0reLKmhqASGudh+QheybN9awLfwdsTFl4uqHcd19xsOarfi7XZODjzBtfj36XRlus9VVB7hQIe07oks6MmZLamjOZfNN6cYUdOGgWykSrzAf2j167vRF4uQsvm6AgRmFnu9su6NKijE4FUKUxk+95Y2+bUTNPkEPAkWx1szosqgwt7S0uylgAka4OATyV2+uAKdlqQl8X4WxQ3gZOqsru/7wW+Bc3Thv/NSKR4QAAAABJRU5ErkJggg==",
+  gemini: "data:image/png;base64,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",
+  grok: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAYAAAByDd+UAAADBElEQVR4nL3WPYhdVRAH8N97u9FEozGEYIKLQY1uFCOIiiKibmEREBEERU0h2BiwsNHK0iYWlhICfiAhsOUKio0fIAbxA0VjEEVioaJG0Sghxt3sszgz756971520zhwOPecMzP/+Tgz5/L/0CDmXcNzFJrCdMxTrfWgR24aIzyEM2sBTKARzmIp5rOt9Sj4aloX58/E2fHpVcCGWA6FF2EOd+AqbMBJfI338H7w1WCLeAr3xGgbtILy8Lyw8Pvwom98hn3YGDKwN86ubens9Ex48uEqQPX4GLMhe3/svVmDdYU0w7gT72Im1kN8ggV8roRzM27H1XgRb4eOPZiP7wXlHnReqkEovhBHw8JlnMAjfeFo0RxOK/lcjvXYwzbl5v4AW8KPmhwMdZfF+XF+G/4IoKXQcXMfYOZtBqfCwkUlZDQXoU2ZlhvwuyafWSp39gGm4NOV0MHYW9cDlkquqcDm8XMF+GhL/5jSw3eUkCxit6bw+8Aux28BeF/sPVkZ/XwXYN6gC/BDMB6rjOgD265cqI+wozq7TpPDt1oyK7y7DH8H4+tdjNV6Wxj3UiWfod+MXzUNYQIoabraO22ydoZKbmbwhhKux0PxMLwSc353lkMq3qLkY6Qp4mGLZwdew92VkYMWb970ET5oya8AHeCLYPxFadjZDAZKGJ9QQp9gNSX4Hk3TeLWHd7xxQHPD9sZeFvisJk9doUodhysdj/UBpoK5yrpvcXHlZVJXX0yFN+LfkD+JrX0yubFJqaks3FcqhfXrnmNo5e08VsnubznTCbhRU4vf4Rb9naamWXyqCeXxMD7zP0FTcbgrBL5UukjSVjwc59msNyjd6DklfAl2Kgylv3mMvZgPsC2V5S/gp1C2qLz+R2PO8OU4oSmZ3hc+E/4AjuCSSuBWJS9refEXcOVqYHlwE15Wcshk7O/FIXyDv/AP/sRXyqtyV4fOXtqJZ5WXPsF0fFOisR1X4NIO3lV/PbfhQazvAUjKF/5czyboes2F6ft7rilrL0O+Fpkx/QcHAsqnAxpyJAAAAABJRU5ErkJggg==",
+  perplexity: "data:image/png;base64,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",
+  app: "data:image/png;base64,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",
 };
 
-export default function ToolsAILanding() {
-  const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+/* ═══ HOOKS ═══ */
+const useInView = (t = 0.1) => {
+  const ref = useRef(null);
+  const [v, setV] = useState(false);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const o = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); o.disconnect(); } }, { threshold: t });
+    o.observe(el); return () => o.disconnect();
+  }, []);
+  return [ref, v];
+};
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!email || !email.includes('@')) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      if (res.ok) {
-        setSubmitted(true);
+const Reveal = ({ children, delay = 0, y = 40, style = {} }) => {
+  const [ref, v] = useInView();
+  return <div ref={ref} style={{ opacity: v ? 1 : 0, transform: v ? "translateY(0)" : `translateY(${y}px)`, transition: `all 0.9s cubic-bezier(.22,1,.36,1) ${delay}s`, willChange: "transform, opacity", ...style }}>{children}</div>;
+};
+
+const RevealX = ({ children, delay = 0, x = 50, style = {} }) => {
+  const [ref, v] = useInView();
+  return <div ref={ref} style={{ opacity: v ? 1 : 0, transform: v ? "translateX(0)" : `translateX(${x}px)`, transition: `all 1s cubic-bezier(.22,1,.36,1) ${delay}s`, willChange: "transform, opacity", ...style }}>{children}</div>;
+};
+
+/* ═══ ICON COMPONENT ═══ */
+const PIcon = ({ platform, size = 20, style = {} }) => (
+  <img src={IC[platform]} alt={platform} style={{ width: size, height: size, borderRadius: size * 0.2, objectFit: "contain", ...style }} />
+);
+
+/* ═══ MAC WINDOW DOTS ═══ */
+const Dots = () => (
+  <div style={{ display: "flex", gap: 6 }}>
+    {["#ff5f57","#febc2e","#28c840"].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />)}
+  </div>
+);
+
+/* ═══ HYPER-DETAILED MAIN APP MOCKUP ═══ */
+const AppMockup = () => (
+  <div style={{ borderRadius: 12, overflow: "hidden", background: "#0e0e11", boxShadow: "0 40px 100px rgba(0,0,0,0.2), 0 15px 40px rgba(0,0,0,0.1)" }}>
+    {/* Titlebar with real platform tabs */}
+    <div style={{ display: "flex", alignItems: "center", padding: "9px 13px", background: "#18181c", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <Dots />
+      <div style={{ flex: 1, display: "flex", justifyContent: "center", gap: 2 }}>
+        {[
+          { id: "chatgpt", active: true }, { id: "claude" }, { id: "gemini" }, { id: "grok" }, { id: "perplexity" },
+        ].map(t => (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 5, background: t.active ? "rgba(255,255,255,0.06)" : "transparent" }}>
+            <PIcon platform={t.id} size={13} />
+            <span style={{ fontSize: 10, color: t.active ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.25)", fontWeight: t.active ? 600 : 400, textTransform: "capitalize" }}>{t.id === "chatgpt" ? "ChatGPT" : t.id.charAt(0).toUpperCase() + t.id.slice(1)}</span>
+          </div>
+        ))}
+        <div style={{ padding: "4px 8px", fontSize: 12, color: "rgba(255,255,255,0.2)" }}>+</div>
+      </div>
+    </div>
+    {/* Body */}
+    <div style={{ display: "flex", height: 340 }}>
+      {/* Sidebar */}
+      <div style={{ width: 174, background: "#111116", borderRight: "1px solid rgba(255,255,255,0.05)", padding: "10px 8px", flexShrink: 0 }}>
+        {/* Search */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 8px", marginBottom: 6, borderRadius: 6, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)", fontSize: 10, color: "rgba(255,255,255,0.2)" }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Search everything...
+        </div>
+        {/* Nav items */}
+        {[
+          { n: "AI Helper", c: "#6366f1", a: true },
+          { n: "Notes", c: "#22c55e" },
+          { n: "Library", c: "#3b82f6", badge: "847" },
+          { n: "Projects", c: "#f59e0b" },
+          { n: "Code", c: "#e879f9" },
+          { n: "Files", c: "#ef4444" },
+        ].map(i => (
+          <div key={i.n} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderRadius: 6, fontSize: 10.5, color: i.a ? "#e5e5e5" : "rgba(255,255,255,0.28)", background: i.a ? "rgba(99,102,241,0.1)" : "transparent", fontWeight: i.a ? 600 : 400, marginBottom: 1 }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: i.c, opacity: i.a ? 1 : 0.4 }} />
+            {i.n}
+            {i.badge && <span style={{ marginLeft: "auto", fontSize: 8, color: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", padding: "1px 5px", borderRadius: 3 }}>{i.badge}</span>}
+          </div>
+        ))}
+        <div style={{ fontSize: 8, color: "rgba(255,255,255,0.12)", textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 700, padding: "10px 8px 4px" }}>Platforms</div>
+        {["chatgpt","claude","gemini","grok","perplexity"].map(p => (
+          <div key={p} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 6, fontSize: 10, color: "rgba(255,255,255,0.2)", marginBottom: 1 }}>
+            <PIcon platform={p} size={12} style={{ opacity: 0.5 }} />
+            {p === "chatgpt" ? "ChatGPT" : p.charAt(0).toUpperCase() + p.slice(1)}
+          </div>
+        ))}
+      </div>
+      {/* Chat */}
+      <div style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "center", background: "#0a0a0e" }}>
+        <div style={{ maxWidth: 400 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+            <div style={{ padding: "9px 14px", background: "#6366f1", color: "white", borderRadius: "12px 12px 3px 12px", fontSize: 11.5, lineHeight: 1.5, maxWidth: "80%" }}>
+              What's the best way to structure a SaaS pricing page?
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <PIcon platform="chatgpt" size={20} style={{ marginTop: 2, flexShrink: 0 }} />
+            <div style={{ padding: "10px 14px", background: "rgba(255,255,255,0.04)", borderRadius: "12px 12px 12px 3px", fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.65, borderLeft: "2px solid rgba(16,163,127,0.25)" }}>
+              Great question! Here are the key principles for a high-converting SaaS pricing page:<br/><br/>
+              <b style={{ color: "rgba(255,255,255,0.65)" }}>1. Anchor with 3 tiers</b> — Free, Pro, Enterprise<br/>
+              <b style={{ color: "rgba(255,255,255,0.65)" }}>2. Highlight the recommended plan</b> — visual emphasis<br/>
+              <b style={{ color: "rgba(255,255,255,0.65)" }}>3. Annual vs monthly toggle</b> — show savings...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+/* ═══ COMPARE MOCKUP ═══ */
+const CompareMockup = () => (
+  <div style={{ borderRadius: 12, overflow: "hidden", background: "#0e0e11", boxShadow: "0 40px 100px rgba(0,0,0,0.2)" }}>
+    <div style={{ display: "flex", alignItems: "center", padding: "9px 13px", background: "#18181c", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <Dots />
+      <div style={{ flex: 1, textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.3)" }}>Compare Mode — All 5 AIs</div>
+    </div>
+    <div style={{ padding: 16 }}>
+      <div style={{ padding: "8px 12px", background: "rgba(99,102,241,0.06)", borderRadius: 8, fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 12, textAlign: "center" }}>
+        "Explain the difference between REST and GraphQL"
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 5 }}>
+        {[
+          { id: "chatgpt", t: "REST uses fixed endpoints with HTTP methods. Each returns predefined data..." },
+          { id: "claude", t: "The core distinction is in data fetching. REST follows resource-oriented architecture..." },
+          { id: "gemini", t: "REST APIs expose multiple endpoints per resource. GraphQL uses a single endpoint..." },
+          { id: "grok", t: "REST: multiple URLs, overfetching common. GraphQL: one URL, ask for exactly what you need..." },
+          { id: "perplexity", t: "Per 2024 surveys, 65% of devs prefer REST for CRUD. GraphQL dominates complex queries..." },
+        ].map(a => (
+          <div key={a.id} style={{ background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: 8, border: "1px solid rgba(255,255,255,0.04)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 5 }}>
+              <PIcon platform={a.id} size={14} />
+              <span style={{ fontSize: 8.5, fontWeight: 600, color: "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>{a.id === "chatgpt" ? "ChatGPT" : a.id}</span>
+            </div>
+            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", lineHeight: 1.55 }}>{a.t}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, padding: "8px 12px", background: "rgba(99,102,241,0.05)", borderRadius: 8, borderLeft: "2px solid #6366f1" }}>
+        <div style={{ fontSize: 9, fontWeight: 600, color: "#818cf8", marginBottom: 2 }}>Synthesized Best Answer</div>
+        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>REST uses multiple endpoints; GraphQL offers a single flexible endpoint. Claude and Gemini provided the clearest comparisons...</div>
+      </div>
+    </div>
+  </div>
+);
+
+/* ═══ NOTES MOCKUP ═══ */
+const NotesMockup = () => (
+  <div style={{ borderRadius: 12, overflow: "hidden", background: "#0e0e11", boxShadow: "0 40px 100px rgba(0,0,0,0.2)" }}>
+    <div style={{ display: "flex", alignItems: "center", padding: "9px 13px", background: "#18181c", borderBottom: "1px solid rgba(255,255,255,0.06)" }}><Dots /></div>
+    <div style={{ display: "flex", height: 260 }}>
+      <div style={{ width: 150, background: "#111116", borderRight: "1px solid rgba(255,255,255,0.05)", padding: "10px 8px" }}>
+        <div style={{ fontSize: 8, color: "rgba(255,255,255,0.12)", textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 700, padding: "4px 8px 6px" }}>Notes</div>
+        {["Product Strategy","Q1 Goals","API Architecture","Meeting Notes","Brand Voice"].map((n,i) => (
+          <div key={n} style={{ padding: "5px 8px", borderRadius: 6, fontSize: 10, color: i === 0 ? "#e5e5e5" : "rgba(255,255,255,0.22)", background: i === 0 ? "rgba(99,102,241,0.08)" : "transparent", fontWeight: i === 0 ? 600 : 400, marginBottom: 1 }}>{n}</div>
+        ))}
+      </div>
+      <div style={{ flex: 1, padding: "16px 20px", background: "#0a0a0e" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#e5e5e5", marginBottom: 10 }}>Product Strategy</div>
+        <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.8 }}>
+          <b style={{ color: "rgba(255,255,255,0.6)" }}>Vision</b><br/>
+          Build the definitive workspace for people who think with AI daily. Unify all platforms into one seamless experience.<br/><br/>
+          <b style={{ color: "rgba(255,255,255,0.6)" }}>Core Pillars</b><br/>
+          1. Privacy first — all data local<br/>
+          2. Speed — instant AI switching<br/>
+          3. Compare — side-by-side answers<br/>
+          4. Organize — projects, notes, files
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+/* ═══ SEARCH MOCKUP ═══ */
+const SearchMockup = () => (
+  <div style={{ borderRadius: 12, overflow: "hidden", background: "white", boxShadow: "0 30px 80px rgba(0,0,0,0.1)", border: "1px solid #e8e8ec", maxWidth: 400 }}>
+    <div style={{ padding: "12px 16px", borderBottom: "1px solid #eee" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#f6f6f8", borderRadius: 8, border: "1px solid #e8e8ec" }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span style={{ fontSize: 12, color: "#222" }}>How did we decide on pricing?</span>
+      </div>
+    </div>
+    <div style={{ padding: "10px 16px" }}>
+      <div style={{ fontSize: 10, color: "#aaa", marginBottom: 5, fontWeight: 500 }}>AI Answer</div>
+      <div style={{ fontSize: 11, color: "#555", lineHeight: 1.65, marginBottom: 12 }}>
+        Based on your conversations, the $10/month price was chosen after analyzing 12 competitor pricing models and API cost calculations from Feb 15...
+      </div>
+      <div style={{ fontSize: 10, color: "#aaa", marginBottom: 6, fontWeight: 500 }}>Best matches</div>
+      {[
+        { t: "Pricing Strategy Session", s: "Claude · 2 weeks ago", icon: "claude" },
+        { t: "API Cost Analysis", s: "ChatGPT · 3 weeks ago", icon: "chatgpt" },
+        { t: "Competitor Research", s: "Perplexity · 1 month ago", icon: "perplexity" },
+      ].map(r => (
+        <div key={r.t} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid #f0f0f2" }}>
+          <PIcon platform={r.icon} size={18} />
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#222" }}>{r.t}</div>
+            <div style={{ fontSize: 10, color: "#aaa" }}>{r.s}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+/* ═══ FEATURE ROW (Nessie alternating layout) ═══ */
+const Feature = ({ title, desc, mockup, reverse }) => (
+  <div style={{ maxWidth: 1060, margin: "0 auto", padding: "100px 40px", display: "flex", alignItems: "center", gap: 80, flexDirection: reverse ? "row-reverse" : "row" }}>
+    <RevealX x={reverse ? 50 : -50} delay={0.1} style={{ flex: "0 0 45%" }}>
+      <h2 style={{ fontFamily: "'Outfit',sans-serif", fontSize: 38, fontWeight: 700, letterSpacing: -1.5, lineHeight: 1.2, color: "#111", marginBottom: 18 }}>{title}</h2>
+      <p style={{ fontSize: 17, color: "#6b7280", lineHeight: 1.75, maxWidth: 420 }}>{desc}</p>
+    </RevealX>
+    <RevealX x={reverse ? -50 : 50} delay={0.3} style={{ flex: "0 0 55%" }}>
+      {mockup}
+    </RevealX>
+  </div>
+);
+
+/* ═══ ANIMATED DOTTED GRID (canvas, matches app workflow grid) ═══ */
+const DottedGrid = () => {
+  const canvasRef = useRef(null);
+  const offsetRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let raf;
+    const gap = 20; // same as app: 20px grid
+    const dotR = 1; // same as app: 1px radius
+    const speed = 0.15; // pixels per frame
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const draw = () => {
+      offsetRef.current.x = (offsetRef.current.x + speed) % gap;
+      offsetRef.current.y = (offsetRef.current.y + speed) % gap;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#bfc4ca"; // darker than app's #dadce0 so visible on #fafaf9
+
+      const startX = -gap + offsetRef.current.x;
+      const startY = -gap + offsetRef.current.y;
+
+      for (let x = startX; x < canvas.width + gap; x += gap) {
+        for (let y = startY; y < canvas.height + gap; y += gap) {
+          ctx.beginPath();
+          ctx.arc(x, y, dotR, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
-    } catch (err) {
-      console.error('Waitlist error:', err);
-    }
-    setIsLoading(false);
-  };
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", zIndex: 0, pointerEvents: "none" }} />;
+};
+
+/* ═══ MAIN APP ═══ */
+export default function App() {
+  const [sc, setSc] = useState(false);
+  useEffect(() => {
+    const h = () => setSc(window.scrollY > 50);
+    window.addEventListener("scroll", h, { passive: true });
+    return () => window.removeEventListener("scroll", h);
+  }, []);
 
   return (
-    <div className="landing-page">
-      {/* Navigation */}
-      <nav className="nav">
-        <div className="nav-inner">
-          <span className="logo">Tools AI</span>
-          
-          {/* Desktop nav */}
-          <div className="nav-links-desktop">
-            <a href="#comparison">Why Tools AI</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="/app">Chat</a>
-            <a href="/dashboard">Dashboard</a>
-            <a href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
-              Get the extension
-            </a>
-          </div>
+    <div style={{ background: "#fafaf9", color: "#111", fontFamily: "'Plus Jakarta Sans',sans-serif", minHeight: "100vh", overflowX: "hidden", WebkitFontSmoothing: "antialiased", position: "relative" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { scroll-behavior: smooth; }
+        ::selection { background: rgba(99,102,241,0.15); }
+        @keyframes tDot { 0%,100%{opacity:0.2;transform:translateY(0)}50%{opacity:0.7;transform:translateY(-3px)} }
+      `}</style>
 
-          {/* Mobile menu button */}
-          <button 
-            className="mobile-menu-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            <span className={`hamburger ${mobileMenuOpen ? 'open' : ''}`}>
-              <span></span>
-              <span></span>
-              <span></span>
-            </span>
-          </button>
+      {/* ═══ MOVING DOTTED GRID BACKGROUND (same pattern as app workflow canvas) ═══ */}
+      <DottedGrid />
+
+      {/* ═══ NAV (Nessie style) ═══ */}
+      <nav style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "16px 40px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: sc ? "rgba(250,250,249,0.92)" : "transparent",
+        backdropFilter: sc ? "blur(16px)" : "none", WebkitBackdropFilter: sc ? "blur(16px)" : "none",
+        borderBottom: sc ? "1px solid #e8e8e4" : "1px solid transparent",
+        transition: "all 0.3s",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img src={IC.app} alt="Tools AI" style={{ width: 32, height: 32, borderRadius: 8 }} />
+          <span style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: -0.5 }}>Tools AI</span>
         </div>
-
-        {/* Mobile menu dropdown */}
-        {mobileMenuOpen && (
-          <div className="mobile-menu">
-            <a href="#comparison" onClick={() => setMobileMenuOpen(false)}>Why Tools AI</a>
-            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it works</a>
-            <a href="/app" onClick={() => setMobileMenuOpen(false)}>Chat</a>
-            <a href="/dashboard" onClick={() => setMobileMenuOpen(false)}>Dashboard</a>
-            <a
-              href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal"
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: '8px', textAlign: 'center', textDecoration: 'none' }}
-            >
-              Get the extension
-            </a>
-          </div>
-        )}
+        <a href="#download" style={{
+          display: "flex", alignItems: "center", gap: 7, padding: "9px 22px",
+          background: "#111", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "white", textDecoration: "none",
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </a>
       </nav>
 
-      {/* Hero - Updated messaging */}
-      <section className="hero">
-        <div className="hero-content">
-          <div className="badge">Now available — free Chrome extension</div>
-
-          <h1 className="hero-title">
-            One memory layer for<br />every AI conversation
+      {/* ═══ HERO (Nessie style — centered, minimal) ═══ */}
+      <section style={{ textAlign: "center", paddingTop: 160, paddingBottom: 60, position: "relative", zIndex: 1 }}>
+        <Reveal delay={0.15}>
+          <h1 style={{ fontFamily: "'Outfit',sans-serif", fontSize: "clamp(44px, 6.5vw, 72px)", fontWeight: 700, letterSpacing: -2.5, lineHeight: 1.1, color: "#111", maxWidth: 800, margin: "0 auto 22px", padding: "0 20px" }}>
+            Every AI Platform,<br /><span style={{ color: "#6366f1" }}>One App</span>
           </h1>
-
-          <p className="hero-subtitle">
-            ChatGPT, Claude, and Gemini all forget. Tools AI captures every conversation,
-            <br />
-            <strong>stores it permanently, and makes it searchable across all platforms.</strong>
+        </Reveal>
+        <Reveal delay={0.3}>
+          <p style={{ fontSize: 19, color: "#6b7280", maxWidth: 500, margin: "0 auto 36px", lineHeight: 1.65, padding: "0 20px" }}>
+            Tools AI unifies ChatGPT, Claude, Gemini, Grok, and Perplexity into a single desktop app that evolves with how you work
           </p>
-
-          {/* Primary CTAs */}
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
-            <a href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '16px 32px', fontSize: '16px', textDecoration: 'none' }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/></svg>
-              Add to Chrome — free
-            </a>
-            <a href="/app" className="btn btn-primary" style={{ background: '#1a1a1a', color: '#fff', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Try AI Chat — 5 free
-            </a>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
-            <a href="/dashboard" className="btn" style={{ background: '#f5f5f5', color: '#1a1a1a', border: '1px solid #e5e5e5', padding: '12px 24px', fontSize: '14px', textDecoration: 'none', borderRadius: '8px' }}>
-              Open dashboard
-            </a>
-          </div>
-          <p style={{ fontSize: '13px', color: '#999', marginBottom: '40px' }}>
-            Works with ChatGPT, Claude, and Gemini · No API key required · Free forever
-          </p>
-
-          {/* Email subscription (secondary) */}
-          <div id="waitlist" className="waitlist-form">
-            {!submitted ? (
-              <form onSubmit={handleSubmit}>
-                <p style={{ fontSize: '13px', color: '#888', marginBottom: '10px' }}>Get notified about new features:</p>
-                <div className="form-row">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@email.com"
-                    required
-                    className="input"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="btn btn-primary"
-                    style={{ opacity: isLoading ? 0.7 : 1, background: 'transparent', color: '#1a1a1a', border: '1px solid #d5d5d5' }}
-                  >
-                    {isLoading ? 'Joining...' : 'Subscribe'}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="success-message">
-                You're on the list ✓
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Product preview */}
-      <section className="preview-section">
-        <div className="preview-container">
-          {/* Browser chrome */}
-          <div className="browser-chrome">
-            <div className="browser-dot red" />
-            <div className="browser-dot yellow" />
-            <div className="browser-dot green" />
-          </div>
-          
-          {/* Chat UI preview */}
-          <div className="chat-preview">
-            {/* Sidebar - hidden on mobile */}
-            <div className="chat-sidebar">
-              <div className="new-chat-btn">
-                <span>+</span> New chat
-              </div>
-              
-              <div className="chat-label">Recent</div>
-              {['Database schema review', 'API authentication', 'React optimization'].map((chat, i) => (
-                <div key={i} className={`chat-item ${i === 0 ? 'active' : ''}`}>
-                  {chat}
-                </div>
-              ))}
-              
-              <div className="chat-label" style={{ marginTop: '20px' }}>3 months ago</div>
-              {['Redis caching decision', 'Initial architecture'].map((chat, i) => (
-                <div key={i} className="chat-item">{chat}</div>
-              ))}
-            </div>
-
-            {/* Chat area */}
-            <div className="chat-area">
-              {/* User message */}
-              <div className="message">
-                <div className="avatar user">Y</div>
-                <div className="message-text">
-                  Why did we choose Redis for caching? I know we discussed this but I can't remember the reasoning.
-                </div>
-              </div>
-
-              {/* AI response */}
-              <div className="message">
-                <div className="avatar ai">∞</div>
-                <div className="message-content">
-                  <div className="message-text">
-                    From your conversation on <strong>October 15</strong>, you chose Redis over Memcached for three reasons:
-                  </div>
-                  <div className="code-block">
-                    <div><strong>1.</strong> Data structures for your leaderboard feature</div>
-                    <div><strong>2.</strong> Built-in persistence for cache warming</div>
-                    <div><strong>3.</strong> Pub/sub for real-time notifications</div>
-                  </div>
-                  <div className="memory-tag">
-                    <span>←</span> Retrieved from conversation 94 days ago
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ChatGPT Comparison */}
-      <section id="comparison" className="comparison-section">
-        <div className="section-inner">
-          <h2 className="section-title">Why not just use ChatGPT?</h2>
-          <p className="section-subtitle">
-            ChatGPT wasn't built for long-running projects. We were.
-          </p>
-
-          <div className="comparison-table-wrapper">
-            <table className="comparison-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>ChatGPT</th>
-                  <th className="highlight">Tools AI</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="label">Long conversations</td>
-                  <td className="bad">Summarized & compressed</td>
-                  <td className="good">Stored verbatim</td>
-                </tr>
-                <tr>
-                  <td className="label">Memory guarantees</td>
-                  <td className="bad">None</td>
-                  <td className="good">Explicit & permanent</td>
-                </tr>
-                <tr>
-                  <td className="label">Message integrity</td>
-                  <td className="bad">Mutable</td>
-                  <td className="good">SHA-256 hashed</td>
-                </tr>
-                <tr>
-                  <td className="label">Auditability</td>
-                  <td className="bad">No</td>
-                  <td className="good">Yes, with exports</td>
-                </tr>
-                <tr>
-                  <td className="label">Year-long projects</td>
-                  <td className="bad">Unreliable</td>
-                  <td className="good">Designed for it</td>
-                </tr>
-                <tr>
-                  <td className="label">Your own API keys</td>
-                  <td className="bad">No</td>
-                  <td className="good">Yes, pay providers directly</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* The problem */}
-      <section className="problem-section">
-        <div className="problem-content">
-          <h2>AI assistants forget everything</h2>
-          <p>
-            You've had this conversation before. You explained your project, your preferences, your decisions. 
-            But the AI doesn't remember. So you explain it again. And again.
-          </p>
-        </div>
-      </section>
-
-      {/* Who it's for - with custom SVG icons */}
-      <section className="audience-section">
-        <div className="section-inner">
-          <h2 className="section-title">Who this is for</h2>
-          
-          <div className="audience-grid">
-            <div className="audience-item">
-              <span className="audience-icon">{Icons.developer}</span>
-              <h3>Developers</h3>
-              <p>Working on long-running codebases where context matters</p>
-            </div>
-            <div className="audience-item">
-              <span className="audience-icon">{Icons.founder}</span>
-              <h3>Founders</h3>
-              <p>Documenting strategy & decisions over months of iteration</p>
-            </div>
-            <div className="audience-item">
-              <span className="audience-icon">{Icons.researcher}</span>
-              <h3>Researchers</h3>
-              <p>Tracking evolving hypotheses and literature reviews</p>
-            </div>
-            <div className="audience-item">
-              <span className="audience-icon">{Icons.therapy}</span>
-              <h3>Therapy & Journaling</h3>
-              <p>Long-term mental health tracking, personal growth, and reflective journaling</p>
-            </div>
-            <div className="audience-item">
-              <span className="audience-icon">{Icons.writer}</span>
-              <h3>Writers</h3>
-              <p>Working on large, persistent documents and creative projects</p>
-            </div>
-            <div className="audience-item">
-              <span className="audience-icon">{Icons.student}</span>
-              <h3>Students</h3>
-              <p>Studying complex subjects over semesters with connected context</p>
-            </div>
-          </div>
-
-          <p className="audience-summary">
-            Anyone tired of AI "forgetting" critical context mid-project.
-          </p>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="how-it-works" className="how-section">
-        <div className="section-inner">
-          <h2 className="section-title">How it works</h2>
-
-          <div className="steps-grid">
-            {[
-              {
-                num: '01',
-                title: 'Every message stored',
-                desc: 'Raw messages saved with cryptographic hashes. Nothing is deleted or truncated.',
-              },
-              {
-                num: '02',
-                title: 'Semantic indexing',
-                desc: 'Vector embeddings enable search by meaning, not just keywords.',
-              },
-              {
-                num: '03',
-                title: 'Automatic summaries',
-                desc: 'Daily and weekly summaries compress context while preserving key details.',
-              },
-            ].map((item, i) => (
-              <div key={i} className="step">
-                <div className="step-num">{item.num}</div>
-                <h3 className="step-title">{item.title}</h3>
-                <p className="step-desc">{item.desc}</p>
-              </div>
+        </Reveal>
+        <Reveal delay={0.45}>
+          <a href="#download" style={{
+            display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px",
+            background: "#111", borderRadius: 12, fontSize: 15, fontWeight: 600, color: "white", textDecoration: "none",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download for Mac
+          </a>
+        </Reveal>
+        <Reveal delay={0.55}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, justifyContent: "center", marginTop: 28 }}>
+            {["chatgpt","claude","gemini","grok","perplexity"].map(p => (
+              <PIcon key={p} platform={p} size={28} style={{ opacity: 0.7 }} />
             ))}
           </div>
-        </div>
+        </Reveal>
+        <Reveal delay={0.6}>
+          <p style={{ fontSize: 13, color: "#aaa", marginTop: 14 }}>Free. No account needed.</p>
+        </Reveal>
       </section>
 
-      {/* Features */}
-      <section id="features" className="features-section">
-        <div className="section-inner">
-          <h2 className="section-title">Features</h2>
-
-          <div className="features-grid">
-            {[
-              {
-                title: 'Your own API keys',
-                desc: 'Connect OpenAI, Anthropic, or Google. Pay providers directly at their rates.',
-              },
-              {
-                title: 'Semantic search',
-                desc: 'Find past conversations by meaning. Ask "what did we decide about caching?" and get results.',
-              },
-              {
-                title: 'Verified exports',
-                desc: 'Export conversations to PDF or Markdown with SHA-256 hashes for verification.',
-              },
-              {
-                title: 'Private and encrypted',
-                desc: 'Your data is encrypted at rest. We never train on your conversations.',
-              },
-            ].map((feature, i) => (
-              <div key={i} className="feature-card">
-                <h3>{feature.title}</h3>
-                <p>{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="pricing" className="pricing-section">
-        <div className="section-inner">
-          <h2 className="section-title">Simple pricing</h2>
-          
-          <div className="pricing-card">
-            <div className="pricing-header">
-              <span className="pricing-amount">$20</span>
-              <span className="pricing-period">/ month</span>
+      {/* ═══ TRANSFORMATION (Nessie: scattered chats → unified app) ═══ */}
+      <section style={{ padding: "40px 40px 80px", maxWidth: 1060, margin: "0 auto", position: "relative", zIndex: 1 }}>
+        <Reveal delay={0.2}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 20, justifyContent: "center" }}>
+            <div style={{ flex: "0 0 38%" }}>
+              <div style={{ textAlign: "center", marginBottom: 14, fontSize: 14, color: "#6366f1", fontWeight: 500 }}>Your scattered AI tabs</div>
+              {[
+                { id: "chatgpt", t: "What's the best way to structure a pricing page..." },
+                { id: "claude", t: "Can you review this product spec for gaps..." },
+                { id: "gemini", t: "Compare React vs Vue for dashboards..." },
+              ].map(c => (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "white", borderRadius: 12, border: "1px solid #e8e8ec", boxShadow: "0 2px 8px rgba(0,0,0,0.03)", marginBottom: 8 }}>
+                  <PIcon platform={c.id} size={28} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#222", textTransform: "capitalize" }}>{c.id === "chatgpt" ? "ChatGPT" : c.id}</div>
+                    <div style={{ fontSize: 10.5, color: "#999", marginTop: 1 }}>{c.t}</div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="pricing-desc">
-              Unlimited conversations. Permanent memory. Your API keys.
-            </p>
-            <ul className="pricing-features">
-              <li>Unlimited conversations</li>
-              <li>Permanent message storage</li>
-              <li>Semantic search across all chats</li>
-              <li>Export anytime (PDF, Markdown, JSON)</li>
-              <li>Use your own API keys</li>
-            </ul>
-            <button 
-              onClick={() => document.getElementById('waitlist').scrollIntoView({ behavior: 'smooth' })}
-              className="btn btn-primary"
-              style={{ width: '100%' }}
-            >
-              Join waitlist
-            </button>
-            <p className="pricing-note">Cancel anytime. No lock-in.</p>
+            <div style={{ display: "flex", alignItems: "center", paddingTop: 60 }}>
+              <svg width="36" height="20" viewBox="0 0 36 20" fill="none"><path d="M2 10h28M24 4l6 6-6 6" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div style={{ flex: "0 0 52%" }}>
+              <div style={{ textAlign: "center", marginBottom: 14, fontSize: 14, color: "#6366f1", fontWeight: 500 }}>One unified workspace</div>
+              <AppMockup />
+            </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
-      {/* Final CTA */}
-      <section className="cta-section">
-        <div className="cta-content">
-          <h2>Stop losing your AI conversations</h2>
-          <p>Install the extension in 60 seconds. Or try our AI chat right now — 5 free messages.</p>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', maxWidth: '500px', margin: '0 auto' }}>
-            <a href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal" className="btn btn-primary" style={{ flex: 1, minWidth: '200px', background: '#fff', color: '#1a1a1a', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"/></svg>
-              Add to Chrome — free
-            </a>
-            <a href="/app" className="btn btn-primary" style={{ flex: 1, minWidth: '200px', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', padding: '16px 32px', fontSize: '16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Try AI Chat
-            </a>
-          </div>
+      {/* ═══ FEATURES (Nessie alternating pattern) ═══ */}
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Feature
+          title="Compare answers instantly"
+          desc="Send one prompt to all five AIs simultaneously. See their responses side-by-side with a synthesized best-of summary. Find out which AI thinks best about your specific problem."
+          mockup={<CompareMockup />}
+        />
+
+        <div style={{ background: "rgba(255,255,255,0.5)" }}>
+          <Feature reverse
+            title="Your ideas, organized"
+            desc="A built-in Apple Notes-style editor with bold titles, formatting, and auto-save. Organize everything into projects. Sync notes to your phone with a QR code."
+            mockup={<NotesMockup />}
+          />
         </div>
+
+        <Feature
+          title="Never lose a conversation"
+          desc="Search across your entire library — every conversation, note, and code block. Find exactly what you need in seconds, no matter which AI you used."
+          mockup={<SearchMockup />}
+        />
+      </div>
+
+      {/* ═══ PRIVACY (Nessie style — centered, simple) ═══ */}
+      <section style={{ textAlign: "center", padding: "120px 40px", position: "relative", zIndex: 1 }}>
+        <Reveal>
+          <h2 style={{ fontFamily: "'Outfit',sans-serif", fontSize: 40, fontWeight: 700, letterSpacing: -1.5, color: "#111", marginBottom: 18 }}>Private, local, yours</h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p style={{ fontSize: 17, color: "#6b7280", maxWidth: 500, margin: "0 auto", lineHeight: 1.7 }}>
+            Your conversations are yours — and we do not store the content of your chats, notes, or files on our servers. No one at Tools AI can access your private content.
+          </p>
+        </Reveal>
       </section>
 
-      {/* Footer */}
-      <footer className="footer">
-        <div className="footer-inner">
-          <span className="footer-logo">Tools AI</span>
-          <div className="footer-links">
-            <a href="/app">Chat</a>
-            <a href="https://chromewebstore.google.com/detail/tools-ai/kmhlfdeaimgihpggdjijcndmkfieomal">Download</a>
-            <a href="/dashboard">Dashboard</a>
-            <a href="/privacy">Privacy</a>
-            <a href="/terms">Terms</a>
-          </div>
+      {/* ═══ CTA (Nessie style — icon + download) ═══ */}
+      <section id="download" style={{ textAlign: "center", padding: "60px 40px 120px", position: "relative", zIndex: 1 }}>
+        <Reveal>
+          <img src={IC.app} alt="Tools AI" style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 24, boxShadow: "0 8px 24px rgba(0,0,0,0.1)" }} />
+        </Reveal>
+        <Reveal delay={0.15}>
+          <a href="#" style={{
+            display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px",
+            background: "#111", borderRadius: 12, fontSize: 15, fontWeight: 600, color: "white", textDecoration: "none",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download for Mac
+          </a>
+        </Reveal>
+      </section>
+
+      {/* ═══ FOOTER (Nessie style — minimal) ═══ */}
+      <footer style={{ textAlign: "center", padding: "32px 40px 48px", borderTop: "1px solid #e8e8e4", position: "relative", zIndex: 1 }}>
+        <div style={{ fontSize: 12, color: "#bbb" }}>
+          <a href="#" style={{ color: "#999", textDecoration: "none" }}>Privacy Policy</a>{" · "}<a href="#" style={{ color: "#999", textDecoration: "none" }}>Terms of Service</a>
         </div>
+        <div style={{ fontSize: 11, color: "#ccc", marginTop: 6 }}>© Tools AI 2026</div>
       </footer>
-
-      <style>{`
-        /* ============================================
-           BASE STYLES & RESET
-           ============================================ */
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-        
-        html {
-          scroll-behavior: smooth;
-          -webkit-text-size-adjust: 100%;
-        }
-        
-        .landing-page {
-          min-height: 100vh;
-          background: #fff;
-          color: #1a1a1a;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-          overflow-x: hidden;
-        }
-
-        /* ============================================
-           NAVIGATION
-           ============================================ */
-        .nav {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          z-index: 100;
-          background: rgba(255,255,255,0.95);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          border-bottom: 1px solid #f0f0f0;
-        }
-
-        .nav-inner {
-          max-width: 1140px;
-          margin: 0 auto;
-          padding: 16px 20px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .logo {
-          font-weight: 700;
-          font-size: 18px;
-          letter-spacing: -0.5px;
-        }
-
-        .nav-links-desktop {
-          display: flex;
-          align-items: center;
-          gap: 32px;
-        }
-
-        .nav-links-desktop a {
-          color: #666;
-          text-decoration: none;
-          font-size: 14px;
-        }
-
-        .nav-links-desktop a:hover {
-          color: #1a1a1a;
-        }
-
-        .mobile-menu-btn {
-          display: none;
-          background: none;
-          border: none;
-          padding: 8px;
-          cursor: pointer;
-        }
-
-        .hamburger {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-          width: 24px;
-        }
-
-        .hamburger span {
-          display: block;
-          height: 2px;
-          background: #1a1a1a;
-          border-radius: 2px;
-          transition: all 0.3s ease;
-        }
-
-        .hamburger.open span:nth-child(1) {
-          transform: rotate(45deg) translate(5px, 5px);
-        }
-
-        .hamburger.open span:nth-child(2) {
-          opacity: 0;
-        }
-
-        .hamburger.open span:nth-child(3) {
-          transform: rotate(-45deg) translate(5px, -5px);
-        }
-
-        .mobile-menu {
-          display: none;
-          padding: 16px 20px 20px;
-          border-top: 1px solid #f0f0f0;
-        }
-
-        .mobile-menu a {
-          display: block;
-          padding: 12px 0;
-          color: #666;
-          text-decoration: none;
-          font-size: 16px;
-          border-bottom: 1px solid #f0f0f0;
-        }
-
-        /* ============================================
-           BUTTONS & INPUTS
-           ============================================ */
-        .btn {
-          padding: 14px 24px;
-          border: none;
-          border-radius: 8px;
-          font-size: 15px;
-          font-weight: 500;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: opacity 0.2s;
-        }
-
-        .btn:hover {
-          opacity: 0.9;
-        }
-
-        .btn-primary {
-          background: #1a1a1a;
-          color: #fff;
-        }
-
-        .btn-sm {
-          padding: 10px 18px;
-          font-size: 14px;
-        }
-
-        .input {
-          padding: 14px 16px;
-          border: 1px solid #e5e5e5;
-          border-radius: 8px;
-          font-size: 15px;
-          width: 280px;
-          outline: none;
-        }
-
-        .input:focus {
-          border-color: #1a1a1a;
-        }
-
-        /* ============================================
-           HERO
-           ============================================ */
-        .hero {
-          padding: 140px 20px 80px;
-          text-align: center;
-        }
-
-        .hero-content {
-          max-width: 700px;
-          margin: 0 auto;
-        }
-
-        .badge {
-          display: inline-block;
-          padding: 6px 14px;
-          background: #f5f5f5;
-          border-radius: 20px;
-          font-size: 13px;
-          font-weight: 500;
-          color: #666;
-          margin-bottom: 24px;
-        }
-
-        .hero-title {
-          font-size: 52px;
-          font-weight: 700;
-          line-height: 1.1;
-          letter-spacing: -2px;
-          margin-bottom: 20px;
-        }
-
-        .hero-subtitle {
-          font-size: 18px;
-          color: #666;
-          line-height: 1.6;
-          margin-bottom: 32px;
-        }
-
-        .hero-subtitle strong {
-          color: #1a1a1a;
-        }
-
-        .waitlist-form {
-          display: inline-block;
-        }
-
-        .form-row {
-          display: flex;
-          gap: 12px;
-          justify-content: center;
-        }
-
-        .form-note {
-          margin-top: 12px;
-          font-size: 13px;
-          color: #888;
-        }
-
-        .success-message {
-          padding: 16px 32px;
-          background: #f0fdf4;
-          border-radius: 8px;
-          color: #166534;
-          font-weight: 500;
-        }
-
-        /* ============================================
-           PREVIEW SECTION
-           ============================================ */
-        .preview-section {
-          padding: 0 20px 80px;
-        }
-
-        .preview-container {
-          max-width: 1000px;
-          margin: 0 auto;
-          border-radius: 16px;
-          overflow: hidden;
-          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
-          border: 1px solid #e5e5e5;
-        }
-
-        .browser-chrome {
-          background: #f5f5f5;
-          padding: 14px 16px;
-          display: flex;
-          gap: 8px;
-          border-bottom: 1px solid #e5e5e5;
-        }
-
-        .browser-dot {
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-        }
-
-        .browser-dot.red { background: #ff5f57; }
-        .browser-dot.yellow { background: #ffbd2e; }
-        .browser-dot.green { background: #28c840; }
-
-        .chat-preview {
-          display: flex;
-          min-height: 400px;
-          background: #fff;
-        }
-
-        .chat-sidebar {
-          width: 240px;
-          background: #fafafa;
-          padding: 16px;
-          border-right: 1px solid #f0f0f0;
-        }
-
-        .new-chat-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px;
-          background: #fff;
-          border: 1px solid #e5e5e5;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          margin-bottom: 20px;
-        }
-
-        .chat-label {
-          font-size: 12px;
-          color: #888;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 8px;
-        }
-
-        .chat-item {
-          padding: 10px 12px;
-          font-size: 14px;
-          color: #666;
-          border-radius: 6px;
-          margin-bottom: 4px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .chat-item.active {
-          background: #fff;
-          color: #1a1a1a;
-        }
-
-        .chat-area {
-          flex: 1;
-          padding: 24px;
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-
-        .message {
-          display: flex;
-          gap: 12px;
-        }
-
-        .avatar {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 14px;
-          font-weight: 600;
-          flex-shrink: 0;
-        }
-
-        .avatar.user {
-          background: #e5e5e5;
-          color: #666;
-        }
-
-        .avatar.ai {
-          background: #1a1a1a;
-          color: #fff;
-        }
-
-        .message-content {
-          flex: 1;
-        }
-
-        .message-text {
-          font-size: 15px;
-          line-height: 1.6;
-          color: #1a1a1a;
-        }
-
-        .code-block {
-          margin-top: 12px;
-          padding: 16px;
-          background: #f5f5f5;
-          border-radius: 8px;
-          font-size: 14px;
-          line-height: 1.8;
-        }
-
-        .memory-tag {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          margin-top: 12px;
-          padding: 8px 14px;
-          background: #f0f9ff;
-          border-radius: 6px;
-          font-size: 13px;
-          color: #0369a1;
-        }
-
-        /* ============================================
-           COMPARISON SECTION
-           ============================================ */
-        .comparison-section {
-          padding: 80px 20px;
-          background: #fafafa;
-        }
-
-        .section-inner {
-          max-width: 900px;
-          margin: 0 auto;
-        }
-
-        .section-title {
-          font-size: 32px;
-          font-weight: 700;
-          text-align: center;
-          margin-bottom: 16px;
-          letter-spacing: -1px;
-        }
-
-        .section-subtitle {
-          text-align: center;
-          color: #666;
-          font-size: 18px;
-          margin-bottom: 48px;
-        }
-
-        .comparison-table-wrapper {
-          overflow-x: auto;
-        }
-
-        .comparison-table {
-          width: 100%;
-          border-collapse: collapse;
-          background: #fff;
-          border-radius: 12px;
-          overflow: hidden;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        }
-
-        .comparison-table th,
-        .comparison-table td {
-          padding: 16px 20px;
-          text-align: left;
-          border-bottom: 1px solid #f0f0f0;
-        }
-
-        .comparison-table th {
-          background: #f5f5f5;
-          font-weight: 600;
-          font-size: 14px;
-        }
-
-        .comparison-table th.highlight {
-          background: #1a1a1a;
-          color: #fff;
-        }
-
-        .comparison-table td.label {
-          font-weight: 500;
-          color: #1a1a1a;
-        }
-
-        .comparison-table td.bad {
-          color: #888;
-        }
-
-        .comparison-table td.good {
-          color: #166534;
-          font-weight: 500;
-        }
-
-        /* ============================================
-           PROBLEM SECTION
-           ============================================ */
-        .problem-section {
-          padding: 80px 20px;
-          background: #1a1a1a;
-          color: #fff;
-        }
-
-        .problem-content {
-          max-width: 700px;
-          margin: 0 auto;
-          text-align: center;
-        }
-
-        .problem-content h2 {
-          font-size: 32px;
-          font-weight: 700;
-          margin-bottom: 20px;
-          letter-spacing: -1px;
-        }
-
-        .problem-content p {
-          font-size: 18px;
-          color: #a0a0a0;
-          line-height: 1.7;
-        }
-
-        /* ============================================
-           AUDIENCE SECTION
-           ============================================ */
-        .audience-section {
-          padding: 80px 20px;
-        }
-
-        .audience-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 24px;
-          margin-bottom: 32px;
-        }
-
-        .audience-item {
-          text-align: center;
-          padding: 32px 24px;
-          background: #fafafa;
-          border-radius: 12px;
-        }
-
-        .audience-icon {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          margin-bottom: 16px;
-          color: #1a1a1a;
-        }
-
-        .audience-item h3 {
-          font-size: 18px;
-          font-weight: 600;
-          margin-bottom: 8px;
-        }
-
-        .audience-item p {
-          font-size: 14px;
-          color: #666;
-          line-height: 1.5;
-        }
-
-        .audience-summary {
-          text-align: center;
-          font-size: 16px;
-          color: #888;
-          font-style: italic;
-        }
-
-        /* ============================================
-           HOW IT WORKS
-           ============================================ */
-        .how-section {
-          padding: 80px 20px;
-          background: #fafafa;
-        }
-
-        .steps-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 40px;
-          margin-top: 48px;
-        }
-
-        .step {
-          text-align: center;
-        }
-
-        .step-num {
-          font-size: 48px;
-          font-weight: 700;
-          color: #e5e5e5;
-          margin-bottom: 16px;
-        }
-
-        .step-title {
-          font-size: 18px;
-          font-weight: 600;
-          margin-bottom: 12px;
-        }
-
-        .step-desc {
-          font-size: 15px;
-          color: #666;
-          line-height: 1.6;
-        }
-
-        /* ============================================
-           FEATURES
-           ============================================ */
-        .features-section {
-          padding: 80px 20px;
-        }
-
-        .features-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 24px;
-          margin-top: 48px;
-        }
-
-        .feature-card {
-          padding: 32px;
-          background: #fafafa;
-          border-radius: 12px;
-        }
-
-        .feature-card h3 {
-          font-size: 18px;
-          font-weight: 600;
-          margin-bottom: 12px;
-        }
-
-        .feature-card p {
-          font-size: 15px;
-          color: #666;
-          line-height: 1.6;
-        }
-
-        /* ============================================
-           PRICING
-           ============================================ */
-        .pricing-section {
-          padding: 80px 20px;
-          background: #fafafa;
-        }
-
-        .pricing-card {
-          max-width: 400px;
-          margin: 48px auto 0;
-          padding: 40px;
-          background: #fff;
-          border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-          text-align: center;
-        }
-
-        .pricing-header {
-          margin-bottom: 16px;
-        }
-
-        .pricing-amount {
-          font-size: 48px;
-          font-weight: 700;
-          letter-spacing: -2px;
-        }
-
-        .pricing-period {
-          font-size: 18px;
-          color: #666;
-        }
-
-        .pricing-desc {
-          color: #666;
-          margin-bottom: 24px;
-        }
-
-        .pricing-features {
-          list-style: none;
-          text-align: left;
-          margin-bottom: 32px;
-        }
-
-        .pricing-features li {
-          padding: 10px 0;
-          border-bottom: 1px solid #f0f0f0;
-          font-size: 15px;
-        }
-
-        .pricing-features li::before {
-          content: "→";
-          margin-right: 10px;
-          color: #1a1a1a;
-        }
-
-        .pricing-note {
-          margin-top: 12px;
-          font-size: 13px;
-          color: #888;
-        }
-
-        /* ============================================
-           CTA SECTION
-           ============================================ */
-        .cta-section {
-          padding: 80px 20px;
-          text-align: center;
-        }
-
-        .cta-content {
-          max-width: 600px;
-          margin: 0 auto;
-        }
-
-        .cta-content h2 {
-          font-size: 32px;
-          font-weight: 700;
-          margin-bottom: 12px;
-          letter-spacing: -1px;
-        }
-
-        .cta-content p {
-          color: #666;
-          font-size: 18px;
-          margin-bottom: 32px;
-        }
-
-        /* ============================================
-           FOOTER
-           ============================================ */
-        .footer {
-          padding: 24px 20px;
-          border-top: 1px solid #f0f0f0;
-        }
-
-        .footer-inner {
-          max-width: 1140px;
-          margin: 0 auto;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .footer-logo {
-          font-size: 14px;
-          color: #888;
-          font-weight: 500;
-        }
-
-        .footer-links {
-          display: flex;
-          gap: 24px;
-        }
-
-        .footer-links a {
-          font-size: 14px;
-          color: #888;
-          text-decoration: none;
-        }
-
-        .footer-links a:hover {
-          color: #1a1a1a;
-        }
-
-        /* ============================================
-           TABLET STYLES (768px and below)
-           ============================================ */
-        @media (max-width: 768px) {
-          .nav-links-desktop {
-            display: none;
-          }
-
-          .mobile-menu-btn {
-            display: block;
-          }
-
-          .mobile-menu {
-            display: block;
-          }
-
-          .hero {
-            padding: 120px 20px 60px;
-          }
-
-          .hero-title {
-            font-size: 36px;
-            letter-spacing: -1px;
-          }
-
-          .hero-subtitle {
-            font-size: 16px;
-          }
-
-          .preview-section {
-            padding: 0 20px 60px;
-          }
-
-          .chat-sidebar {
-            display: none;
-          }
-
-          .chat-preview {
-            min-height: 300px;
-          }
-
-          .chat-area {
-            padding: 20px;
-          }
-
-          .audience-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .steps-grid {
-            grid-template-columns: 1fr;
-            gap: 32px;
-          }
-
-          .features-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .problem-content h2,
-          .section-title,
-          .cta-content h2 {
-            font-size: 24px;
-          }
-
-          .problem-content p,
-          .cta-content p {
-            font-size: 16px;
-          }
-
-          .comparison-table th,
-          .comparison-table td {
-            padding: 12px 14px;
-            font-size: 13px;
-          }
-        }
-
-        /* ============================================
-           MOBILE STYLES (480px and below)
-           ============================================ */
-        @media (max-width: 480px) {
-          .nav-inner {
-            padding: 14px 16px;
-          }
-
-          .hero {
-            padding: 110px 16px 50px;
-          }
-
-          .hero-title {
-            font-size: 32px;
-            letter-spacing: -0.5px;
-          }
-
-          .hero-subtitle {
-            font-size: 15px;
-            margin-bottom: 28px;
-          }
-
-          .badge {
-            font-size: 12px;
-            padding: 5px 12px;
-            margin-bottom: 20px;
-          }
-
-          .form-row {
-            flex-direction: column;
-          }
-
-          .btn {
-            width: 100%;
-            padding: 16px 24px;
-          }
-
-          .input {
-            width: 100%;
-          }
-
-          .preview-section {
-            padding: 0 16px 50px;
-          }
-
-          .preview-container {
-            border-radius: 12px;
-          }
-
-          .browser-chrome {
-            padding: 12px 14px;
-          }
-
-          .browser-dot {
-            width: 10px;
-            height: 10px;
-          }
-
-          .chat-area {
-            padding: 16px;
-            gap: 20px;
-          }
-
-          .message-text {
-            font-size: 13px;
-          }
-
-          .code-block {
-            padding: 12px;
-            font-size: 13px;
-          }
-
-          .memory-tag {
-            font-size: 11px;
-            padding: 8px 12px;
-          }
-
-          .audience-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .problem-section,
-          .how-section,
-          .features-section,
-          .pricing-section,
-          .comparison-section,
-          .audience-section {
-            padding: 60px 16px;
-          }
-
-          .section-title {
-            margin-bottom: 36px;
-          }
-
-          .step-num {
-            font-size: 36px;
-          }
-
-          .step-title {
-            font-size: 16px;
-          }
-
-          .step-desc {
-            font-size: 14px;
-          }
-
-          .feature-card {
-            padding: 20px;
-          }
-
-          .feature-card h3 {
-            font-size: 15px;
-          }
-
-          .feature-card p {
-            font-size: 14px;
-          }
-
-          .pricing-card {
-            padding: 28px 20px;
-          }
-
-          .pricing-amount {
-            font-size: 40px;
-          }
-
-          .cta-section {
-            padding: 70px 16px;
-          }
-
-          .footer {
-            padding: 20px 16px;
-          }
-
-          .footer-inner {
-            flex-direction: column;
-            gap: 16px;
-            text-align: center;
-          }
-
-          .footer-links {
-            gap: 20px;
-          }
-        }
-
-        /* ============================================
-           SMALL MOBILE (iPhone SE, etc - 375px and below)
-           ============================================ */
-        @media (max-width: 375px) {
-          .hero-title {
-            font-size: 28px;
-          }
-
-          .hero-subtitle {
-            font-size: 14px;
-          }
-
-          .problem-content h2,
-          .section-title,
-          .cta-content h2 {
-            font-size: 22px;
-          }
-        }
-
-        /* ============================================
-           iOS SAFE AREA SUPPORT
-           ============================================ */
-        @supports (padding-top: env(safe-area-inset-top)) {
-          .nav {
-            padding-top: env(safe-area-inset-top);
-          }
-
-          .footer {
-            padding-bottom: calc(24px + env(safe-area-inset-bottom));
-          }
-        }
-
-        /* ============================================
-           PREVENT iOS TAP HIGHLIGHT
-           ============================================ */
-        a, button {
-          -webkit-tap-highlight-color: transparent;
-        }
-
-        /* ============================================
-           SMOOTH SCROLLING FIX FOR iOS
-           ============================================ */
-        @supports (-webkit-touch-callout: none) {
-          html {
-            scroll-behavior: auto;
-          }
-        }
-      `}</style>
     </div>
   );
 }
