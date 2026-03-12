@@ -221,7 +221,7 @@ if(!UID){
 } else {
   pullCloud(function(cn){var l=getNotes();if(cn){var m=mergeNotes(l,cn);localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(m))}renderList()});
   setInterval(function(){if(document.getElementById('ed-view').style.display==='flex')return;
-    pullCloud(function(cn){if(cn){var l=getNotes();var m=mergeNotes(l,cn);localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(m));renderList()}})},15000);
+    pullCloud(function(cn){if(cn){var l=getNotes();var m=mergeNotes(l,cn);localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(m));renderList()}})},5000);
 }
 </script>
 </body>

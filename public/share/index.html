@@ -456,6 +456,43 @@ document.getElementById('dBack').addEventListener('click', function() {
   document.getElementById('detail').style.display = 'none';
   document.body.style.overflow = '';
 });
+
+/* ═══ LIVE POLLING — re-fetch every 5s, re-render if data changed ═══ */
+var _lastDataHash = '';
+function hashStr(s) { var h = 0; for (var i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; } return h; }
+
+if (token) {
+  // Store initial hash
+  _lastDataHash = hashStr(JSON.stringify(data || {}));
+  
+  setInterval(function() {
+    // Don't update while viewing a detail
+    if (document.getElementById('detail').style.display === 'block') return;
+    
+    fetch(SB_URL + '/rest/v1/shared_projects?share_token=eq.' + encodeURIComponent(token) + '&select=*', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    }).then(function(r) { return r.json(); }).then(function(rows) {
+      if (!rows || !rows.length) return;
+      var row = rows[0];
+      var newData;
+      try { newData = JSON.parse(row.project_data); } catch(e) { return; }
+      var newHash = hashStr(JSON.stringify(newData));
+      if (newHash === _lastDataHash) return;
+      
+      // Data changed — update globals and re-render
+      _lastDataHash = newHash;
+      data = newData;
+      items = data.items || [];
+      tasks = data.tasks || [];
+      workflow = data.workflow || [];
+      activity = data.activity || [];
+      brief = data.brief || null;
+      
+      var name = row.project_name || data.name || 'Untitled Project';
+      renderProject(name, row);
+    }).catch(function() {});
+  }, 5000);
+}
 </script>
 </body>
 </html>
