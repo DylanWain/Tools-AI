@@ -127,7 +127,7 @@ if(UID)localStorage.setItem('toolsai_notes_uid',UID);
 var _aid=null;
 
 function getNotes(){try{return JSON.parse(localStorage.getItem('toolsai_notes_'+UID)||'[]')}catch(e){return[]}}
-function saveNotes(n){try{localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(n))}catch(e){};syncCloud(n)}
+function saveNotes(n){n.sort(function(a,b){return(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)});try{localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(n))}catch(e){};syncCloud(n)}
 function addNote(t){var ns=getNotes();var n={id:'note_'+Date.now(),body:t||'',source:'mobile',createdAt:Date.now(),updatedAt:Date.now(),pinned:false};ns.unshift(n);saveNotes(ns);return n}
 function getTitle(n){return(n.body||n.text||'').split('\n')[0].trim()||'New Note'}
 function getPreview(n){return((n.body||n.text||'').split('\n')[1]||'').trim().slice(0,80)||'No additional text'}
