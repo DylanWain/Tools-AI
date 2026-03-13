@@ -144,13 +144,18 @@ var _sT=null;
 function syncCloud(ns){if(!SB_URL||!UID)return;clearTimeout(_sT);_sT=setTimeout(function(){
   fetch(SB_URL+'/rest/v1/notes_sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'resolution=merge-duplicates'},
     body:JSON.stringify({user_id:UID,notes_data:JSON.stringify(ns),updated_at:new Date().toISOString()})}).catch(function(){})},1200)}
-function pullCloud(cb){if(!SB_URL||!UID){cb(null);return}
+function pullCloud(cb){if(!SB_URL||!UID){cb(null,null);return}
   var done=false;
-  var t=setTimeout(function(){if(!done){done=true;cb(null)}},8000);
+  var t=setTimeout(function(){if(!done){done=true;cb(null,null)}},8000);
   fetch(SB_URL+'/rest/v1/notes_sync?user_id=eq.'+encodeURIComponent(UID)+'&select=notes_data,updated_at&limit=1',{
     headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}}).then(function(r){return r.json()}).then(function(rows){
     if(done)return;done=true;clearTimeout(t);
-    if(rows&&rows.length>0&&rows[0].notes_data){try{cb(JSON.parse(rows[0].notes_data))}catch(e){cb(null)}}else cb(null)}).catch(function(){if(!done){done=true;clearTimeout(t);cb(null)}})}
+    if(rows&&rows.length>0&&rows[0].notes_data){
+      var cloudTs=rows[0].updated_at?new Date(rows[0].updated_at).getTime():0;
+      var lastTs=parseInt(localStorage.getItem('toolsai_notes_cloud_ts_'+UID)||'0');
+      if(cloudTs<=lastTs){cb(null,null);return} // nothing new
+      try{cb(JSON.parse(rows[0].notes_data),String(cloudTs))}catch(e){cb(null,null)}
+    }else cb(null,null)}).catch(function(){if(!done){done=true;clearTimeout(t);cb(null,null)}})}
 function mergeNotes(a,b){if(!b||!b.length)return a;if(!a||!a.length)return b;
   var m={};b.forEach(function(n){m[n.id]=n});a.forEach(function(n){if(!m[n.id])m[n.id]=n;else{if((n.updatedAt||0)>(m[n.id].updatedAt||0))m[n.id]=n}});
   var r=Object.values(m);r.sort(function(a,b){return(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)});return r}
@@ -227,9 +232,9 @@ if(!UID){
   document.getElementById('note-list').innerHTML='<div style="text-align:center;padding:80px 20px"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1" style="margin-bottom:16px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><div style="font-size:18px;font-weight:600;margin-bottom:8px">Connect to Tools AI</div><div style="font-size:14px;color:#888;max-width:280px;margin:0 auto;line-height:1.5">Open Tools AI on your desktop, go to Notes, and tap the phone icon to scan your QR code.</div></div>';
   document.getElementById('new-btn').style.display='none';
 } else {
-  pullCloud(function(cn){var l=getNotes();if(cn){var m=mergeNotes(l,cn);localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(m))}renderList()});
+  pullCloud(function(cn,ts){if(cn){localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(cn));if(ts)localStorage.setItem('toolsai_notes_cloud_ts_'+UID,ts)}renderList()});
   setInterval(function(){if(document.getElementById('ed-view').style.display==='flex')return;
-    pullCloud(function(cn){if(cn){var l=getNotes();var m=mergeNotes(l,cn);localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(m));renderList()}})},5000);
+    pullCloud(function(cn,ts){if(cn){localStorage.setItem('toolsai_notes_'+UID,JSON.stringify(cn));if(ts)localStorage.setItem('toolsai_notes_cloud_ts_'+UID,ts);renderList()}})},5000);
 }
 </script>
 </body>
