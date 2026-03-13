@@ -311,7 +311,7 @@ export default function App() {
           <img src={IC.app} alt="Tools AI" style={{ width: 32, height: 32, borderRadius: 8 }} />
           <span style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: -0.5 }}>Tools AI</span>
         </div>
-        <a href="#download" style={{
+        <a href="https://github.com/DylanWain/Tools-AI-APP/releases/download/v1.0.1/Tools.AI-1.0.0-universal.dmg" download style={{
           display: "flex", alignItems: "center", gap: 7, padding: "9px 22px",
           background: "#111", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "white", textDecoration: "none",
         }}>
@@ -333,7 +333,7 @@ export default function App() {
           </p>
         </Reveal>
         <Reveal delay={0.45}>
-          <a href="#download" style={{
+          <a href="https://github.com/DylanWain/Tools-AI-APP/releases/download/v1.0.1/Tools.AI-1.0.0-universal.dmg" download style={{
             display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px",
             background: "#111", borderRadius: 12, fontSize: 15, fontWeight: 600, color: "white", textDecoration: "none",
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
