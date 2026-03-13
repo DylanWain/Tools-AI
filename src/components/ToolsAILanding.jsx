@@ -215,11 +215,11 @@ const SearchMockup = () => (
 /* ═══ FEATURE ROW (Nessie alternating layout) ═══ */
 const Feature = ({ title, desc, mockup, reverse }) => (
   <div style={{ maxWidth: 1060, margin: "0 auto", padding: "100px 40px", display: "flex", alignItems: "center", gap: 80, flexDirection: reverse ? "row-reverse" : "row" }}>
-    <RevealX x={reverse ? 50 : -50} delay={0.1} style={{ flex: "0 0 45%" }}>
+    <RevealX x={reverse ? 50 : -50} delay={0.1} style={{ flex: "0 0 calc(45% - 40px)" }}>
       <h2 style={{ fontFamily: "'Outfit',sans-serif", fontSize: 38, fontWeight: 700, letterSpacing: -1.5, lineHeight: 1.2, color: "#111", marginBottom: 18 }}>{title}</h2>
       <p style={{ fontSize: 17, color: "#6b7280", lineHeight: 1.75, maxWidth: 420 }}>{desc}</p>
     </RevealX>
-    <RevealX x={reverse ? -50 : 50} delay={0.3} style={{ flex: "0 0 55%" }}>
+    <RevealX x={reverse ? -50 : 50} delay={0.3} style={{ flex: "0 0 calc(55% - 40px)" }}>
       {mockup}
     </RevealX>
   </div>
@@ -311,7 +311,7 @@ export default function App() {
           <img src={IC.app} alt="Tools AI" style={{ width: 32, height: 32, borderRadius: 8 }} />
           <span style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: -0.5 }}>Tools AI</span>
         </div>
-        <a href="https://github.com/DylanWain/Tools-AI-APP/releases/download/v1.0.0/Tools.AI-1.0.0-universal.dmg" download style={{
+        <a href="#download" style={{
           display: "flex", alignItems: "center", gap: 7, padding: "9px 22px",
           background: "#111", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "white", textDecoration: "none",
         }}>
@@ -333,13 +333,13 @@ export default function App() {
           </p>
         </Reveal>
         <Reveal delay={0.45}>
-          <a href="https://github.com/DylanWain/Tools-AI-APP/releases/download/v1.0.0/Tools.AI-1.0.0-universal.dmg" download style={{
+          <a href="#download" style={{
             display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px",
             background: "#111", borderRadius: 12, fontSize: 15, fontWeight: 600, color: "white", textDecoration: "none",
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download
+            Download for Mac
           </a>
         </Reveal>
         <Reveal delay={0.55}>
@@ -426,13 +426,13 @@ export default function App() {
           <img src={IC.app} alt="Tools AI" style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 24, boxShadow: "0 8px 24px rgba(0,0,0,0.1)" }} />
         </Reveal>
         <Reveal delay={0.15}>
-          <a href="https://github.com/DylanWain/Tools-AI-APP/releases/download/v1.0.0/Tools.AI-1.0.0-universal.dmg" download style={{
+          <a href="#" style={{
             display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px",
             background: "#111", borderRadius: 12, fontSize: 15, fontWeight: 600, color: "white", textDecoration: "none",
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download
+            Download for Mac
           </a>
         </Reveal>
       </section>
