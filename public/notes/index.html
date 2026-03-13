@@ -42,7 +42,7 @@ html,body{height:100%;background:#111;color:#e5e5e5;font-family:-apple-system,Bl
 #ed{flex:1;outline:none;padding:8px 24px 60px;overflow-y:auto;word-break:break-word}
 #ed>div:first-child{font-size:26px!important;font-weight:700!important;line-height:1.3!important;color:#e5e5e5!important;letter-spacing:-.3px}
 #ed>div:not(:first-child){font-size:15px!important;font-weight:400!important;line-height:1.7!important;color:#ccc!important}
-#ld{display:flex;align-items:center;justify-content:center;height:100%;color:#555;font-size:12px}
+#ld{display:flex;align-items:center;justify-content:center;height:100%;color:#888;font-size:13px;padding:20px;text-align:center;line-height:1.6}
 </style>
 </head>
 <body>
@@ -128,8 +128,24 @@ function push(){
   try{fetch(SB+'/rest/v1/notes_sync',{method:'POST',headers:{'Content-Type':'application/json',apikey:SK,Authorization:'Bearer '+SK,Prefer:'resolution=merge-duplicates'},body:JSON.stringify({user_id:UID,notes_data:JSON.stringify(N),updated_at:new Date().toISOString()})}).catch(function(){})}catch(e){}
 }
 function pull(cb){
-  if(!SB||!UID){cb([]);return}
-  fetch(SB+'/rest/v1/notes_sync?user_id=eq.'+encodeURIComponent(UID)+'&select=notes_data&limit=1',{headers:{apikey:SK,Authorization:'Bearer '+SK}}).then(function(r){return r.json()}).then(function(rows){try{if(rows&&rows.length&&rows[0].notes_data)cb(JSON.parse(rows[0].notes_data));else cb([])}catch(e){cb([])}}).catch(function(){cb([])})
+  if(!SB){document.getElementById('ld').textContent='Error: No server configured';return}
+  if(!UID){document.getElementById('ld').textContent='Error: No user ID in URL — rescan the QR code from the desktop app';return}
+  var timeout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'))},10000)});
+  Promise.race([
+    fetch(SB+'/rest/v1/notes_sync?user_id=eq.'+encodeURIComponent(UID)+'&select=notes_data&limit=1',{headers:{apikey:SK,Authorization:'Bearer '+SK}}),
+    timeout
+  ]).then(function(r){
+    if(!r.ok){document.getElementById('ld').textContent='Server error '+r.status+' — check Supabase table permissions';return}
+    return r.json()
+  }).then(function(rows){
+    if(!rows)return;
+    try{if(rows&&rows.length&&rows[0]&&rows[0].notes_data)cb(JSON.parse(rows[0].notes_data));else cb([])}catch(e){cb([])}
+  }).catch(function(err){
+    var msg=err&&err.message==='timeout'
+      ?'Timed out — your Supabase project may be paused or notes have not synced yet. Open the desktop app and make an edit, then refresh.'
+      :'Network error: '+(err&&err.message||'unknown')+' — check your connection';
+    document.getElementById('ld').textContent=msg;
+  })
 }
 function merge(a,b){if(!b.length)return a;if(!a.length)return b;var m={};b.forEach(function(n){if(n&&n.id)m[n.id]=n});a.forEach(function(n){if(!n||!n.id)return;if(!m[n.id])m[n.id]=n;else if((n.updatedAt||0)>(m[n.id].updatedAt||0))m[n.id]=n});var r=Object.values(m);r.sort(function(a,b){return(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)});return r}
 
