@@ -199,9 +199,12 @@ function closeEditor(){saveContent();document.getElementById('ed-view').style.di
 function saveContent(){var ed=document.getElementById('editor'),nid=ed.dataset.noteId;if(!nid)return;
   var all=getNotes(),n=all.find(function(x){return x.id===nid});if(!n)return;
   var ch=ed.children,lines=[];for(var i=0;i<ch.length;i++)lines.push(ch[i].innerText||'');
-  if(!lines.length)lines=[ed.innerText||''];n.body=lines.join('\n');n.updatedAt=Date.now();
-  if(!n.body.trim()){all=all.filter(function(x){return x.id!==n.id});if(_aid===n.id)_aid=null}
-  saveNotes(all)}
+  if(!lines.length)lines=[ed.innerText||''];
+  var newBody=lines.join('\n');
+  // Only bump updatedAt if content actually changed — otherwise phone wins merge over desktop edits
+  if(newBody!==n.body){n.body=newBody;n.updatedAt=Date.now();
+    if(!n.body.trim()){all=all.filter(function(x){return x.id!==n.id});if(_aid===n.id)_aid=null}
+    saveNotes(all)}}
 
 /* ═══ EVENTS ═══ */
 document.getElementById('back-btn').addEventListener('click',closeEditor);
