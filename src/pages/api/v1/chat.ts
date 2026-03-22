@@ -33,11 +33,13 @@ interface ModelResult {
 // ── KEY VALIDATION ──
 async function validateKey(key: string): Promise<boolean> {
   if (!key || !key.startsWith('tai-')) return false;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL + '/rest/v1/tai_keys?api_key=eq.' + key + '&active=eq.true&select=active&limit=1';
+  const supabaseUrl = 'https://synpjcammfjebwsmtfpz.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQ5NTc0NywiZXhwIjoyMDg1MDcxNzQ3fQ.wdpCbyxMtncn4wpBQuOhpdkKuKESFjLLar6Sjww0_RM';
+  const url = supabaseUrl + '/rest/v1/tai_keys?api_key=eq.' + encodeURIComponent(key) + '&active=eq.true&select=active&limit=1';
   const res = await fetch(url, {
     headers: {
-      'apikey': process.env.SUPABASE_SERVICE_KEY || '',
-      'Authorization': 'Bearer ' + (process.env.SUPABASE_SERVICE_KEY || ''),
+      'apikey': supabaseKey,
+      'Authorization': 'Bearer ' + supabaseKey,
     }
   });
   const data = await res.json();
@@ -266,7 +268,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // ── AUTH ──
   const authHeader = req.headers.authorization || '';
   const key = authHeader.replace('Bearer ', '').trim();
-  const valid = key.startsWith("tai-") && key.length > 10;
+  const valid = await validateKey(key);
   if (!valid) {
     return res.status(401).json({ error: 'Invalid or inactive API key' });
   }
