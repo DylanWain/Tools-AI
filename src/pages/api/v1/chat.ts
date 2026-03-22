@@ -33,13 +33,15 @@ interface ModelResult {
 // ── KEY VALIDATION ──
 async function validateKey(key: string): Promise<boolean> {
   if (!key || !key.startsWith('tai-')) return false;
-  const { data, error } = await supabase
-    .from('tai_keys')
-    .select('active')
-    .eq('api_key', key)
-    .eq('active', true)
-    .single();
-  return !error && !!data;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL + '/rest/v1/tai_keys?api_key=eq.' + key + '&active=eq.true&select=active&limit=1';
+  const res = await fetch(url, {
+    headers: {
+      'apikey': process.env.SUPABASE_SERVICE_KEY || '',
+      'Authorization': 'Bearer ' + (process.env.SUPABASE_SERVICE_KEY || ''),
+    }
+  });
+  const data = await res.json();
+  return Array.isArray(data) && data.length > 0;
 }
 
 // ── SSE STREAM READER ──
@@ -264,7 +266,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // ── AUTH ──
   const authHeader = req.headers.authorization || '';
   const key = authHeader.replace('Bearer ', '').trim();
-  const valid = key === process.env.TAI_MASTER_KEY || await validateKey(key);
+  const valid = await validateKey(key);
   if (!valid) {
     return res.status(401).json({ error: 'Invalid or inactive API key' });
   }
