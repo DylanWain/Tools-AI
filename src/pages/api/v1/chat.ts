@@ -55,13 +55,14 @@ async function checkCap(key: string): Promise<boolean> {
 async function trackUsage(key: string, models: ModelId[]) {
   const month = new Date().toISOString().slice(0, 7);
   const cost = models.reduce((sum, m) => sum + (MODEL_COST_PER_REQUEST_CENTS[m] || 2) * 2, 0); // *2 for two-pass
-  await supabase.rpc('increment_usage', { p_key: key, p_month: month, p_cost: cost }).catch(() => {
-    // fallback: upsert manually
-    supabase.from('tai_usage').upsert(
+  try {
+    await supabase.rpc('increment_usage', { p_key: key, p_month: month, p_cost: cost });
+  } catch {
+    await supabase.from('tai_usage').upsert(
       { api_key: key, month, cost_cents: cost },
       { onConflict: 'api_key,month', ignoreDuplicates: false }
     );
-  });
+  }
 }
 
 // ── SSE STREAM READER ──
