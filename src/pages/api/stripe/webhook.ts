@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-02-25.clover' as any });
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
@@ -38,7 +38,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const email = session.customer_email || session.metadata?.email;
     if (!email) return res.status(200).json({ received: true });
 
-    // Check if this user already has an active key
     const { data: existing } = await supabase
       .from('tai_keys')
       .select('api_key')
@@ -47,7 +46,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .single();
 
     if (!existing) {
-      // Generate new tai- key
       const key = 'tai-' + crypto.randomBytes(16).toString('hex');
       await supabase.from('tai_keys').insert({
         api_key: key,
@@ -60,7 +58,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  // Deactivate key on subscription cancellation
   if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object as Stripe.Subscription;
     const customer = await stripe.customers.retrieve(sub.customer as string) as Stripe.Customer;
