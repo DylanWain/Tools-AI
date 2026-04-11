@@ -1,10 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../lib/supabase';
+import { resolveBearer, gateNewUser, gateToResponse } from '../../../lib/billing/billingAuth';
+import { computeRawCostCents, computeBilling } from '../../../lib/billing/modelCosts';
+import { reportMeterEvent } from '../../../lib/billing/stripe';
+import { recordUsage, logUsageEvent } from '../../../lib/billing/billingDb';
+import type { UserRow } from '../../../lib/billing/billingDb';
 
-const supabase = createClient(
-  'https://synpjcammfjebwsmtfpz.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQ5NTc0NywiZXhwIjoyMDg1MDcxNzQ3fQ.wdpCbyxMtncn4wpBQuOhpdkKuKESFjLLar6Sjww0_RM'
-);
+// Use the shared admin client (reads creds from env). The prior version
+// had the service role key hardcoded in source — rotate the Supabase
+// service role key after v2.0.0 ships.
+const supabase = supabaseAdmin;
 
 const OPENAI_KEY      = process.env.OPENAI_KEY!;
 const ANTHROPIC_KEY   = process.env.ANTHROPIC_KEY!;
@@ -26,17 +31,18 @@ const MODEL_COST_PER_REQUEST_CENTS: Record<string, number> = {
 type ModelId = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'perplexity';
 
 // ── KEY VALIDATION ──
+// Legacy tai-xxx keys are stored in the tai_keys table. Service role key
+// now comes from env via supabaseAdmin (no hardcoded secret in source).
 async function validateKey(key: string): Promise<boolean> {
   if (!key || !key.startsWith('tai-')) return false;
-  const url = 'https://synpjcammfjebwsmtfpz.supabase.co/rest/v1/tai_keys?api_key=eq.' + encodeURIComponent(key) + '&active=eq.true&select=active&limit=1';
-  const res = await fetch(url, {
-    headers: {
-      'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQ5NTc0NywiZXhwIjoyMDg1MDcxNzQ3fQ.wdpCbyxMtncn4wpBQuOhpdkKuKESFjLLar6Sjww0_RM',
-      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQ5NTc0NywiZXhwIjoyMDg1MDcxNzQ3fQ.wdpCbyxMtncn4wpBQuOhpdkKuKESFjLLar6Sjww0_RM',
-    }
-  });
-  const data = await res.json();
-  return Array.isArray(data) && data.length > 0;
+  const { data, error } = await supabase
+    .from('tai_keys')
+    .select('active')
+    .eq('api_key', key)
+    .eq('active', true)
+    .limit(1);
+  if (error || !data) return false;
+  return data.length > 0;
 }
 
 // ── SILENT CAP CHECK ──
@@ -187,12 +193,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const key = (req.headers.authorization || '').replace('Bearer ', '').trim();
-  const valid = await validateKey(key);
-  if (!valid) return res.status(401).json({ error: 'Invalid or inactive API key' });
 
-  // Silent cap check
-  const underCap = await checkCap(key);
-  if (!underCap) return res.status(503).json({ error: 'Service temporarily unavailable' });
+  // ── Dual-auth gate ──────────────────────────────────────────────
+  // Try the new JWT/new-billing path first. If the caller is on a legacy
+  // tai-xxx key, fall through to the existing validateKey/checkCap flow
+  // unchanged — that's how 3 existing paying customers stay working.
+  const authResult = await resolveBearer(req.headers.authorization);
+  let newBillingUser: UserRow | null = null;
+
+  if (authResult.kind === 'new_user') {
+    const gate = await gateNewUser(authResult.user);
+    if (gate !== 'allow') {
+      const { status, body } = gateToResponse(gate);
+      return res.status(status).json(body);
+    }
+    newBillingUser = authResult.user;
+  } else if (authResult.kind === 'legacy') {
+    // Legacy tai-xxx — run the existing validation + silent cap check.
+    const valid = await validateKey(key);
+    if (!valid) return res.status(401).json({ error: 'Invalid or inactive API key' });
+    const underCap = await checkCap(key);
+    if (!underCap) return res.status(503).json({ error: 'Service temporarily unavailable' });
+  } else if (authResult.kind === 'anonymous') {
+    // Anonymous chat-app tokens are NOT allowed to hit /api/v1/chat — only
+    // legacy tai-xxx keys or signed-in users get AI access. This behaviour
+    // matches what the original code did (it required a tai-xxx key).
+    return res.status(401).json({ error: 'Sign in required', code: 'UNAUTH' });
+  } else {
+    return res.status(401).json({ error: 'Invalid or inactive API key' });
+  }
 
   const { prompt, models, stream = false, shared_context = true, system_prompt = 'You are a helpful, expert AI assistant. Be thorough, clear, and direct.' } = req.body;
 
@@ -225,13 +254,72 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(200).json({ id: 'tai-run-' + Math.random().toString(36).slice(2, 10), results, models_used: models, shared_context });
     }
 
-    // Track usage silently after response
-    trackUsage(key, models as ModelId[]);
+    // ── Post-call accounting ─────────────────────────────────────
+    // Two branches: new-billing users report to Stripe meter + log to
+    // usage_events; legacy tai-xxx users use the existing trackUsage.
+    if (newBillingUser) {
+      // Fire and forget — we've already sent the response to the client.
+      accountForNewUser(newBillingUser, models as ModelId[]).catch((e) => {
+        console.error('new-billing accounting failed:', e?.message || e);
+      });
+    } else {
+      // Legacy path — unchanged from before.
+      trackUsage(key, models as ModelId[]);
+    }
 
   } catch (e: any) {
+    // If a new-billing user hit an upstream error, log it as errored_not_charged.
+    if (newBillingUser) {
+      logUsageEvent({
+        user_id: newBillingUser.id,
+        model: (req.body?.models || []).join(','),
+        raw_cost_cents: 0,
+        charged_cents: 0,
+        kind: 'errored_not_charged',
+        error_message: e?.message?.slice(0, 500) || 'upstream error',
+      }).catch(() => {});
+    }
     if (stream) { res.write(`data: ${JSON.stringify({ event: 'error', message: e.message })}\n\n`); res.end(); }
     else res.status(500).json({ error: e.message });
   }
+}
+
+/**
+ * Post-call accounting for new-billing users. Computes raw cost from the
+ * flat per-request table, updates users.period_*_cents atomically, reports
+ * to Stripe meter if user has exceeded Chad's included threshold or is on
+ * PAYG, and logs a usage_event for auditing.
+ *
+ * Called AFTER the response has been sent to the client — any error here
+ * is logged but never propagates to the user.
+ */
+async function accountForNewUser(user: UserRow, models: ModelId[]): Promise<void> {
+  const rawCents = computeRawCostCents(models);
+  const oldConsumed = user.period_consumed_cents || 0;
+  const billing = computeBilling(user.tier, rawCents, oldConsumed);
+
+  // Update the period counters atomically.
+  await recordUsage(user.id, rawCents, billing.chargedCents);
+
+  // Report to Stripe meter when applicable (Chad overage or PAYG).
+  let meterEventId: string | null = null;
+  if (billing.meterEventValue > 0 && user.stripe_customer_id) {
+    meterEventId = await reportMeterEvent(
+      user.stripe_customer_id,
+      billing.meterEventValue,
+      `usage_${user.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    );
+  }
+
+  // Audit log.
+  await logUsageEvent({
+    user_id: user.id,
+    model: models.join(','),
+    raw_cost_cents: rawCents,
+    charged_cents: billing.chargedCents,
+    kind: billing.kind,
+    stripe_meter_event_id: meterEventId,
+  });
 }
 
 export const config = { api: { bodyParser: { sizeLimit: '1mb' }, responseLimit: false } };
