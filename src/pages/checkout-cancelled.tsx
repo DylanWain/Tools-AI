@@ -16,7 +16,7 @@ export default function CheckoutCancelled() {
           <p style={styles.sub}>
             No charge was made. You can try again any time from the extension.
           </p>
-          <a href="vscode://tools-ai.tools-ai/auth?refreshed=1" style={styles.link}>
+          <a href="tools-ai://tools-ai.tools-ai/auth?refreshed=1" style={styles.link}>
             Return to Tools AI →
           </a>
         </div>

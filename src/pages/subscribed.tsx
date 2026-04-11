@@ -15,7 +15,7 @@ export default function Subscribed() {
   useEffect(() => {
     // Bounce back to the extension after 1.5s so the user sees the confirmation.
     const t = setTimeout(() => {
-      window.location.href = 'vscode://tools-ai.tools-ai/auth?refreshed=1';
+      window.location.href = 'tools-ai://tools-ai.tools-ai/auth?refreshed=1';
     }, 1500);
     return () => clearTimeout(t);
   }, [router.query]);
@@ -36,7 +36,7 @@ export default function Subscribed() {
           <p style={styles.manual}>
             If the extension doesn&apos;t open automatically, click{' '}
             <a
-              href="vscode://tools-ai.tools-ai/auth?refreshed=1"
+              href="tools-ai://tools-ai.tools-ai/auth?refreshed=1"
               style={styles.link}
             >
               here
