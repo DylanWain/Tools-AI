@@ -161,127 +161,192 @@ export default function ToolsAILanding() {
         </Reveal>
       </section>
 
-      {/* ══ HERO DEMO: Full AI Builder IDE ═══════════════════════════ */}
+      {/* ══ HERO DEMO: Exact Tools AI IDE (from real screenshot) ═════ */}
       <section style={{ padding: "0 40px 160px", maxWidth: 1100, margin: "0 auto" }}>
         <Reveal>
-          <DemoFrame title="Tools AI" dark style={{ boxShadow: T.shadowXl }}>
-            <div style={{ display: "flex", minHeight: 420 }}>
-              {/* Activity bar */}
-              <div style={{ width: 48, background: "#12111a", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 14, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+          <DemoFrame title="tai-loop-test — Tools AI" dark style={{ boxShadow: T.shadowXl }}>
+            <div style={{ display: "flex", minHeight: 480 }}>
+
+              {/* Activity Bar (exact from screenshot: explorer, search, mic, book, git, extensions, settings) */}
+              <div style={{ width: 48, background: "#1e1e1e", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 10, gap: 2, borderRight: "1px solid #333" }}>
                 {[
-                  { icon: "📁", active: false }, { icon: "🔍", active: false },
-                  { icon: "🎙️", active: false }, { icon: "📚", active: false },
-                  { icon: "✨", active: true },
+                  { icon: "📄", tip: "Explorer" },
+                  { icon: "🔍", tip: "Search" },
+                  { icon: "🎙️", tip: "Meetings" },
+                  { icon: "📚", tip: "Context Library", active: true },
+                  { icon: "🔀", tip: "Source Control" },
+                  { icon: "🧩", tip: "Extensions" },
                 ].map((b, i) => (
-                  <div key={i} style={{ fontSize: 15, padding: "5px 7px", borderRadius: 5, opacity: b.active ? 1 : 0.3, background: b.active ? "rgba(255,255,255,0.08)" : "transparent", cursor: "default" }}>{b.icon}</div>
+                  <div key={i} title={b.tip} style={{
+                    fontSize: 14, padding: "8px 10px", cursor: "default",
+                    opacity: b.active ? 1 : 0.4,
+                    borderLeft: b.active ? "2px solid #fff" : "2px solid transparent",
+                  }}>{b.icon}</div>
                 ))}
+                <div style={{ flex: 1 }} />
+                <div style={{ fontSize: 14, padding: "8px 10px", opacity: 0.4, marginBottom: 8 }}>⚙️</div>
               </div>
 
-              {/* Left panel: task board */}
-              <div style={{ width: 240, padding: "16px 14px", borderRight: "1px solid rgba(255,255,255,0.06)", background: "#16151e" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>In Progress · 3</div>
-                {[
-                  { name: "Claude", task: "Auth + Dashboard components", sub: "Writing files · Opus-4.6", dot: "#d97706" },
-                  { name: "GPT-4o", task: "Chart library + dark theme", sub: "Fetching context", dot: "#10a37f" },
-                  { name: "Gemini", task: "Data loader + CSV export", sub: "Reading docs · Gemini 2.5", dot: "#4285f4" },
-                ].map(a => (
-                  <div key={a.name} style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: a.dot, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "#edecec" }}>{a.name}</span>
-                    </div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>{a.task}</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>{a.sub}</div>
+              {/* Sidebar: Context Library (exact from screenshot) */}
+              <div style={{ width: 260, background: "#252526", borderRight: "1px solid #333", padding: "8px 0", overflow: "hidden" }}>
+                <div style={{ padding: "6px 16px", fontSize: 11, fontWeight: 600, color: "#ccc", textTransform: "uppercase", letterSpacing: 0.8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Tools AI Context Li...</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["＋", "🔄", "👁️", "💡"].map((ic, i) => (
+                      <span key={i} style={{ fontSize: 10, padding: "2px 4px", cursor: "default", opacity: 0.5 }}>{ic}</span>
+                    ))}
                   </div>
-                ))}
-
-                <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 1.2, marginTop: 16, marginBottom: 10 }}>Ready for Review · 2</div>
-                {[
-                  { name: "Landing Page", sub: "Build Landing Page · 10m", files: "+135 −21" },
-                  { name: "API Endpoints", sub: "REST API setup · 30m", files: "+82 −4" },
-                ].map(t => (
-                  <div key={t.name} style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#edecec" }}>✓ {t.name}</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>{t.sub}</div>
-                    <div style={{ fontSize: 10, color: "#4ade80", marginTop: 2 }}>{t.files}</div>
+                </div>
+                <div style={{ padding: "4px 8px" }}>
+                  <div style={{ padding: "4px 8px", fontSize: 11, color: "#ccc", display: "flex", alignItems: "center", gap: 4, cursor: "default" }}>
+                    <span style={{ fontSize: 9 }}>▼</span> <span style={{ fontWeight: 600 }}>📊 2 analyses</span> <span style={{ fontSize: 10, color: "#888" }}>click to reopen</span>
                   </div>
-                ))}
+                  <div style={{ padding: "4px 24px", fontSize: 11, color: "#aaa" }}>
+                    <div style={{ marginBottom: 2 }}>📋 Analysis of tai-loop-test <span style={{ color: "#666", fontSize: 10 }}>Apr 11 · 8 sugg...</span></div>
+                    <div>📋 Analysis of untitled folder <span style={{ color: "#666", fontSize: 10 }}>Apr 10 · 7 sugg...</span></div>
+                  </div>
+                  <div style={{ padding: "8px 8px 4px", fontSize: 11, color: "#ccc", display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 9 }}>▼</span> <span style={{ fontWeight: 600 }}>📎 1 file</span> <span style={{ color: "#888", fontSize: 10 }}>514 B</span>
+                  </div>
+                  <div style={{ padding: "2px 24px", fontSize: 11, color: "#aaa" }}>
+                    📄 zorblon.json <span style={{ color: "#666", fontSize: 10 }}>data · 514 B</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Main area */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              {/* Editor area: package.json open */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#1e1e1e" }}>
                 {/* Tab bar */}
-                <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "#1a1924" }}>
-                  {["feature-prd.md", "Dashboard.tsx", "Auth.tsx"].map((f, i) => (
+                <div style={{ display: "flex", background: "#2d2d2d", borderBottom: "1px solid #333" }}>
+                  {["package.json", "tsconfig.json", "tsconfig.node.js"].map((f, i) => (
                     <div key={f} style={{
-                      padding: "8px 14px", fontSize: 11, fontFamily: MONO,
-                      color: i === 0 ? "#edecec" : "rgba(255,255,255,0.25)",
-                      background: i === 0 ? T.codeBg : "transparent",
-                      borderRight: "1px solid rgba(255,255,255,0.04)",
-                    }}>{f}</div>
+                      padding: "6px 14px", fontSize: 11, fontFamily: MONO,
+                      color: i === 0 ? "#fff" : "#888",
+                      background: i === 0 ? "#1e1e1e" : "transparent",
+                      borderRight: "1px solid #333",
+                      borderTop: i === 0 ? "1px solid #007acc" : "1px solid transparent",
+                      display: "flex", alignItems: "center", gap: 6,
+                    }}>
+                      <span style={{ fontSize: 10 }}>{i === 0 ? "📦" : "⚙️"}</span>{f}
+                      {i === 0 && <span style={{ fontSize: 9, color: "#888", marginLeft: 4 }}>×</span>}
+                    </div>
                   ))}
                 </div>
 
-                {/* Editor + composer */}
-                <div style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                  {/* Master task */}
-                  <div>
-                    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "16px 18px", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 16 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Master Task</div>
-                      <div style={{ fontSize: 14, color: "#edecec", lineHeight: 1.6 }}>
-                        Build a full-stack dashboard with React + TypeScript. Include user auth,
-                        real-time charts with Recharts, dark mode toggle, and CSV data export.
-                        Deploy-ready with Vite.
-                      </div>
+                {/* Code content */}
+                <div style={{ flex: 1, padding: "8px 0", fontFamily: MONO, fontSize: 12, lineHeight: 1.7, overflowY: "auto" }}>
+                  {[
+                    ["{"],
+                    ['  "name": "react-router-navbar",'],
+                    ['  "version": "1.0.0",'],
+                    ['  "private": true,'],
+                    ['  "scripts": {'],
+                    ['    "start": "vite",'],
+                    ['    "build": "tsc && vite build",'],
+                    ['    "preview": "vite preview"'],
+                    ["  },"],
+                    ['  "dependencies": {'],
+                    ['    "@tanstack/react-query": "^5.97.0",'],
+                    ['    "react": "^18.2.0",'],
+                    ['    "react-dom": "^18.2.0",'],
+                    ['    "react-router-dom": "^6.11.2"'],
+                    ["  },"],
+                  ].map((line, i) => (
+                    <div key={i} style={{ display: "flex", paddingLeft: 8 }}>
+                      <span style={{ width: 40, textAlign: "right", color: "#555", marginRight: 16, userSelect: "none", fontSize: 11 }}>{i + 1}</span>
+                      <span style={{ color: line[0].includes('"') ? "#ce9178" : line[0].includes('{') || line[0].includes('}') ? "#d4d4d4" : "#9cdcfe" }}>{line[0]}</span>
                     </div>
+                  ))}
+                </div>
+              </div>
 
-                    {/* Agent output */}
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", lineHeight: 1.8 }}>
-                      <div style={{ color: "#4ade80", fontWeight: 600, marginBottom: 4 }}>✓ Phase 1 complete — 3 agents delivered 12 files</div>
-                      <div>Claude → Auth.tsx, Dashboard.tsx, Sidebar.tsx, UserContext.tsx</div>
-                      <div>GPT-4o → BarChart.tsx, LineChart.tsx, DarkMode.css, ThemeProvider.tsx</div>
-                      <div>Gemini → dataLoader.ts, csvExport.ts, types.ts, constants.ts</div>
-                    </div>
-                  </div>
-
-                  {/* Composer */}
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "12px 16px", border: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
-                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", flex: 1 }}>Ask Tools AI to plan or build anything...</span>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>⚡ Agent</span>
-                      <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>Parallel ▾</span>
-                    </div>
+              {/* Right panel: AI Builder (exact from screenshot) */}
+              <div style={{ width: 300, background: "#252526", borderLeft: "1px solid #333", display: "flex", flexDirection: "column" }}>
+                {/* AI Builder tab */}
+                <div style={{ padding: "8px 12px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#ccc" }}>⚡ AI Builder</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["⟳", "⚙️", "⊟"].map((ic, i) => (
+                      <span key={i} style={{ fontSize: 10, color: "#888", cursor: "default", padding: "2px 4px" }}>{ic}</span>
+                    ))}
                   </div>
                 </div>
 
-                {/* Terminal */}
-                <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 24px", background: "#0d0c14" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.2)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Terminal</div>
-                  <pre style={{ fontSize: 12, fontFamily: MONO, color: "rgba(255,255,255,0.5)", lineHeight: 1.8, margin: 0 }}>
-{`$ npx tsc --noEmit
-`}<span style={{ color: "#f87171" }}>src/Auth.tsx:14 — error TS2307: Cannot find module 'next-auth'</span>{`
-`}<span style={{ color: "#fb923c" }}>⚡ Tools AI: auto-fixing...</span>{`
-$ npm install next-auth
-`}<span style={{ color: "rgba(255,255,255,0.3)" }}>added 12 packages in 3s</span>{`
-$ npx tsc --noEmit
-`}<span style={{ color: "#4ade80" }}>✓ No errors found</span>{`
-$ npm run build
-`}<span style={{ color: "#4ade80" }}>✓ Compiled successfully in 4.2s</span></pre>
+                <div style={{ flex: 1, padding: "10px 12px", overflowY: "auto", fontSize: 11 }}>
+                  {/* Master Planner toggle */}
+                  <div style={{ padding: "6px 8px", background: "#2d2d2d", borderRadius: 4, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "default" }}>
+                    <span style={{ color: "#ccc", fontWeight: 600, fontSize: 11 }}>▶ Talk to Master Planner</span>
+                    <span style={{ color: "#888", fontSize: 9 }}>Chat to refine the task & pick your team</span>
+                  </div>
+
+                  {/* Master Task */}
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Master Task</div>
+                  <div style={{ background: "#1e1e1e", border: "1px solid #333", borderRadius: 4, padding: "8px 10px", marginBottom: 12, minHeight: 50 }}>
+                    <span style={{ color: "#666", fontSize: 11 }}>Describe what to build. Or click "Talk to Master Planner" above to have an AI help you write this.</span>
+                  </div>
+
+                  {/* Add agent row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, color: "#888" }}>Add agent:</span>
+                    {[
+                      { name: "GPT-4o", color: "#10a37f" },
+                      { name: "Claude", color: "#d97706", icon: "✦" },
+                      { name: "Gemini", color: "#4285f4" },
+                      { name: "Grok", color: "#888" },
+                      { name: "Perplexity", color: "#20808d" },
+                    ].map(m => (
+                      <span key={m.name} style={{
+                        fontSize: 10, padding: "3px 8px", borderRadius: 4,
+                        border: "1px solid #444", color: m.color, cursor: "default",
+                        display: "flex", alignItems: "center", gap: 3,
+                      }}>{m.icon && <span>{m.icon}</span>}{m.name}</span>
+                    ))}
+                  </div>
+
+                  {/* Model slots */}
+                  {[
+                    { name: "GPT-4o", color: "#10a37f", icon: "🟢" },
+                    { name: "Claude", color: "#d97706", icon: "🟠" },
+                    { name: "Gemini", color: "#4285f4", icon: "🔵" },
+                    { name: "Grok", color: "#888", icon: "⚪" },
+                    { name: "Perplexity", color: "#20808d", icon: "🔮" },
+                  ].map(m => (
+                    <div key={m.name} style={{ marginBottom: 8, borderBottom: "1px solid #333", paddingBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 12 }}>{m.icon}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: m.color }}>{m.name}</span>
+                      </div>
+                      <div style={{ background: "#1e1e1e", border: "1px solid #333", borderRadius: 4, padding: "6px 8px" }}>
+                        <span style={{ color: "#666", fontSize: 10 }}>Optional: specific instructions for {m.name}...</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Run Team button */}
+                <div style={{ padding: "10px 12px", borderTop: "1px solid #333", display: "flex", gap: 6 }}>
+                  <div style={{ flex: 1, background: "#007acc", color: "#fff", textAlign: "center", padding: "8px 0", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "default" }}>
+                    ▶ Run Team
+                  </div>
+                  <div style={{ background: "#333", color: "#ccc", padding: "8px 12px", borderRadius: 4, fontSize: 11, cursor: "default" }}>
+                    💾 Save
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Status bar */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 14px", background: "#1e1d28", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
-              <div style={{ display: "flex", gap: 14 }}>
-                <span>⚡ AI Builder</span>
-                <span>$(record) Record Meeting</span>
-                <span>$(open-preview) Live Preview</span>
+            {/* Status bar (exact from screenshot) */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 12px", background: "#007acc", fontSize: 11, color: "#fff" }}>
+              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <span>⊘ 0 ⚠ 0</span>
               </div>
-              <div style={{ display: "flex", gap: 14 }}>
-                <span>$(rocket) Chad Trial — 14d left</span>
-                <span>TypeScript</span>
-                <span>UTF-8</span>
+              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                <span>⏺ Record Meeting</span>
+                <span>🔍 Live Preview</span>
+                <span>✨ AI Builder</span>
+                <span>📓 Meetings</span>
+                <span>🚀 Chad Trial — 13d left</span>
+                <span>Hello 👋</span>
               </div>
             </div>
           </DemoFrame>
@@ -572,7 +637,7 @@ $ npm run build
           ].map((t, i) => (
             <Reveal key={t.name} delay={i * 0.05}>
               <div style={{ background: T.white, padding: "36px 28px", display: "flex", flexDirection: "column", height: "100%", position: "relative", overflow: "hidden" }}>
-                {t.chad && <img src="/chad.png" alt="" style={{ position: "absolute", top: 4, right: 4, width: 100, height: 100, objectFit: "cover", objectPosition: "center top", opacity: 0.25, borderRadius: 10, pointerEvents: "none" }} />}
+                {t.chad && <img src="/chad.png" alt="Chad" style={{ position: "absolute", top: 8, right: 8, width: 90, height: 90, objectFit: "cover", objectPosition: "center top", opacity: 1, borderRadius: 10, pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }} />}
                 {t.recommended && <div style={{ fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Recommended</div>}
                 <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>{t.name}</div>
                 <div style={{ fontSize: 48, fontWeight: 700, marginBottom: 4, lineHeight: 1 }}>{t.price}{t.priceSub && <span style={{ fontSize: 16, fontWeight: 400, color: T.textTert }}>{t.priceSub}</span>}</div>
