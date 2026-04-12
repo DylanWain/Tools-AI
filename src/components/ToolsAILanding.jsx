@@ -460,10 +460,17 @@ export default function ToolsAILanding() {
               <div style={{ background: T.white, padding: "36px 28px", display: "flex", flexDirection: "column", height: "100%", position: "relative", overflow: "hidden" }}>
                 {t.recommended && <div style={{ fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Recommended</div>}
                 <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>{t.name}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1 }}>{t.price}{t.priceSub && <span style={{ fontSize: 16, fontWeight: 400, color: T.textTert }}>{t.priceSub}</span>}</div>
-                  {t.chad && <img src="/chad.png" alt="Chad" style={{ width: 120, height: 120, objectFit: "cover", objectPosition: "center top", borderRadius: "50%", border: "3px solid #E5E7EB", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", flexShrink: 0 }} />}
-                </div>
+                {t.chad && <img src="/chad.png" alt="Chad" style={{
+                  position: "absolute", top: -30, right: -20,
+                  width: 150, height: 150,
+                  objectFit: "cover", objectPosition: "center top",
+                  borderRadius: "50%",
+                  border: "4px solid #E5E7EB",
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+                  filter: "grayscale(1) contrast(1.1)",
+                  zIndex: 2,
+                }} />}
+                <div style={{ fontSize: 48, fontWeight: 700, marginBottom: 4, lineHeight: 1 }}>{t.price}{t.priceSub && <span style={{ fontSize: 16, fontWeight: 400, color: T.textTert }}>{t.priceSub}</span>}</div>
                 <div style={{ fontSize: 14, color: T.textTert, marginBottom: 28 }}>{t.sub}</div>
                 <ul style={{ listStyle: "none", padding: 0, margin: "0 0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
                   {t.features.map(f => <li key={f} style={{ fontSize: 14, color: T.textSec, display: "flex", gap: 8 }}><span style={{ color: T.textTert }}>✓</span>{f}</li>)}
