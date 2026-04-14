@@ -5,3 +5,4 @@ Disallow: /api/
 Disallow: /_next/
 
 Sitemap: https://www.thetoolswebsite.com/sitemap.xml
+<!-- v2.0.2 -->
