@@ -7,6 +7,8 @@
 // This is used by the Tools AI meeting recorder to transcribe live audio chunks.
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { supabaseAdmin } from '../../../lib/supabase';
+import { resolveBearer } from '../../../lib/billing/billingAuth';
 
 export const config = {
   api: {
@@ -16,28 +18,28 @@ export const config = {
 };
 
 const OPENAI_KEY = process.env.OPENAI_KEY!;
-const SUPABASE_URL = 'https://synpjcammfjebwsmtfpz.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQ5NTc0NywiZXhwIjoyMDg1MDcxNzQ3fQ.wdpCbyxMtncn4wpBQuOhpdkKuKESFjLLar6Sjww0_RM';
 
-async function validateKey(key: string): Promise<boolean> {
-  if (!key || !key.startsWith('tai-')) return false;
-  const url =
-    SUPABASE_URL +
-    '/rest/v1/tai_keys?api_key=eq.' +
-    encodeURIComponent(key) +
-    '&active=eq.true&select=active&limit=1';
-  try {
-    const res = await fetch(url, {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: 'Bearer ' + SUPABASE_KEY,
-      },
-    });
-    const data = await res.json();
-    return Array.isArray(data) && data.length > 0;
-  } catch {
-    return false;
+// Dual-auth: accepts both legacy tai-xxx keys AND new JWT tokens.
+async function validateAuth(authHeader: string): Promise<boolean> {
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return false;
+
+  // New JWT path — check if resolveBearer recognizes it
+  const result = await resolveBearer(authHeader);
+  if (result.kind === 'new_user') return true;
+
+  // Legacy tai-xxx path
+  if (token.startsWith('tai-')) {
+    const { data } = await supabaseAdmin
+      .from('tai_keys')
+      .select('active')
+      .eq('api_key', token)
+      .eq('active', true)
+      .limit(1);
+    return !!(data && data.length > 0);
   }
+
+  return false;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -48,11 +50,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Auth
+  // Auth (dual: JWT for v2.0.x users + legacy tai-xxx for existing subscribers)
   const auth = req.headers.authorization || '';
-  const key = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!(await validateKey(key))) {
-    return res.status(401).json({ error: 'Invalid API key' });
+  if (!(await validateAuth(auth))) {
+    return res.status(401).json({ error: 'Invalid API key or token' });
   }
 
   if (!OPENAI_KEY) {
