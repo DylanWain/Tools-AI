@@ -23,7 +23,6 @@ const DemoLivePreview     = dynamic(() => import("./landing/DemoLivePreview"),  
 const DemoContextLibrary  = dynamic(() => import("./landing/DemoContextLibrary"),  { ssr: false });
 const DemoDiffReview      = dynamic(() => import("./landing/DemoDiffReview"),      { ssr: false });
 const DemoProfileSwitcher = dynamic(() => import("./landing/DemoProfileSwitcher"), { ssr: false });
-const LandingLogo         = dynamic(() => import("./landing/LandingLogo"),         { ssr: false });
 
 const T = {
   bg: "#000000",
@@ -169,7 +168,6 @@ export default function ToolsAILanding() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: T.text }}>
-            <LandingLogo size={30} />
             <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em" }}>Tools AI</span>
           </a>
           <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
@@ -185,11 +183,6 @@ export default function ToolsAILanding() {
       <Section style={{ paddingTop: 140, paddingBottom: 100 }} paddingY={0}>
         <div style={{ textAlign: "center", position: "relative" }}>
           <Reveal>
-            <div style={{ marginBottom: 32, display: "flex", justifyContent: "center" }}>
-              <LandingLogo size={140} />
-            </div>
-          </Reveal>
-          <Reveal delay={0.03}>
             <div style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "6px 14px", borderRadius: 99,
@@ -456,7 +449,6 @@ export default function ToolsAILanding() {
         }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <LandingLogo size={26} />
               <span style={{ fontSize: 15, fontWeight: 600 }}>Tools AI</span>
             </div>
             <div style={{ fontSize: 13, color: T.textTert, lineHeight: 1.6, maxWidth: 280 }}>
