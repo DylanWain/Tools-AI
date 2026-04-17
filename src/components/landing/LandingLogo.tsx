@@ -1,95 +1,182 @@
 /* ═══════════════════════════════════════════════════════════════════════════
- * LandingLogo — Tools AI globe logo spinning counter-clockwise.
+ * LandingLogo — 3D Tools AI globe with Saturn rings.
  *
- * Uses the user's icon (6).svg globe design. The corner stars from the raw
- * icon are DROPPED so the site's live starfield shows through the logo's
- * background. Only the globe itself renders, and it rotates CCW.
+ * Matches the flat icon's look: clean off-white sphere with bold dark
+ * latitude/longitude grid, a fixed top-left specular highlight that stays
+ * in place as the sphere rotates (like light on a real globe), and subtle
+ * Saturn rings tilted at the iconic angle.
+ *
+ * Spins on the Y axis (like Earth). Honors prefers-reduced-motion.
  * ═══════════════════════════════════════════════════════════════════════ */
-export default function LandingLogo({
-  size = 88,
-  withFrame = false,
-}: {
-  size?: number;
-  withFrame?: boolean; // true = show rounded-square dark frame (like the app icon)
-}) {
+import { useRef, useMemo } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+
+/* ── Globe surface texture ──────────────────────────────────────────
+ * Clean, flat: off-white base + bold black-ish grid lines. No random
+ * surface variation — we want it to read as the app icon, not Earth.
+ * ─────────────────────────────────────────────────────────────────── */
+function useGlobeTexture() {
+  return useMemo(() => {
+    const W = 2048;
+    const H = 1024; // equirectangular 2:1
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    // Solid off-white base (matches #e8e8e8 from the icon)
+    ctx.fillStyle = "#e8e8e8";
+    ctx.fillRect(0, 0, W, H);
+
+    // Bold grid lines that match the icon's feel
+    ctx.strokeStyle = "#080810";
+    ctx.lineCap = "butt";
+
+    // Longitude lines — 12 evenly spaced vertical lines (every 30°)
+    ctx.lineWidth = 14;
+    for (let i = 0; i < 12; i++) {
+      const x = (i / 12) * W;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+
+    // Latitude lines — equator bold, tropics medium
+    ctx.lineWidth = 16;
+    ctx.beginPath();
+    ctx.moveTo(0, H / 2);
+    ctx.lineTo(W, H / 2);
+    ctx.stroke();
+
+    ctx.lineWidth = 12;
+    [0.25, 0.75].forEach((frac) => {
+      ctx.beginPath();
+      ctx.moveTo(0, frac * H);
+      ctx.lineTo(W, frac * H);
+      ctx.stroke();
+    });
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 8;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+}
+
+function Globe({ reducedMotion }: { reducedMotion: boolean }) {
+  const ref = useRef<THREE.Mesh>(null);
+  const texture = useGlobeTexture();
+
+  useFrame((_s, delta) => {
+    if (!ref.current || reducedMotion) return;
+    // Counter-clockwise (viewed from north pole): negate rotation. 40s/rev.
+    ref.current.rotation.y -= (delta * Math.PI * 2) / 40;
+  });
+
+  return (
+    <mesh ref={ref}>
+      <sphereGeometry args={[1, 96, 96]} />
+      {/* meshPhongMaterial gives us real shading (light side vs dark side)
+         without the rough planet-y look of Standard PBR */}
+      <meshPhongMaterial
+        map={texture ?? undefined}
+        color="#ffffff"
+        shininess={12}
+        specular="#ffffff"
+      />
+    </mesh>
+  );
+}
+
+/* ── Static specular highlight — a glossy patch that stays in the
+ * top-left regardless of sphere rotation. Sits just in front of the
+ * sphere at a fixed position. ─────────────────────────────────────── */
+function Highlight() {
+  return (
+    <mesh position={[-0.48, 0.48, 0.93]} scale={[0.32, 0.22, 1]}>
+      <circleGeometry args={[0.5, 32]} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={0.22} />
+    </mesh>
+  );
+}
+
+/* ── White ring highlight that outlines the whole sphere (matches the
+ * static outer highlight in the flat icon). It's drawn in world space
+ * and does not rotate. ─────────────────────────────────────────────── */
+function HaloRing() {
+  return (
+    <mesh rotation={[0, 0, 0]}>
+      <ringGeometry args={[1.005, 1.04, 128]} />
+      <meshBasicMaterial
+        color="#ffffff"
+        side={THREE.DoubleSide}
+        transparent
+        opacity={0.85}
+      />
+    </mesh>
+  );
+}
+
+/* ── Saturn-style rings tilted at ~18° ─────────────────────────────── */
+function Rings() {
+  return (
+    <group rotation={[Math.PI / 2.3, 0, -0.32]}>
+      {/* Outer ring */}
+      <mesh>
+        <ringGeometry args={[1.55, 1.78, 128]} />
+        <meshBasicMaterial
+          color="#ffffff"
+          side={THREE.DoubleSide}
+          transparent
+          opacity={0.55}
+        />
+      </mesh>
+      {/* Inner ring (Cassini gap) */}
+      <mesh>
+        <ringGeometry args={[1.32, 1.44, 128]} />
+        <meshBasicMaterial
+          color="#ffffff"
+          side={THREE.DoubleSide}
+          transparent
+          opacity={0.35}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+export default function LandingLogo({ size = 88 }: { size?: number }) {
+  const reducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   return (
     <div
-      style={{
-        width: size,
-        height: size,
-        display: "inline-block",
-        position: "relative",
-      }}
+      style={{ width: size, height: size, display: "inline-block" }}
+      aria-label="Tools AI"
+      role="img"
     >
-      <svg
-        viewBox="0 0 680 680"
-        width={size}
-        height={size}
-        xmlns="http://www.w3.org/2000/svg"
-        style={{ display: "block" }}
-        aria-label="Tools AI"
-        role="img"
+      <Canvas
+        camera={{ position: [0, 0, 3.6], fov: 38 }}
+        dpr={[1, 2]}
+        gl={{ alpha: true, antialias: true }}
+        style={{ width: "100%", height: "100%", background: "transparent" }}
       >
-        {/* Optional frame — off by default so the page's starfield shows through */}
-        {withFrame && (
-          <rect width="680" height="680" rx="130" fill="#080810" />
-        )}
+        {/* Lighting — strong key from upper-left creates light/dark hemispheres
+           that read like the flat icon's shading quadrants */}
+        <ambientLight intensity={0.35} />
+        <directionalLight position={[-4, 3, 4]} intensity={1.4} />
+        <directionalLight position={[3, -2, 2]} intensity={0.15} color="#8080a0" />
 
-        {/* Spinning globe group. Rotates counter-clockwise around the globe center (340, 340). */}
-        <g className="tai-logo-spin" style={{ transformOrigin: "340px 340px" }}>
-          {/* Base sphere */}
-          <circle cx="340" cy="340" r="318" fill="#e8e8e8" />
-          {/* Back hemisphere shading */}
-          <path d="M340,22 A318,318 0 0,1 658,340 A318,318 0 0,1 340,658 A318,318 0 0,0 340,22Z" fill="#909090" />
-          {/* Front-right quadrant shadow */}
-          <path d="M340,340 L658,340 A318,318 0 0,1 340,658 Z" fill="#404040" />
-          {/* Deepest shadow quadrant */}
-          <path d="M340,340 L564,564 A318,318 0 0,1 248,652 Z" fill="#1a1a1a" />
-
-          {/* Latitude / longitude grid */}
-          <ellipse cx="340" cy="340" rx="318" ry="96" fill="none" stroke="#080810" strokeWidth="9" />
-          <ellipse cx="340" cy="206" rx="265" ry="80" fill="none" stroke="#080810" strokeWidth="9" />
-          <ellipse cx="340" cy="474" rx="265" ry="80" fill="none" stroke="#080810" strokeWidth="9" />
-          <line x1="340" y1="22" x2="340" y2="658" stroke="#080810" strokeWidth="9" />
-          <line x1="22" y1="340" x2="658" y2="340" stroke="#080810" strokeWidth="9" />
-
-          {/* Specular highlight — top-left shine */}
-          <ellipse
-            cx="226"
-            cy="188"
-            rx="96"
-            ry="62"
-            fill="#ffffff"
-            opacity="0.18"
-            transform="rotate(-30 226 188)"
-          />
-        </g>
-
-        {/* STATIC outer ring highlight — stays fixed while the globe spins */}
-        <circle
-          cx="340"
-          cy="340"
-          r="318"
-          fill="none"
-          stroke="#ffffff"
-          strokeWidth="11"
-          opacity="0.9"
-        />
-      </svg>
-
-      <style>{`
-        .tai-logo-spin {
-          transform-origin: 340px 340px;
-          animation: taiSpinCCW 40s linear infinite;
-        }
-        @keyframes taiSpinCCW {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(-360deg); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .tai-logo-spin { animation: none; }
-        }
-      `}</style>
+        <Globe reducedMotion={reducedMotion} />
+        <Highlight />
+        <HaloRing />
+        <Rings />
+      </Canvas>
     </div>
   );
 }
