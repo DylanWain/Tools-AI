@@ -1,42 +1,45 @@
 import { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * TOOLS AI — LANDING PAGE v5 (Cursor replica)
+ * TOOLS AI — LANDING PAGE v6 (Dark + Starfield + Product Demos)
  *
- * Exact Cursor design patterns applied:
- *   - Warm cream bg (#f7f7f4), card surface (#FFFFFF + shadow)
- *   - Full-height demo frames (300-400px) with macOS chrome + shadow
- *   - Alternating: full-width demos ↔ 3-col grids
- *   - Multi-line poetic subheadlines
- *   - 160px+ section spacing
- *   - Orange links (#EA580C) only for "Learn more →"
- *   - Pill buttons (border-radius: 9999px)
- *   - Detailed IDE reproductions showing actual Tools AI features
+ * Linear/SpaceX aesthetic:
+ *   - Deep navy-black background (#0a0a14)
+ *   - 3-layer parallax starfield (behind everything, 25/35/50% scroll rates)
+ *   - Full-width animated product demos replicating the real app
+ *   - Framer Motion parallax on key sections
+ *   - Orange accent (#EA580C) preserved as brand
  * ═══════════════════════════════════════════════════════════════════════ */
 
+// Lazy-load heavy components so first paint is quick and SSR doesn't choke on
+// browser-only APIs (canvas, window, matchMedia).
+const Starfield           = dynamic(() => import("./landing/Starfield"),           { ssr: false });
+const ParallaxSection     = dynamic(() => import("./landing/ParallaxSection"),     { ssr: false });
+const DemoAIBuilder       = dynamic(() => import("./landing/DemoAIBuilder"),       { ssr: false });
+const DemoMeetingRecorder = dynamic(() => import("./landing/DemoMeetingRecorder"), { ssr: false });
+const DemoTerminal        = dynamic(() => import("./landing/DemoTerminal"),        { ssr: false });
+const DemoLivePreview     = dynamic(() => import("./landing/DemoLivePreview"),     { ssr: false });
+const DemoContextLibrary  = dynamic(() => import("./landing/DemoContextLibrary"),  { ssr: false });
+const DemoDiffReview      = dynamic(() => import("./landing/DemoDiffReview"),      { ssr: false });
+const DemoProfileSwitcher = dynamic(() => import("./landing/DemoProfileSwitcher"), { ssr: false });
+
 const T = {
-  bg: "#f7f7f4",
-  white: "#FFFFFF",
-  text: "#26251e",
-  textSec: "rgba(38,37,30,0.55)",
-  textTert: "rgba(38,37,30,0.35)",
-  border: "rgba(38,37,30,0.08)",
-  borderMed: "rgba(38,37,30,0.12)",
+  bg: "#0a0a14",
+  bgElev: "#12121f",
+  surface: "#1a1a2e",
+  text: "#ededec",
+  textSec: "rgba(237,236,236,0.65)",
+  textTert: "rgba(237,236,236,0.35)",
+  border: "rgba(255,255,255,0.08)",
+  borderMed: "rgba(255,255,255,0.14)",
   accent: "#EA580C",
-  btnBg: "#26251e",
-  btnText: "#f7f7f4",
-  green: "#16A34A",
-  greenLight: "#dcfce7",
-  red: "#DC2626",
-  blue: "#2563EB",
-  blueLight: "#dbeafe",
-  orange: "#EA580C",
-  orangeLight: "#fff7ed",
-  code: "#1E293B",
-  codeBg: "#0f172a",
-  shadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)",
-  shadowLg: "0 4px 24px rgba(0,0,0,0.06), 0 12px 48px rgba(0,0,0,0.06)",
-  shadowXl: "0 8px 40px rgba(0,0,0,0.08), 0 24px 80px rgba(0,0,0,0.08)",
+  accentSoft: "rgba(234,88,12,0.14)",
+  btnBg: "#ededec",
+  btnText: "#0a0a14",
+  btnSec: "rgba(255,255,255,0.06)",
+  success: "#40c977",
+  error: "#ff6764",
 };
 const F = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const MONO = '"JetBrains Mono", ui-monospace, Menlo, "Courier New", monospace';
@@ -63,456 +66,474 @@ const useScrolled = () => {
   return s;
 };
 
-/* ── Reveal (PDF: 400ms ease-out, 20px Y, staggered) ───────────────── */
+/* ── Reveal (400ms ease-out, 20px Y, staggered) ───────────────────── */
 const Reveal = ({ children, delay = 0, style = {} }) => {
   const [ref, v] = useInView();
-  return <div ref={ref} style={{ opacity: v ? 1 : 0, transform: v ? "none" : "translateY(20px)", transition: `opacity 0.4s ease-out ${delay}s, transform 0.4s ease-out ${delay}s`, ...style }}>{children}</div>;
+  return (
+    <div ref={ref} style={{
+      opacity: v ? 1 : 0,
+      transform: v ? "none" : "translateY(20px)",
+      transition: `opacity 0.6s ease-out ${delay}s, transform 0.6s ease-out ${delay}s`,
+      ...style,
+    }}>{children}</div>
+  );
 };
 
-/* ── Pill Button (PDF: 9999px radius, 44px height) ──────────────────── */
+/* ── Pill Button ───────────────────────────────────────────────────── */
 const Btn = ({ children, href, primary, style: s = {}, ...r }) => (
   <a href={href} style={{
-    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-    height: 44, padding: "0 24px", borderRadius: 9999,
-    background: primary ? T.btnBg : "transparent",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+    height: 46, padding: "0 26px", borderRadius: 9999,
+    background: primary ? T.btnBg : T.btnSec,
     color: primary ? T.btnText : T.text,
     border: primary ? "none" : `1px solid ${T.borderMed}`,
     fontSize: 15, fontWeight: 500, fontFamily: F, textDecoration: "none", cursor: "pointer",
-    transition: "all 0.15s ease", ...s,
+    transition: "all 0.2s ease",
+    backdropFilter: primary ? "none" : "blur(12px)",
+    ...s,
   }} {...r}>{children}</a>
 );
 
-/* ── macOS Demo Frame (PDF: 3 dots, title bar, shadow, rounded) ────── */
-const DemoFrame = ({ title, dark, children, style: s = {} }) => (
-  <div style={{
-    borderRadius: 12, overflow: "hidden",
-    background: dark ? T.codeBg : T.white,
-    border: `1px solid ${dark ? "rgba(255,255,255,0.06)" : T.border}`,
-    boxShadow: T.shadowLg,
-    ...s,
+/* ── Section wrapper ───────────────────────────────────────────────── */
+const Section = ({ children, style = {}, id, paddingY = 140 }) => (
+  <section id={id} style={{
+    position: "relative", zIndex: 2,
+    padding: `${paddingY}px 24px`,
+    ...style,
   }}>
-    <div style={{
-      display: "flex", alignItems: "center", padding: "10px 14px",
-      background: dark ? "#1a1a2e" : "rgba(0,0,0,0.02)",
-      borderBottom: `1px solid ${dark ? "rgba(255,255,255,0.06)" : T.border}`,
-    }}>
-      <div style={{ display: "flex", gap: 6 }}>
-        {["#ff5f57","#febc2e","#28c840"].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />)}
-      </div>
-      {title && <div style={{ flex: 1, textAlign: "center", fontSize: 12, color: dark ? "rgba(255,255,255,0.35)" : T.textTert, fontWeight: 500 }}>{title}</div>}
-    </div>
-    {children}
+    <div style={{ maxWidth: 1200, margin: "0 auto" }}>{children}</div>
+  </section>
+);
+
+/* ── Section headline (kicker + multi-line title + subtitle) ──────── */
+const SectionHead = ({ kicker, title, subtitle, align = "left" }) => (
+  <div style={{ textAlign: align, maxWidth: 780, marginLeft: align === "center" ? "auto" : 0, marginRight: align === "center" ? "auto" : 0 }}>
+    {kicker && (
+      <div style={{
+        fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase",
+        color: T.accent, fontWeight: 600, marginBottom: 18,
+      }}>{kicker}</div>
+    )}
+    <h2 style={{
+      fontSize: 54, lineHeight: 1.05, fontWeight: 600,
+      letterSpacing: "-0.02em", color: T.text, marginBottom: 20,
+    }}>{title}</h2>
+    {subtitle && (
+      <p style={{
+        fontSize: 19, lineHeight: 1.55, color: T.textSec,
+        maxWidth: 620, marginLeft: align === "center" ? "auto" : 0, marginRight: align === "center" ? "auto" : 0,
+      }}>{subtitle}</p>
+    )}
   </div>
 );
 
-/* ── Section Heading (Cursor: multi-line poetic headlines) ──────────── */
-const SectionHead = ({ title, sub, center }) => (
-  <div style={{ marginBottom: 56, textAlign: center ? "center" : "left", maxWidth: center ? 700 : undefined, margin: center ? "0 auto 56px" : "0 0 56px" }}>
-    <h2 style={{ fontSize: 42, fontWeight: 700, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.15, color: T.text }}>{title}</h2>
-    {sub && <p style={{ fontSize: 18, color: T.textSec, marginTop: 16, lineHeight: 1.6 }}>{sub}</p>}
-  </div>
-);
-
-/* ═══════════════════════════════════════════════════════════════════════
- * MAIN
- * ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════ */
 export default function ToolsAILanding() {
   const scrolled = useScrolled();
-  return (
-    <div style={{ background: T.bg, color: T.text, fontFamily: F, minHeight: "100vh" }}>
 
-      {/* ══ NAV ══════════════════════════════════════════════════════ */}
+  return (
+    <div style={{
+      fontFamily: F,
+      background: T.bg,
+      color: T.text,
+      minHeight: "100vh",
+      overflow: "hidden",
+      position: "relative",
+    }}>
+      {/* Fixed starfield background — behind everything */}
+      <Starfield />
+
+      {/* Ambient radial glow behind hero */}
+      <div style={{
+        position: "fixed",
+        top: "-40vh", left: "50%",
+        transform: "translateX(-50%)",
+        width: "120vw", height: "120vh",
+        background: "radial-gradient(ellipse at center, rgba(234,88,12,0.06) 0%, transparent 60%)",
+        pointerEvents: "none",
+        zIndex: 1,
+      }} />
+
+      {/* ─── NAV ─── */}
       <nav style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-        height: 60, display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 40px",
-        background: scrolled ? "rgba(247,247,244,0.9)" : "transparent",
+        padding: "16px 24px",
+        background: scrolled ? "rgba(10,10,20,0.7)" : "transparent",
         backdropFilter: scrolled ? "blur(16px)" : "none",
         borderBottom: scrolled ? `1px solid ${T.border}` : "1px solid transparent",
         transition: "all 0.3s ease",
       }}>
-        <a href="/" style={{ fontSize: 16, fontWeight: 700, color: T.text, textDecoration: "none" }}>⚡ Tools AI</a>
-        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-          {[["Product", "#features"], ["Pricing", "#pricing"]].map(([l, h]) =>
-            <a key={l} href={h} style={{ fontSize: 14, color: T.textSec, textDecoration: "none", fontWeight: 500 }}>{l}</a>
-          )}
-          <a href="#" style={{ fontSize: 14, color: T.textSec, textDecoration: "none", fontWeight: 500 }}>Sign in</a>
-          <Btn href={DMG} primary download>Download ↓</Btn>
+        <div style={{
+          maxWidth: 1200, margin: "0 auto",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: T.text }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L14.5 8.5H21L15.5 13L17.5 20L12 16L6.5 20L8.5 13L3 8.5H9.5Z" fill={T.accent} stroke={T.accent} />
+            </svg>
+            <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em" }}>Tools AI</span>
+          </a>
+          <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+            <a href="#features" style={{ fontSize: 14, color: T.textSec, textDecoration: "none" }}>Product</a>
+            <a href="#pricing" style={{ fontSize: 14, color: T.textSec, textDecoration: "none" }}>Pricing</a>
+            <a href="/login" style={{ fontSize: 14, color: T.textSec, textDecoration: "none" }}>Sign in</a>
+            <Btn href={DMG} primary download>Download</Btn>
+          </div>
         </div>
       </nav>
 
-      {/* ══ HERO ═════════════════════════════════════════════════════ */}
-      <section style={{ textAlign: "center", padding: "180px 40px 80px", maxWidth: 850, margin: "0 auto" }}>
-        <Reveal>
-          <h1 style={{ fontSize: 64, fontWeight: 700, lineHeight: 1.08, margin: 0, letterSpacing: "-0.03em" }}>
-            Turn ideas into code
-          </h1>
-        </Reveal>
-        <Reveal delay={0.06}>
-          <p style={{ fontSize: 20, color: T.textSec, lineHeight: 1.5, margin: "24px auto 0", maxWidth: 520 }}>
-            Delegate implementation to<br />focus on higher-level direction.
-          </p>
-        </Reveal>
-        <Reveal delay={0.12}>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 40 }}>
-            <Btn href={DMG} primary download>Download for macOS ↓</Btn>
-            <Btn href="/loginDeepControl?from=web">Start free trial →</Btn>
-          </div>
-        </Reveal>
-      </section>
+      {/* ─── HERO ─── */}
+      <Section style={{ paddingTop: 180, paddingBottom: 100 }} paddingY={0}>
+        <div style={{ textAlign: "center", position: "relative" }}>
+          <Reveal>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "6px 14px", borderRadius: 99,
+              background: T.btnSec, border: `1px solid ${T.borderMed}`,
+              fontSize: 13, color: T.textSec, marginBottom: 28,
+              backdropFilter: "blur(12px)",
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.success }} />
+              v2.0.3 — 5 AI models, now available on macOS
+            </div>
+          </Reveal>
+          <Reveal delay={0.05}>
+            <h1 style={{
+              fontSize: "clamp(44px, 7vw, 88px)",
+              lineHeight: 1.02,
+              fontWeight: 600,
+              letterSpacing: "-0.035em",
+              marginBottom: 24,
+              color: T.text,
+              maxWidth: 900, marginLeft: "auto", marginRight: "auto",
+            }}>
+              Every AI.
+              <br />
+              <span style={{ color: T.accent }}>One workspace.</span>
+            </h1>
+          </Reveal>
+          <Reveal delay={0.12}>
+            <p style={{
+              fontSize: 20, lineHeight: 1.55,
+              color: T.textSec,
+              maxWidth: 600, margin: "0 auto 36px",
+            }}>
+              Claude, GPT-4o, Gemini, Grok, and Perplexity — collaborating on your code in parallel. One subscription, five models, no decision fatigue.
+            </p>
+          </Reveal>
+          <Reveal delay={0.18}>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <Btn href={DMG} primary download>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                Download for macOS
+              </Btn>
+              <Btn href="#features">See what&apos;s inside →</Btn>
+            </div>
+          </Reveal>
+          <Reveal delay={0.28}>
+            <div style={{
+              fontSize: 13, color: T.textTert, marginTop: 22,
+              display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap",
+            }}>
+              <span>✓ 14-day free trial</span>
+              <span>✓ No credit card</span>
+              <span>✓ Universal (Intel + Apple Silicon)</span>
+            </div>
+          </Reveal>
+        </div>
+      </Section>
 
-      {/* ══ HERO DEMO: Real screenshot of Tools AI IDE ═══════════════ */}
-      <section style={{ padding: "0 40px 160px", maxWidth: 1100, margin: "0 auto" }}>
+      {/* ─── DEMO 1: AI Builder ─── */}
+      <Section id="features" paddingY={100}>
         <Reveal>
-          <div style={{ borderRadius: 12, overflow: "hidden", boxShadow: T.shadowXl, border: `1px solid ${T.border}` }}>
-            <img
-              src="/ide-screenshot.png"
-              alt="Tools AI IDE — AI Builder with Master Planner, multi-model orchestration, Context Library, and integrated terminal"
-              style={{ width: "100%", height: "auto", display: "block" }}
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <SectionHead
+              kicker="AI Builder"
+              title={<>5 AI models,<br />collaborating.</>}
+              subtitle="Claude plans, GPT-4o scaffolds, Gemini refines, Grok stress-tests, Perplexity verifies. All in parallel, sharing context between phases. You get the best of every model, not a coin toss."
+              align="center"
             />
           </div>
         </Reveal>
-      </section>
+        <ParallaxSection rate={0.94}>
+          <Reveal delay={0.1}><DemoAIBuilder /></Reveal>
+        </ParallaxSection>
+      </Section>
 
-      {/* ══ SECTION: ORCHESTRATE (3-col grid with demos) ═════════════ */}
-      <section id="features" style={{ padding: "160px 40px", maxWidth: 1200, margin: "0 auto" }}>
+      {/* ─── DEMO 2: Meeting Recorder ─── */}
+      <Section paddingY={100}>
         <Reveal>
-          <SectionHead title={<>Understands your codebase,{"\n"}assigns the right model.</>}
-            sub="Tools AI deeply learns your project before writing a single line. Each model gets the sub-task it's best at." />
-        </Reveal>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
-          {[
-            {
-              title: "Multiple models",
-              desc: "Subagents run in parallel to explore your codebase, with each one using the best model for the task.",
-              demo: (
-                <DemoFrame dark>
-                  <div style={{ padding: "16px 18px", fontSize: 12, fontFamily: MONO, color: "rgba(255,255,255,0.5)", lineHeight: 2 }}>
-                    <div style={{ color: "rgba(255,255,255,0.25)", marginBottom: 6 }}>Started 4 subagents ▾</div>
-                    {[
-                      { icon: "✦", name: "Set up model architecture", sub: "Editing files · Opus-4.6", active: true },
-                      { icon: "✦", name: "Mission Control Interface", sub: "Building dashboard · Composer 2", active: true },
-                      { icon: "✦", name: "Add evaluation metrics", sub: "Writing tests · GPT 5.2 Codex", active: true },
-                      { icon: "○", name: "Implement training loop with AMP", sub: "Pending · Gemini 3 Pro", active: false },
-                    ].map(a => (
-                      <div key={a.name} style={{ padding: "8px 10px", background: "rgba(255,255,255,0.03)", borderRadius: 6, marginBottom: 4, border: "1px solid rgba(255,255,255,0.04)" }}>
-                        <div style={{ display: "flex", gap: 6, color: a.active ? "#edecec" : "rgba(255,255,255,0.25)" }}>
-                          <span>{a.icon}</span><span style={{ fontWeight: 500 }}>{a.name}</span>
-                        </div>
-                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginLeft: 18 }}>{a.sub}</div>
-                      </div>
-                    ))}
-                  </div>
-                </DemoFrame>
-              ),
-            },
-            {
-              title: "Context Library",
-              desc: "A custom indexing system gives agents best-in-class recall across your entire project — every file, every spec.",
-              demo: (
-                <DemoFrame dark>
-                  <div style={{ padding: "16px 18px" }}>
-                    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, color: "#edecec" }}>How does the payment flow handle failed transactions?</div>
-                    </div>
-                    <div style={{ fontSize: 11, fontFamily: MONO, color: "rgba(255,255,255,0.35)", lineHeight: 1.9 }}>
-                      <div>Searched <span style={{ color: "rgba(255,255,255,0.5)" }}>payment retry logic</span></div>
-                      <div>Read <span style={{ color: "rgba(255,255,255,0.5)" }}>checkout/PaymentService.ts</span></div>
-                      <div>Read <span style={{ color: "rgba(255,255,255,0.5)" }}>lib/stripe/webhooks.ts</span></div>
-                      <div>Read <span style={{ color: "rgba(255,255,255,0.5)" }}>db/transactions.ts</span></div>
-                      <div>Grepped <span style={{ color: "rgba(255,255,255,0.5)" }}>handleFailedPayment</span></div>
-                    </div>
-                  </div>
-                </DemoFrame>
-              ),
-            },
-            {
-              title: "Meeting Recorder",
-              desc: "Record any call, extract actionable tasks with full context, and execute them against your codebase in one click.",
-              demo: (
-                <DemoFrame dark>
-                  <div style={{ padding: "16px 18px" }}>
-                    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#edecec", marginBottom: 6 }}>Sprint Planning · 32m</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.7 }}>
-                        <div>☐ Add auth to dashboard — <span style={{ color: "rgba(255,255,255,0.5)" }}>assigned Claude</span></div>
-                        <div>☐ Fix chart responsiveness — <span style={{ color: "rgba(255,255,255,0.5)" }}>assigned GPT-4o</span></div>
-                        <div style={{ color: "#4ade80" }}>☑ Update API endpoints — <span style={{ color: "rgba(255,255,255,0.3)" }}>completed · 4 files</span></div>
-                        <div>☐ Add CSV export feature — <span style={{ color: "rgba(255,255,255,0.5)" }}>assigned Gemini</span></div>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>3 tasks ready to execute · 1 completed</div>
-                  </div>
-                </DemoFrame>
-              ),
-            },
-          ].map((f, i) => (
-            <Reveal key={f.title} delay={i * 0.06}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: T.text, marginBottom: 8 }}>{f.title}</div>
-                  <div style={{ fontSize: 14, color: T.textSec, lineHeight: 1.6, marginBottom: 12 }}>{f.desc}</div>
-                  <a href="#" style={{ color: T.accent, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Learn more →</a>
-                </div>
-                {f.demo}
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* ══ DEV LIFECYCLE (3-col: Plan / Build / Fix) ════════════════ */}
-      <section style={{ padding: "160px 40px", maxWidth: 1200, margin: "0 auto" }}>
-        <Reveal>
-          <SectionHead
-            title={<>Spans the full development lifecycle</>}
-            sub="Tools AI supports every phase from planning to writing to reviewing code."
-          />
-        </Reveal>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
-          {[
-            {
-              title: "Plan",
-              desc: "For complex tasks, the Master Planner asks clarifying questions, builds a plan, then executes in the background.",
-              demo: (
-                <DemoFrame>
-                  <div style={{ padding: "4px 8px" }}>
-                    <div style={{ fontSize: 12, color: T.textSec, marginBottom: 10 }}>How should Mission Control be opened?</div>
-                    {[
-                      { n: 1, t: "Gesture (swipe up with 3 fingers)", sel: false },
-                      { n: 2, t: "Keyboard shortcut (e.g. CMD+F3)", sel: true },
-                      { n: 3, t: "Both keyboard and button", sel: false },
-                    ].map(o => (
-                      <div key={o.n} style={{
-                        display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
-                        borderRadius: 6, marginBottom: 4,
-                        background: o.sel ? T.greenLight : T.bg,
-                        border: `1px solid ${o.sel ? T.green : T.border}`,
-                      }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: o.sel ? T.green : T.textTert, width: 16 }}>{o.n}</span>
-                        <span style={{ fontSize: 13, color: o.sel ? T.green : T.text }}>{o.t}</span>
-                      </div>
-                    ))}
-                    <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
-                      <span style={{ fontSize: 12, color: T.textTert, padding: "6px 12px", cursor: "pointer" }}>Skip</span>
-                      <span style={{ fontSize: 12, color: T.white, background: T.accent, padding: "6px 14px", borderRadius: 6, fontWeight: 500 }}>Continue</span>
-                    </div>
-                    <div style={{ marginTop: 12, fontSize: 11, color: T.textTert }}>Add follow-up...</div>
-                    <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-                      <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, background: T.orangeLight, color: T.accent, fontWeight: 500 }}>⚡ Plan ▾</span>
-                    </div>
-                  </div>
-                </DemoFrame>
-              ),
-            },
-            {
-              title: "Build",
-              desc: "Multiple AI models write code in parallel, then refine together with shared context in Phase 2.",
-              demo: (
-                <DemoFrame>
-                  <div style={{ padding: "4px 8px", fontSize: 12 }}>
-                    <div style={{ fontWeight: 600, color: T.text, marginBottom: 10 }}>Phase 2 — Refinement</div>
-                    <div style={{ color: T.textSec, lineHeight: 1.9 }}>
-                      <div>Claude reviewed GPT-4o's layout <span style={{ color: T.green }}>✓</span></div>
-                      <div>GPT-4o fixed Gemini's types <span style={{ color: T.green }}>✓</span></div>
-                      <div>Gemini optimized Claude's queries <span style={{ color: T.green }}>✓</span></div>
-                    </div>
-                    <div style={{ marginTop: 12, padding: "8px 10px", background: T.greenLight, borderRadius: 6, fontSize: 12, color: T.green, fontWeight: 500 }}>
-                      All agents converged · 12 files · deployed to workspace
-                    </div>
-                  </div>
-                </DemoFrame>
-              ),
-            },
-            {
-              title: "Fix",
-              desc: "The terminal loop instruments your code and uses real build output to pinpoint and apply the fix.",
-              demo: (
-                <DemoFrame dark>
-                  <div style={{ padding: "16px 18px", fontFamily: MONO, fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.9 }}>
-                    <div style={{ color: "#f87171" }}>Chart tooltips freeze when hovering over data points.</div>
-                    <div style={{ marginTop: 6, color: "rgba(255,255,255,0.35)" }}>
-                      Checked <span style={{ color: "rgba(255,255,255,0.5)" }}>server output</span><br />
-                      Added <span style={{ color: "rgba(255,255,255,0.5)" }}>console logs</span><br />
-                      Took <span style={{ color: "rgba(255,255,255,0.5)" }}>screenshot</span><br />
-                      Read <span style={{ color: "rgba(255,255,255,0.5)" }}>ChartRenderer.tsx</span><br />
-                    </div>
-                    <div style={{ marginTop: 6, color: "#edecec" }}>Found it: stale closure in the hover handler.</div>
-                    <div style={{ marginTop: 6, background: "rgba(255,255,255,0.04)", borderRadius: 4, padding: "6px 8px", border: "1px solid rgba(255,255,255,0.06)" }}>
-                      <span style={{ color: "rgba(255,255,255,0.3)" }}>📄</span> Tooltip.tsx <span style={{ color: "#4ade80" }}>+3</span> <span style={{ color: "#f87171" }}>-1</span>
-                    </div>
-                    <div style={{ marginTop: 6, color: "rgba(255,255,255,0.5)" }}>Fixed. Tooltips should update smoothly now.</div>
-                  </div>
-                </DemoFrame>
-              ),
-            },
-          ].map((f, i) => (
-            <Reveal key={f.title} delay={i * 0.06}>
-              <div>
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: T.text, marginBottom: 8 }}>{f.title}</div>
-                  <div style={{ fontSize: 14, color: T.textSec, lineHeight: 1.6, marginBottom: 12 }}>{f.desc}</div>
-                  <a href="#" style={{ color: T.accent, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Learn more →</a>
-                </div>
-                {f.demo}
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* ══ TOOLS (Terminal / Live Preview / Context) ════════════════ */}
-      <section style={{ padding: "160px 40px", maxWidth: 1200, margin: "0 auto" }}>
-        <Reveal>
-          <SectionHead title="Equipped to do real engineering."
-            sub={<>Tools AI edits files, runs terminal{"\n"}commands, previews your app, and more.</>} />
-        </Reveal>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
-          {[
-            {
-              title: "Terminal",
-              desc: "Run shell commands directly from the editor. Build, test, and deploy — sandboxed by default.",
-              demo: (
-                <DemoFrame>
-                  <div style={{ padding: "4px 8px", fontSize: 12, color: T.textSec }}>
-                    <div style={{ background: T.bg, borderRadius: 6, padding: "8px 10px", border: `1px solid ${T.border}`, marginBottom: 8, color: T.text }}>build this project</div>
-                    <div style={{ lineHeight: 1.7, fontSize: 11, color: T.textTert }}>
-                      Read <span style={{ color: T.textSec }}>package.json</span><br />
-                      Ran <span style={{ color: T.textSec }}>terminal command</span>
-                    </div>
-                    <div style={{ background: T.codeBg, borderRadius: 6, padding: "10px 12px", fontFamily: MONO, fontSize: 11, color: "#D1D5DB", marginTop: 8, lineHeight: 1.7 }}>
-                      <div>$ npm run build</div>
-                      <div style={{ color: "rgba(255,255,255,0.3)" }}>Collecting page data...</div>
-                      <div style={{ color: "rgba(255,255,255,0.3)" }}>Generating static pages (48/48)</div>
-                      <div style={{ color: "rgba(255,255,255,0.3)" }}>Finalizing page optimization...</div>
-                      <div style={{ color: "#4ade80" }}>✓ Compiled successfully in 3.8s</div>
-                    </div>
-                    <div style={{ marginTop: 8, fontSize: 12, color: T.text }}>Build complete. Ready to deploy?</div>
-                  </div>
-                </DemoFrame>
-              ),
-            },
-            {
-              title: "Live Preview",
-              desc: "Your app runs in a built-in browser. Describe changes in English — AI edits the code, page reloads.",
-              demo: (
-                <DemoFrame>
-                  <div style={{ padding: "4px 8px" }}>
-                    <div style={{ background: T.bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${T.border}`, fontSize: 13, color: T.text, marginBottom: 8 }}>
-                      Make <span style={{ background: T.blueLight, padding: "1px 5px", borderRadius: 4, color: T.blue, fontWeight: 500, fontFamily: MONO, fontSize: 12 }}>drawer.tsx</span> use <span style={{ background: T.blueLight, padding: "1px 5px", borderRadius: 4, color: T.blue, fontWeight: 500, fontFamily: MONO, fontSize: 12 }}>vaul.emilkowal.ski</span> and match our <span style={{ background: T.blueLight, padding: "1px 5px", borderRadius: 4, color: T.blue, fontWeight: 500, fontFamily: MONO, fontSize: 12 }}>brand</span>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, border: `1px solid ${T.border}`, color: T.textTert }}>⚡ Agent ▾</span>
-                      <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, border: `1px solid ${T.border}`, color: T.textTert }}>Composer 2 ▾</span>
-                    </div>
-                  </div>
-                </DemoFrame>
-              ),
-            },
-            {
-              title: "Git & checkpoints",
-              desc: "See how your code has evolved, and roll back to a previous snapshot anytime.",
-              demo: (
-                <DemoFrame>
-                  <div style={{ padding: "4px 8px", fontSize: 12, color: T.textSec }}>
-                    {[
-                      { t: "Set up Next.js project", d: "Jan 8", line: true },
-                      { t: "Add Google OAuth", d: "Jan 12", line: true },
-                      { t: "Build canvas editor", d: "Jan 18", line: true },
-                      { t: "Add multiplayer", d: "Yesterday", line: false, active: true },
-                      { t: "Improve performance", d: "3h ago", line: false },
-                      { t: "Ship to production", d: "Now", line: false },
-                    ].map(e => (
-                      <div key={e.t} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${T.border}` }}>
-                        <span style={{ color: e.active ? T.text : T.textSec, fontWeight: e.active ? 500 : 400 }}>{e.t}</span>
-                        <span style={{ fontSize: 11, color: T.textTert }}>{e.d} —</span>
-                      </div>
-                    ))}
-                  </div>
-                </DemoFrame>
-              ),
-            },
-          ].map((f, i) => (
-            <Reveal key={f.title} delay={i * 0.06}>
-              <div>
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: T.text, marginBottom: 8 }}>{f.title}</div>
-                  <div style={{ fontSize: 14, color: T.textSec, lineHeight: 1.6, marginBottom: 12 }}>{f.desc}</div>
-                  <a href="#" style={{ color: T.accent, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Learn more →</a>
-                </div>
-                {f.demo}
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* ══ PRICING ══════════════════════════════════════════════════ */}
-      <section id="pricing" style={{ padding: "160px 40px", maxWidth: 1000, margin: "0 auto" }}>
-        <Reveal><SectionHead title="Pricing" sub="Start with a 14-day free trial. No credit card required." center /></Reveal>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: T.border, borderRadius: 16, overflow: "hidden", border: `1px solid ${T.border}` }}>
-          {[
-            { name: "Free Trial", price: "$0", sub: "14 days, full access", features: ["All 5 AI models", "AI Builder + Master Planner", "Terminal auto-fix loop", "Context Library", "Meeting Recorder"], cta: "Start Free Trial", primary: false },
-            { name: "Chad", price: "$25", priceSub: "/mo", sub: "Most users never pay more", features: ["Everything in Free Trial", "Generous AI usage included", "Small overage on heavy usage", "Set your own monthly cap", "Priority during peak hours"], cta: "Get Chad", primary: true, recommended: true, chad: true },
-            { name: "Pay-as-you-go", price: "$0", priceSub: "/mo", sub: "Pay only when you use it", features: ["Everything in Free Trial", "No monthly commitment", "Per-call billing", "Monthly spending limit", "Upgrade to Chad anytime"], cta: "Get Started", primary: false },
-          ].map((t, i) => (
-            <Reveal key={t.name} delay={i * 0.05}>
-              <div style={{ background: T.white, padding: "36px 28px", display: "flex", flexDirection: "column", height: "100%", position: "relative", overflow: "hidden" }}>
-                {t.recommended && <div style={{ fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Recommended</div>}
-                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>{t.name}</div>
-                {t.chad && <img src="/chad.png" alt="Chad" style={{
-                  position: "absolute", top: -30, right: -20,
-                  width: 150, height: 150,
-                  objectFit: "cover", objectPosition: "center top",
-                  borderRadius: "50%",
-                  border: "4px solid #E5E7EB",
-                  boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
-                  filter: "grayscale(1) contrast(1.1)",
-                  zIndex: 2,
-                }} />}
-                <div style={{ fontSize: 48, fontWeight: 700, marginBottom: 4, lineHeight: 1 }}>{t.price}{t.priceSub && <span style={{ fontSize: 16, fontWeight: 400, color: T.textTert }}>{t.priceSub}</span>}</div>
-                <div style={{ fontSize: 14, color: T.textTert, marginBottom: 28 }}>{t.sub}</div>
-                <ul style={{ listStyle: "none", padding: 0, margin: "0 0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
-                  {t.features.map(f => <li key={f} style={{ fontSize: 14, color: T.textSec, display: "flex", gap: 8 }}><span style={{ color: T.textTert }}>✓</span>{f}</li>)}
-                </ul>
-                <Btn href="/loginDeepControl?from=pricing" primary={t.primary} style={{ marginTop: 32, width: "100%", justifyContent: "center" }}>{t.cta}</Btn>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* ══ FINAL CTA ════════════════════════════════════════════════ */}
-      <section style={{ textAlign: "center", padding: "200px 40px 160px" }}>
-        <Reveal>
-          <h2 style={{ fontSize: 52, fontWeight: 700, margin: "0 0 32px", letterSpacing: "-0.02em" }}>Get started with Tools AI.</h2>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-            <Btn href={DMG} primary download>Download ↓</Btn>
-            <Btn href="/loginDeepControl?from=web">Start Free Trial</Btn>
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <SectionHead
+              kicker="Meeting Recorder"
+              title={<>From meeting<br />to code.</>}
+              subtitle="Record your calls. Whisper transcribes. Claude extracts actionable tasks. Execute them against your codebase with one click. Your standups become commits."
+              align="center"
+            />
           </div>
         </Reveal>
-      </section>
+        <ParallaxSection rate={0.94}>
+          <Reveal delay={0.1}><DemoMeetingRecorder /></Reveal>
+        </ParallaxSection>
+      </Section>
 
-      {/* ══ FOOTER ═══════════════════════════════════════════════════ */}
-      <footer style={{ borderTop: `1px solid ${T.border}`, padding: "56px 40px 40px", maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 40, marginBottom: 48 }}>
+      {/* ─── DEMO 3: Terminal ─── */}
+      <Section paddingY={100}>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <SectionHead
+              kicker="AI Terminal"
+              title={<>A terminal that<br />understands you.</>}
+              subtitle="Type shell commands like always. Type naturally and you&apos;re talking to AI. Same prompt, same keys, same history — now infinitely smarter."
+              align="center"
+            />
+          </div>
+        </Reveal>
+        <ParallaxSection rate={0.94}>
+          <Reveal delay={0.1}><DemoTerminal /></Reveal>
+        </ParallaxSection>
+      </Section>
+
+      {/* ─── DEMO 4: Live Preview ─── */}
+      <Section paddingY={100}>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <SectionHead
+              kicker="Live Preview"
+              title={<>Edit your site<br />like a document.</>}
+              subtitle="Describe the change. AI rewrites the code. Page updates in real time. No more hunting for the right CSS file."
+              align="center"
+            />
+          </div>
+        </Reveal>
+        <ParallaxSection rate={0.94}>
+          <Reveal delay={0.1}><DemoLivePreview /></Reveal>
+        </ParallaxSection>
+      </Section>
+
+      {/* ─── DEMO 5+6: Context Library + Diff Review ─── */}
+      <Section paddingY={100}>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <SectionHead
+              kicker="Context + Review"
+              title={<>Inputs in,<br />reviewed outputs out.</>}
+              subtitle="Upload design specs, docs, or reference code. Every AI call has context. Review every change with red/green diffs. Accept what&apos;s right, reject what isn&apos;t."
+              align="center"
+            />
+          </div>
+        </Reveal>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 28 }}>
+          <ParallaxSection rate={0.96}>
+            <Reveal delay={0.1}><DemoContextLibrary /></Reveal>
+          </ParallaxSection>
+          <ParallaxSection rate={0.98}>
+            <Reveal delay={0.15}><DemoDiffReview /></Reveal>
+          </ParallaxSection>
+        </div>
+      </Section>
+
+      {/* ─── DEMO 7: Profile Switcher ─── */}
+      <Section paddingY={100}>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <SectionHead
+              kicker="Profiles"
+              title={<>8 workflows.<br />Zero setup.</>}
+              subtitle="We pick the best-in-class extensions for each type of work — web dev, research, data science, design — so you don&apos;t have to. Switch profiles any time."
+              align="center"
+            />
+          </div>
+        </Reveal>
+        <ParallaxSection rate={0.94}>
+          <Reveal delay={0.1}><DemoProfileSwitcher /></Reveal>
+        </ParallaxSection>
+      </Section>
+
+      {/* ─── PRICING ─── */}
+      <Section id="pricing" paddingY={140}>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <SectionHead
+              kicker="Pricing"
+              title={<>Simple. Honest.<br />All models included.</>}
+              subtitle="Other tools charge you for each model separately. We don&apos;t."
+              align="center"
+            />
+          </div>
+        </Reveal>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+          {/* Free Trial */}
+          <Reveal delay={0.05}>
+            <PricingCard
+              name="Free Trial"
+              price="$0"
+              period="for 14 days"
+              description="Try everything. No credit card."
+              features={["All 5 AI models", "Unlimited usage during trial", "All features unlocked", "Converts to Chad if you love it"]}
+              cta="Start free trial"
+              ctaHref="/login"
+            />
+          </Reveal>
+          {/* Chad — highlighted */}
+          <Reveal delay={0.1}>
+            <PricingCard
+              name="Chad"
+              price="$25"
+              period="per month"
+              description="For developers who ship."
+              features={["All 5 AI models, always", "$15 of usage included", "Meeting recorder + transcription", "All 8 profiles", "Priority updates"]}
+              cta="Get Chad"
+              ctaHref={DMG}
+              highlighted
+            />
+          </Reveal>
+          {/* PAYG */}
+          <Reveal delay={0.15}>
+            <PricingCard
+              name="Pay-as-you-go"
+              price="$0"
+              period="base + usage"
+              description="For occasional use."
+              features={["Pay only for what you use", "All 5 AI models available", "$0.03/credit metered", "No minimum commitment"]}
+              cta="Start PAYG"
+              ctaHref="/login"
+            />
+          </Reveal>
+        </div>
+      </Section>
+
+      {/* ─── FINAL CTA ─── */}
+      <Section paddingY={120}>
+        <div style={{
+          textAlign: "center", maxWidth: 720, margin: "0 auto",
+          padding: "80px 40px",
+          background: "linear-gradient(180deg, rgba(234,88,12,0.08) 0%, rgba(234,88,12,0.02) 100%)",
+          border: `1px solid ${T.border}`,
+          borderRadius: 24,
+          position: "relative", overflow: "hidden",
+        }}>
+          <Reveal>
+            <h2 style={{
+              fontSize: 48, lineHeight: 1.1, fontWeight: 600,
+              letterSpacing: "-0.02em", marginBottom: 16,
+            }}>
+              Ready to meet your<br />new AI team?
+            </h2>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <p style={{
+              fontSize: 17, color: T.textSec, marginBottom: 32,
+              maxWidth: 480, margin: "0 auto 32px", lineHeight: 1.55,
+            }}>
+              Download Tools AI and get 14 days of unlimited access to all 5 models. No credit card.
+            </p>
+          </Reveal>
+          <Reveal delay={0.18}>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <Btn href={DMG} primary download>Download for macOS</Btn>
+              <Btn href="/login">Sign in</Btn>
+            </div>
+          </Reveal>
+        </div>
+      </Section>
+
+      {/* ─── FOOTER ─── */}
+      <footer style={{
+        position: "relative", zIndex: 2,
+        padding: "60px 24px 40px",
+        borderTop: `1px solid ${T.border}`,
+        background: "rgba(10,10,20,0.5)",
+        backdropFilter: "blur(12px)",
+      }}>
+        <div style={{
+          maxWidth: 1200, margin: "0 auto",
+          display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 40,
+        }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L14.5 8.5H21L15.5 13L17.5 20L12 16L6.5 20L8.5 13L3 8.5H9.5Z" fill={T.accent} stroke={T.accent} />
+              </svg>
+              <span style={{ fontSize: 15, fontWeight: 600 }}>Tools AI</span>
+            </div>
+            <div style={{ fontSize: 13, color: T.textTert, lineHeight: 1.6, maxWidth: 280 }}>
+              The AI IDE for people who want all the models, not just one.
+            </div>
+          </div>
           {[
-            { h: "Product", links: ["AI Builder", "Master Planner", "Terminal Loop", "Context Library", "Meeting Recorder", "Live Preview"] },
-            { h: "Resources", links: ["Download", "Changelog", "Documentation", "Blog"] },
-            { h: "Company", links: ["About", "Careers", "Contact"] },
-            { h: "Legal", links: ["Terms of Service", "Privacy Policy", "Security"] },
-            { h: "Connect", links: ["X", "LinkedIn", "YouTube", "GitHub"] },
+            { title: "Product", links: [["Download", DMG], ["Pricing", "#pricing"], ["Features", "#features"]] },
+            { title: "Resources", links: [["Blog", "/blog"], ["Release notes", "https://github.com/DylanWain/Tools-AI-APP/releases"]] },
+            { title: "Company", links: [["About", "#"], ["Contact", "mailto:hello@thetoolswebsite.com"]] },
+            { title: "Legal", links: [["Terms", "/terms"], ["Privacy", "/privacy"]] },
           ].map(col => (
-            <div key={col.h}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 16 }}>{col.h}</div>
-              {col.links.map(l => <a key={l} href={l === "Download" ? DMG : l === "Terms of Service" ? "/terms" : l === "Privacy Policy" ? "/privacy" : "#"} style={{ display: "block", fontSize: 14, color: T.textSec, textDecoration: "none", marginBottom: 10 }}>{l}</a>)}
+            <div key={col.title}>
+              <div style={{
+                fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 12,
+                textTransform: "uppercase", letterSpacing: 0.5,
+              }}>{col.title}</div>
+              {col.links.map(([label, href]) => (
+                <a key={label} href={href} style={{
+                  display: "block", fontSize: 13, color: T.textSec,
+                  textDecoration: "none", marginBottom: 8,
+                }}>{label}</a>
+              ))}
             </div>
           ))}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: T.textTert }}>
-          <span>© {new Date().getFullYear()} Tools AI</span>
+        <div style={{
+          maxWidth: 1200, margin: "40px auto 0",
+          paddingTop: 24, borderTop: `1px solid ${T.border}`,
+          display: "flex", justifyContent: "space-between",
+          fontSize: 12, color: T.textTert,
+        }}>
+          <div>© 2026 Tools AI · Made in California</div>
+          <div>v2.0.3</div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/* ── Pricing card ─────────────────────────────────────────────────── */
+function PricingCard({ name, price, period, description, features, cta, ctaHref, highlighted }) {
+  return (
+    <div style={{
+      position: "relative",
+      padding: 32,
+      background: highlighted ? "linear-gradient(180deg, rgba(234,88,12,0.08) 0%, rgba(234,88,12,0.02) 100%)" : T.bgElev,
+      border: `1px solid ${highlighted ? "rgba(234,88,12,0.3)" : T.border}`,
+      borderRadius: 16,
+      display: "flex", flexDirection: "column",
+      boxShadow: highlighted ? "0 12px 48px rgba(234,88,12,0.12)" : "none",
+    }}>
+      {highlighted && (
+        <div style={{
+          position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)",
+          padding: "4px 12px", background: T.accent, color: "#fff",
+          fontSize: 11, fontWeight: 600, borderRadius: 99,
+          textTransform: "uppercase", letterSpacing: 0.5,
+        }}>Most popular</div>
+      )}
+      <div style={{ fontSize: 13, fontWeight: 600, color: T.textSec, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {name}
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
+        <span style={{ fontSize: 48, fontWeight: 600, letterSpacing: "-0.02em" }}>{price}</span>
+        <span style={{ fontSize: 14, color: T.textTert }}>{period}</span>
+      </div>
+      <div style={{ fontSize: 14, color: T.textSec, marginBottom: 24, lineHeight: 1.5 }}>{description}</div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
+        {features.map(f => (
+          <div key={f} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 14, color: T.textSec, lineHeight: 1.5 }}>
+            <span style={{ color: highlighted ? T.accent : T.success, flexShrink: 0 }}>✓</span>
+            <span>{f}</span>
+          </div>
+        ))}
+      </div>
+      <Btn href={ctaHref} primary={highlighted} download={ctaHref === DMG} style={{ width: "100%" }}>
+        {cta}
+      </Btn>
     </div>
   );
 }
