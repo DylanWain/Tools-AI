@@ -1,23 +1,38 @@
-<svg width="1024" height="1024" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#141414"/>
-      <stop offset="100%" stop-color="#0a0a0a"/>
-    </linearGradient>
-  </defs>
-  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
-  <!-- 5 stacked chrome panels -->
-  <rect x="52" y="152" width="152" height="56" rx="10" fill="#333" stroke="#555" stroke-width="1.5"/>
-  <rect x="56" y="120" width="144" height="56" rx="10" fill="#444" stroke="#666" stroke-width="1.5"/>
-  <rect x="60" y="88" width="136" height="56" rx="10" fill="#666" stroke="#888" stroke-width="1.5"/>
-  <rect x="64" y="56" width="128" height="56" rx="10" fill="#999" stroke="#bbb" stroke-width="1.5"/>
-  <rect x="68" y="40" width="120" height="44" rx="10" fill="#ccc" stroke="#e5e5e5" stroke-width="1.5"/>
-  <!-- Top card gleam -->
-  <rect x="74" y="44" width="50" height="6" rx="3" fill="white" opacity="0.2"/>
-  <!-- AI color accents on left edge -->
-  <rect x="52" y="156" width="4" height="48" rx="2" fill="#20808d" opacity="0.6"/>
-  <rect x="56" y="124" width="4" height="48" rx="2" fill="#888" opacity="0.5"/>
-  <rect x="60" y="92" width="4" height="48" rx="2" fill="#4285f4" opacity="0.5"/>
-  <rect x="64" y="60" width="4" height="48" rx="2" fill="#d97706" opacity="0.5"/>
-  <rect x="68" y="44" width="4" height="36" rx="2" fill="#10a37f" opacity="0.5"/>
+<svg width="1024" height="1024" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tools AI">
+<rect width="680" height="680" rx="130" fill="#080810"/>
+
+<circle cx="40"  cy="44"  r="4.5" fill="#fff" opacity="0.95"/>
+<circle cx="82"  cy="26"  r="3.0" fill="#fff" opacity="0.80"/>
+<circle cx="118" cy="55"  r="5.0" fill="#fff" opacity="1.00"/>
+<circle cx="55"  cy="88"  r="3.5" fill="#fff" opacity="0.85"/>
+<circle cx="28"  cy="118" r="4.0" fill="#fff" opacity="0.90"/>
+<circle cx="640" cy="44"  r="4.5" fill="#fff" opacity="0.95"/>
+<circle cx="598" cy="26"  r="3.0" fill="#fff" opacity="0.80"/>
+<circle cx="562" cy="55"  r="5.0" fill="#fff" opacity="1.00"/>
+<circle cx="625" cy="88"  r="3.5" fill="#fff" opacity="0.85"/>
+<circle cx="652" cy="118" r="4.0" fill="#fff" opacity="0.90"/>
+<circle cx="40"  cy="636" r="4.5" fill="#fff" opacity="0.95"/>
+<circle cx="82"  cy="654" r="3.0" fill="#fff" opacity="0.80"/>
+<circle cx="118" cy="625" r="5.0" fill="#fff" opacity="1.00"/>
+<circle cx="55"  cy="592" r="3.5" fill="#fff" opacity="0.85"/>
+<circle cx="28"  cy="562" r="4.0" fill="#fff" opacity="0.90"/>
+<circle cx="640" cy="636" r="4.5" fill="#fff" opacity="0.95"/>
+<circle cx="598" cy="654" r="3.0" fill="#fff" opacity="0.80"/>
+<circle cx="562" cy="625" r="5.0" fill="#fff" opacity="1.00"/>
+<circle cx="625" cy="592" r="3.5" fill="#fff" opacity="0.85"/>
+<circle cx="652" cy="562" r="4.0" fill="#fff" opacity="0.90"/>
+
+<circle cx="340" cy="340" r="318" fill="#e8e8e8"/>
+<path d="M340,22 A318,318 0 0,1 658,340 A318,318 0 0,1 340,658 A318,318 0 0,0 340,22Z" fill="#909090"/>
+<path d="M340,340 L658,340 A318,318 0 0,1 340,658 Z" fill="#404040"/>
+<path d="M340,340 L564,564 A318,318 0 0,1 248,652 Z" fill="#1a1a1a"/>
+
+<ellipse cx="340" cy="340" rx="318" ry="96"  fill="none" stroke="#080810" stroke-width="9"/>
+<ellipse cx="340" cy="206" rx="265" ry="80"  fill="none" stroke="#080810" stroke-width="9"/>
+<ellipse cx="340" cy="474" rx="265" ry="80"  fill="none" stroke="#080810" stroke-width="9"/>
+<line x1="340" y1="22"  x2="340" y2="658" stroke="#080810" stroke-width="9"/>
+<line x1="22"  y1="340" x2="658" y2="340" stroke="#080810" stroke-width="9"/>
+
+<ellipse cx="226" cy="188" rx="96" ry="62" fill="#ffffff" opacity="0.18" transform="rotate(-30 226 188)"/>
+<circle cx="340" cy="340" r="318" fill="none" stroke="#ffffff" stroke-width="11" opacity="0.9"/>
 </svg>

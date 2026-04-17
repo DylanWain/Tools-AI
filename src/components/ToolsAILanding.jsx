@@ -23,6 +23,7 @@ const DemoLivePreview     = dynamic(() => import("./landing/DemoLivePreview"),  
 const DemoContextLibrary  = dynamic(() => import("./landing/DemoContextLibrary"),  { ssr: false });
 const DemoDiffReview      = dynamic(() => import("./landing/DemoDiffReview"),      { ssr: false });
 const DemoProfileSwitcher = dynamic(() => import("./landing/DemoProfileSwitcher"), { ssr: false });
+const LandingLogo         = dynamic(() => import("./landing/LandingLogo"),         { ssr: false });
 
 const T = {
   bg: "#000000",
@@ -168,9 +169,7 @@ export default function ToolsAILanding() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: T.text }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2L14.5 8.5H21L15.5 13L17.5 20L12 16L6.5 20L8.5 13L3 8.5H9.5Z" fill={T.accent} stroke={T.accent} />
-            </svg>
+            <LandingLogo size={30} />
             <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em" }}>Tools AI</span>
           </a>
           <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
@@ -183,9 +182,14 @@ export default function ToolsAILanding() {
       </nav>
 
       {/* ─── HERO ─── */}
-      <Section style={{ paddingTop: 180, paddingBottom: 100 }} paddingY={0}>
+      <Section style={{ paddingTop: 140, paddingBottom: 100 }} paddingY={0}>
         <div style={{ textAlign: "center", position: "relative" }}>
           <Reveal>
+            <div style={{ marginBottom: 32, display: "flex", justifyContent: "center" }}>
+              <LandingLogo size={140} />
+            </div>
+          </Reveal>
+          <Reveal delay={0.03}>
             <div style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "6px 14px", borderRadius: 99,
@@ -452,9 +456,7 @@ export default function ToolsAILanding() {
         }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L14.5 8.5H21L15.5 13L17.5 20L12 16L6.5 20L8.5 13L3 8.5H9.5Z" fill={T.accent} stroke={T.accent} />
-              </svg>
+              <LandingLogo size={26} />
               <span style={{ fontSize: 15, fontWeight: 600 }}>Tools AI</span>
             </div>
             <div style={{ fontSize: 13, color: T.textTert, lineHeight: 1.6, maxWidth: 280 }}>

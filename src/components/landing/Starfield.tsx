@@ -35,8 +35,8 @@ function makeStars(count: number, layer: 0 | 1 | 2): Star[] {
       y: Math.random(),
       r,
       a,
-      // ~40% of ALL stars twinkle for a more lively sky
-      twinkle: Math.random() < 0.4,
+      // ~25% of stars twinkle — lively but not chaotic
+      twinkle: Math.random() < 0.25,
       phase: Math.random() * Math.PI * 2,
       // Each twinkling star has its own speed so they don't pulse together
       speed: 1.2 + Math.random() * 3.5,
