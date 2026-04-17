@@ -17,6 +17,7 @@ type Star = {
   a: number;          // base alpha
   twinkle: boolean;   // does this star twinkle
   phase: number;      // phase offset for twinkle
+  speed: number;      // per-star twinkle frequency
   layer: 0 | 1 | 2;   // 0 = far, 1 = mid, 2 = near
 };
 
@@ -26,16 +27,19 @@ function makeStars(count: number, layer: 0 | 1 | 2): Star[] {
     const r = layer === 0 ? 0.4 + Math.random() * 0.6
             : layer === 1 ? 0.6 + Math.random() * 0.9
             : 0.9 + Math.random() * 1.3;
-    const a = layer === 0 ? 0.25 + Math.random() * 0.35
-            : layer === 1 ? 0.4 + Math.random() * 0.4
-            : 0.6 + Math.random() * 0.4;
+    const a = layer === 0 ? 0.35 + Math.random() * 0.45
+            : layer === 1 ? 0.55 + Math.random() * 0.35
+            : 0.75 + Math.random() * 0.25;
     stars.push({
       x: Math.random(),
       y: Math.random(),
       r,
       a,
-      twinkle: layer === 2 && Math.random() < 0.2,  // ~20% of near-layer stars twinkle
+      // ~40% of ALL stars twinkle for a more lively sky
+      twinkle: Math.random() < 0.4,
       phase: Math.random() * Math.PI * 2,
+      // Each twinkling star has its own speed so they don't pulse together
+      speed: 1.2 + Math.random() * 3.5,
       layer,
     });
   }
@@ -121,8 +125,16 @@ export default function Starfield() {
 
         let alpha = s.a;
         if (s.twinkle && !prefersReduced) {
-          // Sine wave twinkle, 3s period
-          alpha = s.a * (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 2 + s.phase)));
+          // Real twinkling: dip almost to invisible, then bright. Two layered
+          // sine waves at different frequencies give an irregular flicker.
+          const wave1 = Math.sin(t * s.speed + s.phase);
+          const wave2 = Math.sin(t * s.speed * 1.7 + s.phase * 1.3);
+          // Combined wave in -2..2 → normalized 0..1, curved for sharper dips
+          const combined = (wave1 + wave2) / 2;
+          // Raise to power 3 for sharper valleys (dim more than bright)
+          const shaped = Math.pow((combined + 1) / 2, 2.2);
+          // Range: 0.05 (almost off) to full base alpha
+          alpha = s.a * (0.05 + 0.95 * shaped);
         }
 
         ctx.globalAlpha = alpha;
@@ -130,14 +142,6 @@ export default function Starfield() {
         ctx.beginPath();
         ctx.arc(x, y, s.r, 0, Math.PI * 2);
         ctx.fill();
-
-        // Subtle glow on near-layer stars
-        if (s.layer === 2 && s.r > 1.5) {
-          ctx.globalAlpha = alpha * 0.3;
-          ctx.beginPath();
-          ctx.arc(x, y, s.r * 2.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
       }
       ctx.globalAlpha = 1;
 

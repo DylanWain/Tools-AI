@@ -25,9 +25,9 @@ const DemoDiffReview      = dynamic(() => import("./landing/DemoDiffReview"),   
 const DemoProfileSwitcher = dynamic(() => import("./landing/DemoProfileSwitcher"), { ssr: false });
 
 const T = {
-  bg: "#0a0a14",
-  bgElev: "#12121f",
-  surface: "#1a1a2e",
+  bg: "#000000",
+  bgElev: "#0a0a0a",
+  surface: "#141414",
   text: "#ededec",
   textSec: "rgba(237,236,236,0.65)",
   textTert: "rgba(237,236,236,0.35)",
@@ -143,13 +143,13 @@ export default function ToolsAILanding() {
       {/* Fixed starfield background — behind everything */}
       <Starfield />
 
-      {/* Ambient radial glow behind hero */}
+      {/* Ambient radial glow behind hero — very subtle so it reads as deep space */}
       <div style={{
         position: "fixed",
         top: "-40vh", left: "50%",
         transform: "translateX(-50%)",
         width: "120vw", height: "120vh",
-        background: "radial-gradient(ellipse at center, rgba(234,88,12,0.06) 0%, transparent 60%)",
+        background: "radial-gradient(ellipse at center, rgba(234,88,12,0.04) 0%, transparent 55%)",
         pointerEvents: "none",
         zIndex: 1,
       }} />
