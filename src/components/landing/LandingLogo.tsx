@@ -30,29 +30,33 @@ function useGlobeTexture() {
     ctx.fillStyle = "#e8e8e8";
     ctx.fillRect(0, 0, W, H);
 
-    // Bold grid lines that match the icon's feel
+    // Bold grid lines matching the icon's minimalism — only a FEW lines,
+    // not a full planet grid. Icon has 3 latitudes + 2 longitude ellipses
+    // + 1 prime meridian, so ~4 vertical lines visible from any angle.
     ctx.strokeStyle = "#080810";
     ctx.lineCap = "butt";
 
-    // Longitude lines — 12 evenly spaced vertical lines (every 30°)
-    ctx.lineWidth = 14;
-    for (let i = 0; i < 12; i++) {
-      const x = (i / 12) * W;
+    // Longitude lines — just 4 evenly spaced (every 90°). From any viewing
+    // angle, 2 will be visible on the hemisphere facing the camera.
+    ctx.lineWidth = 22;
+    for (let i = 0; i < 4; i++) {
+      const x = (i / 4) * W;
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, H);
       ctx.stroke();
     }
 
-    // Latitude lines — equator bold, tropics medium
-    ctx.lineWidth = 16;
+    // Latitude lines — 3 total, matching the icon exactly: equator +
+    // upper tropic + lower tropic
+    ctx.lineWidth = 20;
     ctx.beginPath();
     ctx.moveTo(0, H / 2);
     ctx.lineTo(W, H / 2);
     ctx.stroke();
 
-    ctx.lineWidth = 12;
-    [0.25, 0.75].forEach((frac) => {
+    ctx.lineWidth = 18;
+    [0.3, 0.7].forEach((frac) => {
       ctx.beginPath();
       ctx.moveTo(0, frac * H);
       ctx.lineTo(W, frac * H);
@@ -72,12 +76,15 @@ function Globe({ reducedMotion }: { reducedMotion: boolean }) {
 
   useFrame((_s, delta) => {
     if (!ref.current || reducedMotion) return;
-    // Counter-clockwise (viewed from north pole): negate rotation. 40s/rev.
+    // Counter-clockwise rotation around local Y. 40s/rev.
     ref.current.rotation.y -= (delta * Math.PI * 2) / 40;
   });
 
   return (
-    <mesh ref={ref}>
+    // Tilt the globe's axis slightly so we're viewing from the equator
+    // with a small upward tilt (like looking at Saturn from slightly below).
+    // X tilt of -0.18 rad (~-10°) angles the north pole toward the viewer.
+    <mesh ref={ref} rotation={[-0.18, 0, 0]}>
       <sphereGeometry args={[1, 96, 96]} />
       {/* meshPhongMaterial gives us real shading (light side vs dark side)
          without the rough planet-y look of Standard PBR */}
@@ -95,53 +102,69 @@ function Globe({ reducedMotion }: { reducedMotion: boolean }) {
  * top-left regardless of sphere rotation. Sits just in front of the
  * sphere at a fixed position. ─────────────────────────────────────── */
 function Highlight() {
+  // Positioned upper-left of the sphere in camera space. Slightly in front
+  // of the sphere (z=0.94 > 1.0 accounting for camera perspective) so it's
+  // not clipped by the sphere surface.
   return (
-    <mesh position={[-0.48, 0.48, 0.93]} scale={[0.32, 0.22, 1]}>
+    <mesh position={[-0.45, 0.52, 0.92]} scale={[0.3, 0.2, 1]}>
       <circleGeometry args={[0.5, 32]} />
-      <meshBasicMaterial color="#ffffff" transparent opacity={0.22} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={0.26} />
     </mesh>
   );
 }
 
-/* ── White ring highlight that outlines the whole sphere (matches the
- * static outer highlight in the flat icon). It's drawn in world space
- * and does not rotate. ─────────────────────────────────────────────── */
+/* ── Bright white halo outlining the sphere (matches the flat icon's
+ * distinctive outer ring highlight). Sprite-style: always faces camera. ── */
 function HaloRing() {
   return (
-    <mesh rotation={[0, 0, 0]}>
-      <ringGeometry args={[1.005, 1.04, 128]} />
+    <mesh>
+      <ringGeometry args={[1.01, 1.055, 128]} />
       <meshBasicMaterial
         color="#ffffff"
         side={THREE.DoubleSide}
         transparent
-        opacity={0.85}
+        opacity={0.95}
       />
     </mesh>
   );
 }
 
-/* ── Saturn-style rings tilted at ~18° ─────────────────────────────── */
+/* ── Saturn-style rings. Tilted significantly so the ring plane is
+ * clearly visible as an ellipse (not a thin line). ─────────────────── */
 function Rings() {
   return (
-    <group rotation={[Math.PI / 2.3, 0, -0.32]}>
-      {/* Outer ring */}
+    // Tilt about X so rings appear as a visible elliptical disc from the
+    // camera. PI/2.8 ≈ 64° tilt away from the camera plane, showing the
+    // top surface of the rings prominently.
+    <group rotation={[Math.PI / 2.8, 0, -0.25]}>
+      {/* Outer ring — wider and more opaque so it reads clearly */}
       <mesh>
-        <ringGeometry args={[1.55, 1.78, 128]} />
+        <ringGeometry args={[1.55, 1.95, 128]} />
+        <meshBasicMaterial
+          color="#ffffff"
+          side={THREE.DoubleSide}
+          transparent
+          opacity={0.7}
+        />
+      </mesh>
+      {/* Cassini gap — thin dark separator */}
+      <mesh>
+        <ringGeometry args={[1.73, 1.76, 128]} />
+        <meshBasicMaterial
+          color="#000000"
+          side={THREE.DoubleSide}
+          transparent
+          opacity={0.6}
+        />
+      </mesh>
+      {/* Inner ring */}
+      <mesh>
+        <ringGeometry args={[1.28, 1.48, 128]} />
         <meshBasicMaterial
           color="#ffffff"
           side={THREE.DoubleSide}
           transparent
           opacity={0.55}
-        />
-      </mesh>
-      {/* Inner ring (Cassini gap) */}
-      <mesh>
-        <ringGeometry args={[1.32, 1.44, 128]} />
-        <meshBasicMaterial
-          color="#ffffff"
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.35}
         />
       </mesh>
     </group>
@@ -161,10 +184,14 @@ export default function LandingLogo({ size = 88 }: { size?: number }) {
       role="img"
     >
       <Canvas
-        camera={{ position: [0, 0, 3.6], fov: 38 }}
+        // Camera slightly above the equator, looking down-ish at origin.
+        // Gives us an equatorial view with just enough tilt to see the
+        // top surface of Saturn's rings fanning out to either side.
+        camera={{ position: [0, 0.55, 4.1], fov: 36 }}
         dpr={[1, 2]}
         gl={{ alpha: true, antialias: true }}
         style={{ width: "100%", height: "100%", background: "transparent" }}
+        onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
       >
         {/* Lighting — strong key from upper-left creates light/dark hemispheres
            that read like the flat icon's shading quadrants */}
