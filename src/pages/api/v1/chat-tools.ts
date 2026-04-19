@@ -270,50 +270,51 @@ async function streamAnthropicTools(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
+  /* Split on single \n and buffer the trailing partial line — matches
+   * the existing /api/v1/chat readSSE pattern. Some providers use \n\n
+   * event boundaries, others use \n per line; this handles both. */
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buf += decoder.decode(value, { stream: true });
-    const frames = buf.split('\n\n');
-    buf = frames.pop() || '';
-    for (const frame of frames) {
-      for (const line of frame.split('\n')) {
-        if (!line.startsWith('data: ')) continue;
-        const raw = line.slice(6).trim();
-        if (!raw || raw === '[DONE]') continue;
-        try {
-          const p = JSON.parse(raw) as Record<string, unknown>;
-          if (p.type === 'content_block_start' && p.content_block) {
-            const block = p.content_block as Record<string, unknown>;
-            const idx = p.index as number;
-            if (block.type === 'tool_use') {
-              toolUseStash.set(idx, { id: String(block.id), name: String(block.name), input: '' });
-            }
-          } else if (p.type === 'content_block_delta' && p.delta) {
-            const delta = p.delta as Record<string, unknown>;
-            const idx = p.index as number;
-            if (delta.type === 'text_delta' && typeof delta.text === 'string') {
-              send({ event: 'text', text: delta.text });
-            } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
-              const stash = toolUseStash.get(idx);
-              if (stash) stash.input += delta.partial_json;
-            }
-          } else if (p.type === 'content_block_stop') {
-            const idx = p.index as number;
-            const stash = toolUseStash.get(idx);
-            if (stash) {
-              let input: Record<string, unknown> = {};
-              try { input = stash.input ? (JSON.parse(stash.input) as Record<string, unknown>) : {}; }
-              catch { /* empty args */ }
-              send({ event: 'tool_use', id: stash.id, name: stash.name, input });
-              toolUseStash.delete(idx);
-            }
-          } else if (p.type === 'message_delta' && p.delta) {
-            const delta = p.delta as Record<string, unknown>;
-            if (typeof delta.stop_reason === 'string') stopReason = delta.stop_reason;
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') continue;
+      try {
+        const p = JSON.parse(raw) as Record<string, unknown>;
+        if (p.type === 'content_block_start' && p.content_block) {
+          const block = p.content_block as Record<string, unknown>;
+          const idx = p.index as number;
+          if (block.type === 'tool_use') {
+            toolUseStash.set(idx, { id: String(block.id), name: String(block.name), input: '' });
           }
-        } catch { /* ignore malformed frame */ }
-      }
+        } else if (p.type === 'content_block_delta' && p.delta) {
+          const delta = p.delta as Record<string, unknown>;
+          const idx = p.index as number;
+          if (delta.type === 'text_delta' && typeof delta.text === 'string') {
+            send({ event: 'text', text: delta.text });
+          } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
+            const stash = toolUseStash.get(idx);
+            if (stash) stash.input += delta.partial_json;
+          }
+        } else if (p.type === 'content_block_stop') {
+          const idx = p.index as number;
+          const stash = toolUseStash.get(idx);
+          if (stash) {
+            let input: Record<string, unknown> = {};
+            try { input = stash.input ? (JSON.parse(stash.input) as Record<string, unknown>) : {}; }
+            catch { /* empty args */ }
+            send({ event: 'tool_use', id: stash.id, name: stash.name, input });
+            toolUseStash.delete(idx);
+          }
+        } else if (p.type === 'message_delta' && p.delta) {
+          const delta = p.delta as Record<string, unknown>;
+          if (typeof delta.stop_reason === 'string') stopReason = delta.stop_reason;
+        }
+      } catch { /* ignore malformed frame */ }
     }
   }
   send({ event: 'done', stop_reason: stopReason });
@@ -367,17 +368,52 @@ async function streamOpenAiTools(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
+  /* Single-\n splitting with partial-line buffering. Matches the
+   * existing /api/v1/chat readSSE pattern. */
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buf += decoder.decode(value, { stream: true });
-    const frames = buf.split('\n\n');
-    buf = frames.pop() || '';
-    for (const frame of frames) {
-      for (const line of frame.split('\n')) {
-        if (!line.startsWith('data: ')) continue;
-        const raw = line.slice(6).trim();
-        if (!raw || raw === '[DONE]') {
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') {
+        for (const [, t] of pendingTools) {
+          let input: Record<string, unknown> = {};
+          try { input = t.args ? (JSON.parse(t.args) as Record<string, unknown>) : {}; }
+          catch { /* drop */ }
+          send({ event: 'tool_use', id: t.id, name: t.name, input });
+        }
+        pendingTools.clear();
+        continue;
+      }
+      try {
+        const p = JSON.parse(raw) as Record<string, unknown>;
+        const choices = p.choices as Array<Record<string, unknown>> | undefined;
+        if (!choices || choices.length === 0) continue;
+        const c0 = choices[0]!;
+        const delta = (c0.delta as Record<string, unknown> | undefined) ?? {};
+        if (typeof delta.content === 'string' && delta.content) {
+          send({ event: 'text', text: delta.content });
+        }
+        const toolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined;
+        if (toolCalls) {
+          for (const tc of toolCalls) {
+            const idx = (tc.index as number | undefined) ?? 0;
+            const stash = pendingTools.get(idx) ?? { id: '', name: '', args: '' };
+            if (typeof tc.id === 'string' && tc.id) stash.id = tc.id;
+            const fn = tc.function as Record<string, unknown> | undefined;
+            if (fn) {
+              if (typeof fn.name === 'string' && fn.name) stash.name = fn.name;
+              if (typeof fn.arguments === 'string') stash.args += fn.arguments;
+            }
+            pendingTools.set(idx, stash);
+          }
+        }
+        if (typeof c0.finish_reason === 'string' && c0.finish_reason) {
+          stopReason = c0.finish_reason === 'tool_calls' ? 'tool_use' : c0.finish_reason;
           for (const [, t] of pendingTools) {
             let input: Record<string, unknown> = {};
             try { input = t.args ? (JSON.parse(t.args) as Record<string, unknown>) : {}; }
@@ -385,43 +421,8 @@ async function streamOpenAiTools(
             send({ event: 'tool_use', id: t.id, name: t.name, input });
           }
           pendingTools.clear();
-          continue;
         }
-        try {
-          const p = JSON.parse(raw) as Record<string, unknown>;
-          const choices = p.choices as Array<Record<string, unknown>> | undefined;
-          if (!choices || choices.length === 0) continue;
-          const c0 = choices[0]!;
-          const delta = (c0.delta as Record<string, unknown> | undefined) ?? {};
-          if (typeof delta.content === 'string' && delta.content) {
-            send({ event: 'text', text: delta.content });
-          }
-          const toolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined;
-          if (toolCalls) {
-            for (const tc of toolCalls) {
-              const idx = (tc.index as number | undefined) ?? 0;
-              const stash = pendingTools.get(idx) ?? { id: '', name: '', args: '' };
-              if (typeof tc.id === 'string' && tc.id) stash.id = tc.id;
-              const fn = tc.function as Record<string, unknown> | undefined;
-              if (fn) {
-                if (typeof fn.name === 'string' && fn.name) stash.name = fn.name;
-                if (typeof fn.arguments === 'string') stash.args += fn.arguments;
-              }
-              pendingTools.set(idx, stash);
-            }
-          }
-          if (typeof c0.finish_reason === 'string' && c0.finish_reason) {
-            stopReason = c0.finish_reason === 'tool_calls' ? 'tool_use' : c0.finish_reason;
-            for (const [, t] of pendingTools) {
-              let input: Record<string, unknown> = {};
-              try { input = t.args ? (JSON.parse(t.args) as Record<string, unknown>) : {}; }
-              catch { /* drop */ }
-              send({ event: 'tool_use', id: t.id, name: t.name, input });
-            }
-            pendingTools.clear();
-          }
-        } catch { /* ignore */ }
-      }
+      } catch { /* ignore */ }
     }
   }
   send({ event: 'done', stop_reason: stopReason });
@@ -465,43 +466,45 @@ async function streamGeminiTools(
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = '';
+      /* Gemini emits SSE events separated by single \n (not the spec-
+       * compliant \n\n), so we split on \n and keep the trailing
+       * partial line in the buffer. Matches the existing /api/v1/chat
+       * readSSE pattern. */
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-        const frames = buf.split('\n\n');
-        buf = frames.pop() || '';
-        for (const frame of frames) {
-          for (const line of frame.split('\n')) {
-            if (!line.startsWith('data: ')) continue;
-            const raw = line.slice(6).trim();
-            if (!raw) continue;
-            try {
-              const p = JSON.parse(raw) as Record<string, unknown>;
-              const candidates = p.candidates as Array<Record<string, unknown>> | undefined;
-              if (!candidates || candidates.length === 0) continue;
-              const cand = candidates[0]!;
-              const content = cand.content as Record<string, unknown> | undefined;
-              const parts = (content?.parts as Array<Record<string, unknown>> | undefined) ?? [];
-              for (const part of parts) {
-                if (typeof part.text === 'string' && part.text) {
-                  send({ event: 'text', text: part.text });
-                } else if (part.functionCall) {
-                  const fc = part.functionCall as Record<string, unknown>;
-                  send({
-                    event: 'tool_use',
-                    id: `gemini_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-                    name: String(fc.name),
-                    input: (fc.args as Record<string, unknown>) ?? {},
-                  });
-                  stopReason = 'tool_use';
-                }
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (!raw) continue;
+          try {
+            const p = JSON.parse(raw) as Record<string, unknown>;
+            const candidates = p.candidates as Array<Record<string, unknown>> | undefined;
+            if (!candidates || candidates.length === 0) continue;
+            const cand = candidates[0]!;
+            const content = cand.content as Record<string, unknown> | undefined;
+            const parts = (content?.parts as Array<Record<string, unknown>> | undefined) ?? [];
+            for (const part of parts) {
+              if (typeof part.text === 'string' && part.text) {
+                send({ event: 'text', text: part.text });
+              } else if (part.functionCall) {
+                const fc = part.functionCall as Record<string, unknown>;
+                send({
+                  event: 'tool_use',
+                  id: `gemini_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+                  name: String(fc.name),
+                  input: (fc.args as Record<string, unknown>) ?? {},
+                });
+                stopReason = 'tool_use';
               }
-              if (typeof cand.finishReason === 'string') {
-                stopReason = cand.finishReason === 'STOP' ? 'end_turn' : stopReason;
-              }
-            } catch { /* ignore */ }
-          }
+            }
+            if (typeof cand.finishReason === 'string') {
+              stopReason = cand.finishReason === 'STOP' ? 'end_turn' : stopReason;
+            }
+          } catch { /* ignore */ }
         }
       }
       send({ event: 'done', stop_reason: stopReason });
@@ -565,7 +568,11 @@ async function streamPerplexityTools(
 
   /* Stream text through; buffer so we can detect a complete
    * <tool_call> block before forwarding it as text. Once we see one,
-   * emit a tool_use event and stop forwarding text from that point. */
+   * emit a tool_use event and stop forwarding text from that point.
+   *
+   * Perplexity (like Gemini) emits SSE events separated by single \n,
+   * not the spec-compliant \n\n, so we split on \n and keep the
+   * trailing partial line in the buffer. */
   let streamBuf = '';
   let foundToolCall = false;
   const TOOL_RE = /<tool_call\s+name\s*=\s*"([^"]+)"\s*>([\s\S]*?)<\/tool_call>/;
@@ -577,42 +584,40 @@ async function streamPerplexityTools(
     const { done, value } = await reader.read();
     if (done) break;
     netBuf += decoder.decode(value, { stream: true });
-    const frames = netBuf.split('\n\n');
-    netBuf = frames.pop() || '';
-    for (const frame of frames) {
-      for (const line of frame.split('\n')) {
-        if (!line.startsWith('data: ')) continue;
-        const raw = line.slice(6).trim();
-        if (!raw || raw === '[DONE]') continue;
-        try {
-          const p = JSON.parse(raw) as Record<string, unknown>;
-          const choices = p.choices as Array<Record<string, unknown>> | undefined;
-          const chunk = choices?.[0] && (choices[0] as Record<string, unknown>).delta
-            ? ((choices[0] as Record<string, unknown>).delta as Record<string, unknown>).content
-            : undefined;
-          if (typeof chunk === 'string' && chunk && !foundToolCall) {
-            streamBuf += chunk;
-            const m = TOOL_RE.exec(streamBuf);
-            if (m) {
-              /* Flush any leading prose, emit the tool_use, stop forwarding. */
-              const before = streamBuf.slice(0, m.index);
-              if (before) send({ event: 'text', text: before });
-              let input: Record<string, unknown> = {};
-              try { input = JSON.parse((m[2] ?? '').trim()) as Record<string, unknown>; }
-              catch { /* empty args */ }
-              send({
-                event: 'tool_use',
-                id: `ppx_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-                name: m[1]!,
-                input,
-              });
-              foundToolCall = true;
-            } else {
-              send({ event: 'text', text: chunk });
-            }
+    const lines = netBuf.split('\n');
+    netBuf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') continue;
+      try {
+        const p = JSON.parse(raw) as Record<string, unknown>;
+        const choices = p.choices as Array<Record<string, unknown>> | undefined;
+        const chunk = choices?.[0] && (choices[0] as Record<string, unknown>).delta
+          ? ((choices[0] as Record<string, unknown>).delta as Record<string, unknown>).content
+          : undefined;
+        if (typeof chunk === 'string' && chunk && !foundToolCall) {
+          streamBuf += chunk;
+          const m = TOOL_RE.exec(streamBuf);
+          if (m) {
+            /* Flush any leading prose, emit the tool_use, stop forwarding. */
+            const before = streamBuf.slice(0, m.index);
+            if (before) send({ event: 'text', text: before });
+            let input: Record<string, unknown> = {};
+            try { input = JSON.parse((m[2] ?? '').trim()) as Record<string, unknown>; }
+            catch { /* empty args */ }
+            send({
+              event: 'tool_use',
+              id: `ppx_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+              name: m[1]!,
+              input,
+            });
+            foundToolCall = true;
+          } else {
+            send({ event: 'text', text: chunk });
           }
-        } catch { /* ignore */ }
-      }
+        }
+      } catch { /* ignore */ }
     }
   }
   send({ event: 'done', stop_reason: foundToolCall ? 'tool_use' : 'end_turn' });
