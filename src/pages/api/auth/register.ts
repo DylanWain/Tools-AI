@@ -26,22 +26,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user
-    const { data: user, error } = await supabaseAdmin
+    // Check if a row already exists for this email — might be a pre-password
+    // account (e.g. created via the extension's device-id flow) that's never
+    // had a password set. In that case, let the user claim it by setting the
+    // password now. If a password is already set, 409 like before.
+    const { data: existing } = await supabaseAdmin
       .from('users')
-      .insert({
-        email,
-        hashed_password: hashedPassword,
-        display_name: displayName || email.split('@')[0],
-      })
-      .select()
-      .single();
+      .select('id, hashed_password, display_name')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (error) {
-      if (error.code === '23505') {
+    let user: { id: string; email: string; display_name: string | null } | null = null;
+
+    if (existing) {
+      if (existing.hashed_password) {
         return res.status(409).json({ error: { message: 'Email already registered' } });
       }
-      throw error;
+      // Claim the existing pre-password account.
+      const { data: updated, error: updErr } = await supabaseAdmin
+        .from('users')
+        .update({
+          hashed_password: hashedPassword,
+          display_name: displayName || existing.display_name || email.split('@')[0],
+        })
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (updErr) throw updErr;
+      user = updated;
+    } else {
+      const { data: created, error } = await supabaseAdmin
+        .from('users')
+        .insert({
+          email,
+          hashed_password: hashedPassword,
+          display_name: displayName || email.split('@')[0],
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          return res.status(409).json({ error: { message: 'Email already registered' } });
+        }
+        throw error;
+      }
+      user = created;
+    }
+
+    if (!user) {
+      return res.status(500).json({ error: { message: 'Registration failed' } });
     }
 
     // Generate token
