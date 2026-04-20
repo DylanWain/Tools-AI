@@ -28,10 +28,25 @@ export type AuthResult =
 export type Gate =
   | 'allow'
   | 'trial_expired'
+  | 'trial_cap_hit'
   | 'hard_limit'
   | 'velocity'
   | 'suspended'
   | 'unauth';
+
+/* Dollar cap (in integer cents) on a single user's free-trial compute.
+ * Once `users.period_consumed_cents` crosses this during the trial,
+ * we return `trial_cap_hit` from gateNewUser(). The client's tier
+ * pill already shows the same "$1.00" number via /api/v1/quota, so
+ * the server-side wall and the client-side guardrail agree on the
+ * cutoff. Overridable via env (`TRIAL_CAP_CENTS`) for staging / A/B
+ * testing — default 100 cents ($1.00). */
+const TRIAL_CAP_CENTS: number = (() => {
+  const raw = process.env.TRIAL_CAP_CENTS;
+  if (!raw) return 100;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : 100;
+})();
 
 export async function resolveBearer(authHeader: string | undefined): Promise<AuthResult> {
   const token = (authHeader || '').replace(/^Bearer\s+/i, '').trim();
@@ -71,8 +86,17 @@ export async function gateNewUser(user: UserRow): Promise<Gate> {
   // 2. Trial expired without subscription
   if (user.tier === 'expired') return 'trial_expired';
 
-  // 3. Trial running but expired by date
+  // 3. Trial running but expired by date OR by dollar cap.
+  //    Two ways a trial can end: time (expires_at in trials row) OR
+  //    budget (accumulated period_consumed_cents ≥ TRIAL_CAP_CENTS).
+  //    Whichever comes first closes the trial for AI calls; the user
+  //    has to upgrade to Chad or PAYG to continue. `period_consumed_cents`
+  //    is still incremented for trial calls by accountForNewUser (even
+  //    though chargedCents = 0), so this check has authoritative data.
   if (user.tier === 'trial') {
+    if ((user.period_consumed_cents || 0) >= TRIAL_CAP_CENTS) {
+      return 'trial_cap_hit';
+    }
     const trial = await findActiveTrial(user.id);
     if (!trial || new Date(trial.expires_at).getTime() <= Date.now()) {
       return 'trial_expired';
@@ -110,6 +134,16 @@ export function gateToResponse(gate: Gate): { status: number; body: { error: str
         body: {
           error: 'Your free trial has ended. Choose a plan to keep using Tools AI.',
           code: 'TRIAL_EXPIRED',
+        },
+      };
+    case 'trial_cap_hit':
+      return {
+        status: 402,
+        body: {
+          /* Explicit "budget" wording so the client can distinguish this
+           * from a time-based expiry (different CTA / UX if we want). */
+          error: 'Free trial budget used up. Upgrade to Giga Chad or Pay-as-you-go to keep going.',
+          code: 'TRIAL_CAP_HIT',
         },
       };
     case 'velocity':

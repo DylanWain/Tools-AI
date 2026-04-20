@@ -42,9 +42,9 @@ export default function Download() {
           </p>
 
           <div className="dl-buttons">
-            <a 
-              href="https://chrome.google.com/webstore/detail/kmhlfdeaimgihpggdjijcndmkfieomal" 
-              target="_blank" 
+            <a
+              href="https://chrome.google.com/webstore/detail/kmhlfdeaimgihpggdjijcndmkfieomal"
+              target="_blank"
               rel="noopener noreferrer"
               className="dl-btn dl-btn-primary"
             >
@@ -55,6 +55,37 @@ export default function Download() {
               {showManual ? 'Hide' : 'Manual install instructions'}
             </button>
           </div>
+        </section>
+
+        {/* Tools AI desktop app — the code editor + preview + agent tier
+         * built from DylanWain/Tools-AI-APP. Uses the GitHub "latest
+         * release" redirect so the button serves whatever the most
+         * recent tag produced; no hardcoded version to bitrot. */}
+        <section className="dl-hero" style={{ marginTop: '48px', borderTop: '1px solid #e5e5e5', paddingTop: '48px' }}>
+          <h2>Tools AI for macOS</h2>
+          <p className="dl-subtitle">
+            The full Tools AI desktop app — AI agent, live-edit preview,
+            Supabase + Stripe backend builder, and community.
+            Signed + notarized for macOS.
+          </p>
+          <div className="dl-buttons">
+            <a
+              href="https://github.com/DylanWain/Tools-AI-APP/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="dl-btn dl-btn-primary"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2a10 10 0 0 0-3.16 19.48c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.14-1.1-1.45-1.1-1.45-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.57 9.57 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/>
+              </svg>
+              Download DMG (latest release)
+            </a>
+          </div>
+          <p style={{ fontSize: '13px', color: '#888', marginTop: '12px' }}>
+            Takes you to the newest GitHub release — pick the
+            <code style={{ margin: '0 4px' }}>-arm64.dmg</code> for Apple Silicon
+            or <code style={{ margin: '0 4px' }}>-x64.dmg</code> for Intel Macs.
+          </p>
         </section>
 
         {showManual && (
