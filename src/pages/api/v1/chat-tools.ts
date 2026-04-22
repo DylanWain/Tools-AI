@@ -45,6 +45,12 @@ import { supabaseAdmin } from '../../../lib/supabase';
 // shared lib/supabase helper. Do NOT reintroduce hardcoded secrets.
 const supabase = supabaseAdmin;
 
+// Kept as module constants so the raw fetch() calls below (validateKey,
+// usage upsert) keep working with env-sourced values. Never put real
+// keys here again.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
+
 const OPENAI_KEY      = process.env.OPENAI_KEY!;
 const ANTHROPIC_KEY   = process.env.ANTHROPIC_KEY!;
 const GEMINI_KEYS     = (process.env.GEMINI_KEYS || '').split(',').filter(Boolean);
