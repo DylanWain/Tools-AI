@@ -43,7 +43,7 @@ const T = {
 };
 const F = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const MONO = '"JetBrains Mono", ui-monospace, Menlo, "Courier New", monospace';
-const DMG = "https://github.com/DylanWain/Tools-AI-APP/releases/latest/download/Tools-AI-3.0.1-arm64.dmg";
+const DMG = "https://github.com/DylanWain/Tools-AI-APP/releases/latest/download/Tools-AI-3.2.0-arm64.dmg";
 
 /* ── Hooks ──────────────────────────────────────────────────────────── */
 const useInView = (t = 0.08) => {
