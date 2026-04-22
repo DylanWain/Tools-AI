@@ -11,8 +11,21 @@ dist/
 
 # Environment
 .env
-.env.local
-.env*.local
+.env.*
+!.env.example
+
+# ── credential / secret file patterns (defense in depth) ────────
+*.pem
+*.key
+*.p8
+*.p12
+AuthKey_*
+service-account*.json
+credentials*.json
+firebase-adminsdk*.json
+gcp-*.json
+google-services.json
+*-service-account.json
 
 # Debug
 npm-debug.log*

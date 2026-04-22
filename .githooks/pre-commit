@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# pre-commit — blocks commits that contain secrets.
+#
+# Runs gitleaks against the staged index and aborts the commit if any
+# hardcoded credential is detected. After the 2026-04-22 Supabase
+# service-role leak, this hook is the primary defense against the next
+# accidental secret commit.
+#
+# Setup: nothing. The hook runs automatically because the repo's
+# `core.hooksPath` is set to `.githooks/` (see `git config --local
+# core.hooksPath`). New contributors should run `git config --local
+# core.hooksPath .githooks` once after clone — see README / SECURITY.md
+# for the one-liner.
+#
+# Bypass (rare, emergency-only): `git commit --no-verify`. If you find
+# yourself reaching for that flag, STOP and think. The hook exists
+# because secrets have been committed before.
+#
+# Install gitleaks once per machine: `brew install gitleaks`.
+
+set -euo pipefail
+
+# Find gitleaks in common locations so the hook works under GUI Git
+# clients (SourceTree, GitHub Desktop) that may not inherit PATH.
+if command -v gitleaks >/dev/null 2>&1; then
+  GITLEAKS="$(command -v gitleaks)"
+elif [[ -x /opt/homebrew/bin/gitleaks ]]; then
+  GITLEAKS=/opt/homebrew/bin/gitleaks
+elif [[ -x /usr/local/bin/gitleaks ]]; then
+  GITLEAKS=/usr/local/bin/gitleaks
+else
+  echo "⚠️  gitleaks not found — install with:  brew install gitleaks"
+  echo "   Commit blocked for safety. Re-run after install, or use --no-verify"
+  echo "   if you know what you are doing and why."
+  exit 1
+fi
+
+# `gitleaks protect --staged` scans the index (what's about to be
+# committed), not the filesystem or history, so it runs in <1s even on
+# large repos. --redact keeps any detected value out of the terminal
+# output — we don't want leaked keys to leak further into shell logs.
+if ! "$GITLEAKS" protect --staged --redact --no-banner -v; then
+  echo ""
+  echo "🛑 gitleaks detected potential secrets in your staged changes."
+  echo "   Review the findings above, remove the secret, and re-stage."
+  echo "   If this is a false positive, add a .gitleaksignore entry."
+  echo ""
+  echo "   Emergency override (rare):  git commit --no-verify"
+  exit 1
+fi
