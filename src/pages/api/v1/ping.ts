@@ -2,8 +2,11 @@
 // Called by extension on key save (install) and every Run All (activity)
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-const SUPABASE_URL = 'https://synpjcammfjebwsmtfpz.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQ5NTc0NywiZXhwIjoyMDg1MDcxNzQ3fQ.wdpCbyxMtncn4wpBQuOhpdkKuKESFjLLar6Sjww0_RM';
+// Previously hardcoded — rotated after leak discovery (2026-04-22).
+// URL + service-role key now come from Vercel env vars. Do NOT
+// reintroduce hardcoded secrets here.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end();

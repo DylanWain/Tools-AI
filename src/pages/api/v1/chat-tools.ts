@@ -38,11 +38,12 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../lib/supabase';
 
-const SUPABASE_URL = 'https://synpjcammfjebwsmtfpz.supabase.co';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQ5NTc0NywiZXhwIjoyMDg1MDcxNzQ3fQ.wdpCbyxMtncn4wpBQuOhpdkKuKESFjLLar6Sjww0_RM';
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+// Previously had service role key hardcoded in source — rotated after
+// leak discovery (2026-04-22). Now reads from Vercel env vars via the
+// shared lib/supabase helper. Do NOT reintroduce hardcoded secrets.
+const supabase = supabaseAdmin;
 
 const OPENAI_KEY      = process.env.OPENAI_KEY!;
 const ANTHROPIC_KEY   = process.env.ANTHROPIC_KEY!;

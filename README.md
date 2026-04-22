@@ -34,11 +34,15 @@ git push -u origin main
 In Vercel dashboard → Settings → Environment Variables:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL = https://synpjcammfjebwsmtfpz.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0OTU3NDcsImV4cCI6MjA4NTA3MTc0N30.iHXwtPV10JGPL5OKgkpd6WxerTQoI4YE4-ld9g38eRQ
-SUPABASE_SERVICE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bnBqY2FtbWZqZWJ3c210ZnB6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQ5NTc0NywiZXhwIjoyMDg1MDcxNzQ3fQ.wdpCbyxMtncn4wpBQuOhpdkKuKESFjLLar6Sjww0_RM
-JWT_SECRET = K9x2mP7qR4vL8nW3jF6hC1bY5tA0sD9e
+NEXT_PUBLIC_SUPABASE_URL = <your project URL — e.g. https://YOUR_PROJECT.supabase.co>
+NEXT_PUBLIC_SUPABASE_ANON_KEY = <your anon key from Supabase → Settings → API>
+SUPABASE_SERVICE_KEY = <your service_role key from Supabase → Settings → API>
+JWT_SECRET = <generate with: openssl rand -hex 32>
 ```
+
+> ⚠️ Never paste real values into this README. Keep secrets in your
+> Vercel dashboard only. The previously-committed example values were
+> rotated after a leak was discovered on 2026-04-22.
 
 ### 4. Deploy!
 
