@@ -38,7 +38,7 @@ export function Nav() {
 
         <div className="flex items-center gap-3">
           <Link
-            href="/app"
+            href="/deck"
             className="hidden md:inline-block text-[15px] text-ink hover:opacity-60 transition"
           >
             Try in browser
