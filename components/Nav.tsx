@@ -41,7 +41,7 @@ export function Nav() {
             href="/deck"
             className="hidden md:inline-block text-[15px] text-ink hover:opacity-60 transition"
           >
-            Try in browser
+            See our Deck
           </Link>
           <a
             href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.0.0-arm64.dmg"
