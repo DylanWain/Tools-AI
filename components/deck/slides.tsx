@@ -841,7 +841,7 @@ export function S13Team() {
             Team
           </p>
           <div className="bg-oat rounded-xl p-1 inline-block mb-6">
-            <CustomerPhoto name="Dylan Wain" file="dylan.png" size={140} />
+            <CustomerPhoto name="Dylan Wain" file="dylan.jpg" size={140} />
           </div>
           <h3
             className="font-serif font-medium text-ink leading-tight"
