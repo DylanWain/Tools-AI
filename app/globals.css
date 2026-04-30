@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@theme {
+  /* Exact swatches lifted from anthropic.com's compiled CSS so colors
+     match their site to the hex. clay = their brand orange, oat = the
+     warm beige used for "Latest releases" cards. */
+  --color-ivory: #f0eee6;
+  --color-ivory-light: #faf9f5;
+  --color-ivory-dark: #e8e6dc;
+  --color-oat: #e3dacc;
+  --color-clay: #d97757;
+  --color-accent: #c6613f;
+  --color-slate-dark: #141413;
+  --color-slate-medium: #3d3d3a;
+  --color-slate-light: #5e5d59;
+  --color-cloud-dark: #87867f;
+  --color-cloud-medium: #b0aea5;
+  --color-cloud-light: #d1cfc5;
+
+  /* Aliases used throughout the components. */
+  --color-ink: #141413;
+  --color-ink-faded: #87867f;
+
+  /* Newsreader + Inter + JetBrains Mono fill in for proprietary
+     Anthropic Serif / Sans / Mono. Closest legal free equivalents. */
+  --font-serif: var(--font-newsreader), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", monospace;
+}
+
+:root {
+  /* Fluid sizing — clamp() values copied verbatim from anthropic.com. */
+  --site-margin: clamp(2rem, 1.0816326530612246rem + 3.9183673469387754vw, 5rem);
+  --display-s: clamp(1.25rem, 1.1734693877551021rem + 0.326530612244898vw, 1.5rem);
+  --display-m: clamp(1.75rem, 1.6734693877551021rem + 0.326530612244898vw, 2rem);
+  --display-l: clamp(2rem, 1.6938775510204083rem + 1.306122448979592vw, 3rem);
+  --display-xl: clamp(2.5rem, 2.0408163265306123rem + 1.9591836734693877vw, 4rem);
+  --display-xxl: clamp(3rem, 2.3877551020408165rem + 2.612244897959184vw, 5rem);
+  --paragraph-s: clamp(1rem, 0.9617346938775511rem + 0.163265306122449vw, 1.125rem);
+  --paragraph-m: clamp(1.125rem, 1.086734693877551rem + 0.163265306122449vw, 1.25rem);
+  --paragraph-l: clamp(1.375rem, 1.336734693877551rem + 0.163265306122449vw, 1.5rem);
+  --detail-xs: clamp(0.6875rem, 0.6683673469387755rem + 0.0816326530612245vw, 0.75rem);
+}
+
+::selection {
+  background: rgba(217, 119, 87, 0.5);
+}
+
+html {
+  background: #f0eee6;
+  color: #141413;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.u-container {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--site-margin);
+  max-width: 90rem;
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.018em;
+  font-feature-settings: "kern", "liga";
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+h1, h2, h3, h4 {
+  font-feature-settings: "kern", "liga";
+  letter-spacing: -0.015em;
+}
+
+/* Hero inline links — match anthropic's "research" / "products" pattern.
+   text-underline-offset: 0.08em; text-decoration-thickness: 0.04em;
+   from their CSS. */
+.display-link, h1 a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.08em;
+  text-decoration-thickness: 0.04em;
+  transition: text-decoration-thickness 150ms ease;
+}
+.display-link:hover, h1 a:hover {
+  text-decoration-thickness: 0.07em;
+}
+
+/* Demo animations */
+@keyframes demoFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes demoBlink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
