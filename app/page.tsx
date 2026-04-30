@@ -5,6 +5,7 @@ import { LatestReleases } from "@/components/LatestReleases";
 import { FeatureSection } from "@/components/FeatureSection";
 import { Pricing } from "@/components/Pricing";
 import { FAQ } from "@/components/FAQ";
+import { InvestorDeck } from "@/components/InvestorDeck";
 import { Footer } from "@/components/Footer";
 
 export default function Home() {
@@ -18,6 +19,7 @@ export default function Home() {
         <FeatureSection />
         <Pricing />
         <FAQ />
+        <InvestorDeck />
       </main>
       <Footer />
     </>

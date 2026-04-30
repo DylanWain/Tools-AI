@@ -841,7 +841,7 @@ export function S13Team() {
             Team
           </p>
           <div className="bg-oat rounded-xl p-1 inline-block mb-6">
-            <CustomerPhoto name="Dylan Wain" file="dylan.jpg" size={140} />
+            <CustomerPhoto name="Dylan Wain" file="dylan.jpg" size={160} />
           </div>
           <h3
             className="font-serif font-medium text-ink leading-tight"
@@ -1040,10 +1040,14 @@ function CustomerPhoto({
   name,
   file,
   size = 56,
+  shape = "circle",
+  objectPosition = "center",
 }: {
   name: string;
   file: string;
   size?: number;
+  shape?: "circle" | "square";
+  objectPosition?: string;
 }) {
   const initials = name
     .split(/\s+/)
@@ -1051,10 +1055,11 @@ function CustomerPhoto({
     .map((s) => s[0])
     .join("")
     .toUpperCase();
+  const radius = shape === "square" ? "rounded-2xl" : "rounded-full";
 
   return (
     <div
-      className="relative rounded-full overflow-hidden bg-clay/20 flex-shrink-0"
+      className={`relative ${radius} overflow-hidden bg-clay/20 flex-shrink-0`}
       style={{ width: size, height: size }}
     >
       {/* Fallback initials behind */}
@@ -1069,6 +1074,7 @@ function CustomerPhoto({
         src={`/customers/${file}`}
         alt={name}
         className="absolute inset-0 w-full h-full object-cover"
+        style={{ objectPosition }}
         loading="lazy"
       />
     </div>
