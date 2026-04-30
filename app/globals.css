@@ -106,3 +106,52 @@ h1, h2, h3, h4 {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
 }
+@keyframes demoPopIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Print stylesheet — pitch deck PDF export */
+@media print {
+  @page {
+    size: 16in 9in;  /* widescreen landscape */
+    margin: 0;
+  }
+  html, body {
+    background: #f0eee6 !important;
+  }
+  /* every slide becomes its own landscape page */
+  [data-slide] {
+    page-break-after: always;
+    break-after: page;
+    min-height: 0 !important;
+    height: 9in !important;
+    box-sizing: border-box;
+  }
+  [data-slide]:last-of-type {
+    page-break-after: auto;
+  }
+  /* hide nav chrome and scrollbar in print */
+  .deck-print [data-slide] {
+    scroll-snap-align: none;
+  }
+  /* Slide 7 (voice): tighten heading + quote cards so 2x2 grid fits */
+  [data-slide="7"] h2 {
+    font-size: 32px !important;
+    margin-bottom: 1rem !important;
+    line-height: 1.1 !important;
+  }
+  [data-slide="7"] .grid > div {
+    padding: 0.75rem 1rem !important;
+    gap: 0.5rem !important;
+  }
+  [data-slide="7"] blockquote,
+  [data-slide="7"] .grid p {
+    font-size: 15.5px !important;
+    line-height: 1.22 !important;
+  }
+  /* Slide 10 (vision): tighten line-height for fit */
+  [data-slide="10"] {
+    font-size: 0.94em;
+  }
+}
