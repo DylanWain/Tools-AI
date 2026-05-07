@@ -1,27 +1,35 @@
 /**
- * Feature list — mirrors anthropic.com's "At Anthropic, we build AI..."
- * pattern exactly. 4-col left-aligned heading, 8-col article-list with
- * category tags on the right.
+ * Feature list — anthropic.com "At Anthropic, we build AI..." pattern.
+ * 4-col left-aligned heading, 8-col article-list with category tags.
+ *
+ * Refreshed in v1.1.0 to match the actual shipped product:
+ * multiplayer sessions, ten parallel agents, undo/redo + history,
+ * inline image chat, per-project group chat. The v1.0.0 list talked
+ * about Whisper transcripts and Stripe/Supabase/Slack connectors —
+ * those are still in the roadmap doc but no longer in the public
+ * download, so we don't list them here.
  */
 export function FeatureSection() {
   const features = [
-    { name: "Multi-agent composer", category: "Composer" },
-    { name: "Live meeting transcripts via Whisper", category: "Meetings" },
-    { name: "Stripe, Supabase, Slack, custom MCP servers", category: "Connectors" },
-    { name: "Version history with one-click revert", category: "Workspace" },
-    { name: "Every Claude feature you already have", category: "Foundation" },
-    { name: "Local-first — your data stays on your Mac", category: "Privacy" },
+    { name: "Real-time shared Claude Code sessions", category: "Multiplayer" },
+    { name: "Ten parallel agents, one master task", category: "Composer" },
+    { name: "Auto-snapshots every five seconds + undo / redo", category: "History" },
+    { name: "Per-project, per-session group chat", category: "Team" },
+    { name: "Image paste with auto-resize to 2000 px", category: "Composer" },
+    { name: "Works on Claude, Cursor, Warp, VS Code, Zed", category: "Platforms" },
+    { name: "Apple-signed + notarized for macOS", category: "Distribution" },
+    { name: "Local-first — your code never leaves your Mac", category: "Privacy" },
   ];
 
   return (
-    <section className="u-container py-16 lg:py-24">
+    <section className="u-container py-16 lg:py-24" id="features">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16">
         <div className="lg:col-span-4">
           <h2
-            className="font-serif font-medium leading-[1.15] max-w-[20ch] text-ink"
+            className="font-serif font-medium leading-[1.15] max-w-[22ch] text-ink"
             style={{ fontSize: "var(--display-s)" }}
           >
-            At Veronum, we build the workspace power users keep building themselves.
+            Veronum is the workspace power users keep building themselves.
           </h2>
         </div>
 
@@ -30,12 +38,14 @@ export function FeatureSection() {
             {features.map((f) => (
               <li
                 key={f.name}
-                className="flex justify-between items-baseline py-6 border-b border-ink/10 first:border-t"
+                className="flex justify-between items-baseline py-6 border-b border-ink/10 first:border-t gap-4"
               >
                 <span className="text-[16px] font-medium text-ink">
                   {f.name}
                 </span>
-                <span className="text-[14px] text-ink-faded">{f.category}</span>
+                <span className="text-[14px] text-ink-faded flex-shrink-0">
+                  {f.category}
+                </span>
               </li>
             ))}
           </ul>

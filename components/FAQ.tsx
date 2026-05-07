@@ -5,31 +5,39 @@
 const faqs = [
   {
     q: "What is Veronum?",
-    a: "A macOS app that wraps Claude with the things power users keep asking for: a multi-agent composer that splits one prompt across up to 10 parallel agents, live meeting transcription, and one-input connectors for Stripe, Supabase, and Slack.",
+    a: "A macOS desktop app for working in Claude Code with anyone, on any platform. It adds real-time multiplayer sessions, ten parallel agents on one master task, undo/redo, version history, image chat, and per-project group chat to whatever Claude-powered editor you already use.",
   },
   {
-    q: "Why not just use claude.ai?",
-    a: "claude.ai is great. Veronum is for the moments where you need more than one Claude working at once, want meeting transcripts captured locally on your Mac, or want Claude to query Stripe / Supabase / Slack data without writing custom MCP servers. Everything claude.ai does, Veronum does — plus those.",
+    q: "Which platforms does it work with?",
+    a: "Claude Desktop, Cursor, Warp, VS Code, and Zed. Veronum reads the standard Claude Code session JSONL on disk, so any client that writes to ~/.claude/projects works without setup. New clients are auto-detected on launch.",
+  },
+  {
+    q: "How does the multiplayer session work?",
+    a: "Click Share on a session — Veronum mints a magic invite link, creates a Veronum project, and starts mirroring every turn through Supabase Realtime. Your teammate joins the link and sees your conversation live, can post in the per-session group chat, and gets presence avatars showing who's looking at what file.",
+  },
+  {
+    q: "What's the deal with the ten agents?",
+    a: "Open the multi-agent composer (the icon between the paperclip and the model picker), give it one master goal plus a sub-task per agent, and Veronum dispatches up to ten @veronum-agent-N specialists in parallel via Claude's Task tool. Each agent runs in its own context window. You see live progress per agent in the chat bubble.",
   },
   {
     q: "Is my data private?",
-    a: "Yes. Chats happen between your Mac and Anthropic, exactly like claude.ai. Meeting audio is processed by Whisper through our backend on thetoolswebsite.com and immediately discarded. Your subscription state lives encrypted in macOS Keychain. Veronum never sells your data, runs ads, or trains on your conversations.",
+    a: "Yes. Claude conversations stay between your Mac and Anthropic — Veronum never proxies them. Shared session mirrors live in your own Supabase project (we host the public default; teams on enterprise can self-host). Your subscription state is anonymous via a local install token, no password, no email harvesting.",
   },
   {
     q: "How does the trial work?",
-    a: "First 7 days are free. No card needed during the trial. After day 7 a soft paywall appears asking for $25/month — you can subscribe through Stripe, or paste an email tied to an existing subscription to unlock.",
+    a: "First 7 days are free. No card needed during the trial. Pro features (multi-agent dispatch + version history) ask for $25/month after day 7. You can subscribe through Stripe Checkout straight from the app's Settings.",
   },
   {
     q: "Can I cancel?",
-    a: "Anytime, from the Stripe billing portal. Veronum continues working until the end of your paid period.",
+    a: "Anytime, from the Stripe billing portal linked inside Settings. Veronum keeps working until the end of your paid period.",
   },
   {
     q: "Will it work on Windows or Linux?",
-    a: "Not yet. Mac first. Windows is on the roadmap. Linux comes after that if there's demand.",
+    a: "Not yet. Mac first (Apple-signed and notarized). Windows is on the roadmap; Linux follows if there's demand.",
   },
   {
     q: "Will Veronum keep working when Anthropic ships new Claude features?",
-    a: "Yes. Veronum loads the live Claude UI underneath, so any new feature Anthropic ships shows up the next time you launch the app. We don't lock you to a stale version.",
+    a: "Yes. Veronum runs the same claude CLI you already have on your Mac — when Anthropic ships a new feature, Veronum picks it up the next time you launch.",
   },
 ];
 
