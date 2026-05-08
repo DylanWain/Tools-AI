@@ -1,19 +1,14 @@
 import {
   S01Cover,
-  S02Bet,
-  S03Problem,
-  S04Solution,
-  S05Demo,
-  S06WhyNow,
-  S07Voice,
+  S02Problem,
+  S03Solution,
+  S04Demo,
+  S05Team,
+  S06Vision,
+  S07Market,
   S08Traction,
-  S09Model,
-  S10Vision,
-  S11Market,
-  S12Competition,
-  S13Team,
-  S14Funds,
-  S15Ask,
+  S09Ask,
+  S10Contact,
 } from "@/components/deck/slides";
 import { PrintTrigger } from "./PrintTrigger";
 
@@ -27,20 +22,15 @@ export default function DeckPrintPage() {
       <PrintTrigger />
       <div className="deck-print">
         <S01Cover />
-        <S02Bet />
-        <S03Problem />
-        <S04Solution />
-        <S05Demo />
-        <S06WhyNow />
-        <S07Voice />
+        <S02Problem />
+        <S03Solution />
+        <S04Demo />
+        <S05Team />
+        <S06Vision />
+        <S07Market />
         <S08Traction />
-        <S09Model />
-        <S10Vision />
-        <S11Market />
-        <S12Competition />
-        <S13Team />
-        <S14Funds />
-        <S15Ask />
+        <S09Ask />
+        <S10Contact />
       </div>
     </>
   );

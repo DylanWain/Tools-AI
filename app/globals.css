@@ -143,23 +143,20 @@ h1, h2, h3, h4 {
   .deck-print [data-slide] {
     scroll-snap-align: none;
   }
-  /* Slide 7 (voice): tighten heading + quote cards so 2x2 grid fits */
-  [data-slide="7"] h2 {
-    font-size: 32px !important;
-    margin-bottom: 1rem !important;
-    line-height: 1.1 !important;
+  /* Slide 8 (traction + feedback): tighten Akash card + 3 user quotes
+     + numbers row so the whole stack fits a single landscape page. */
+  [data-slide="8"] .grid > div {
+    padding: 0.6rem 0.85rem !important;
+    gap: 0.4rem !important;
   }
-  [data-slide="7"] .grid > div {
-    padding: 0.75rem 1rem !important;
-    gap: 0.5rem !important;
-  }
-  [data-slide="7"] blockquote,
-  [data-slide="7"] .grid p {
-    font-size: 15.5px !important;
+  [data-slide="8"] blockquote,
+  [data-slide="8"] .grid p {
+    font-size: 14.5px !important;
     line-height: 1.22 !important;
   }
-  /* Slide 10 (vision): tighten line-height for fit */
-  [data-slide="10"] {
-    font-size: 0.94em;
+  /* Slide 4 (live demo embed): the SharedSessionDemo auto-loops on the
+     web deck but renders the static print fallback in the PDF. */
+  [data-slide="4"] .print\:hidden {
+    display: none !important;
   }
 }

@@ -9,7 +9,7 @@ import Link from "next/link";
  */
 export function DeckChrome() {
   const [current, setCurrent] = useState(1);
-  const total = 15;
+  const total = 10;
 
   // Track current slide via scroll position
   useEffect(() => {
