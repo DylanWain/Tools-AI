@@ -79,9 +79,8 @@ export function DeckChrome() {
           {String(current).padStart(2, "0")} / {String(total).padStart(2, "0")}
         </span>
         <a
-          href="/deck/print"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="/veronum-deck.pdf"
+          download="Veronum-pitch-deck.pdf"
           className="px-3 py-1.5 rounded-full bg-ink text-ivory text-[12.5px] font-medium hover:bg-slate transition"
         >
           Download PDF
