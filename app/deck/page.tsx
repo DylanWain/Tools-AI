@@ -1,26 +1,24 @@
 import {
   S01Cover,
-  S02Bet,
-  S03Problem,
-  S04Solution,
-  S05Demo,
-  S06WhyNow,
-  S07Voice,
+  S02Problem,
+  S03Solution,
+  S04Demo,
+  S05Team,
+  S06Vision,
+  S07Market,
   S08Traction,
-  S09Model,
-  S10Vision,
-  S11Market,
-  S12Competition,
-  S13Team,
-  S14Funds,
-  S15Ask,
+  S09Ask,
+  S10Contact,
 } from "@/components/deck/slides";
 import { DeckChrome } from "./DeckChrome";
 
 /**
- * Live, scrollable pitch deck. Snap-scroll on the main column.
- * Print stylesheet (in globals.css) collapses snap behavior so
- * /deck.pdf renders one slide per landscape page.
+ * Live, scrollable pitch deck for Veronum. 10 slides, snap-scroll on
+ * the main column. Print stylesheet collapses snap behavior so
+ * /deck/print renders one slide per landscape PDF page.
+ *
+ * Order: Cover → Problem → Solution → Demo → Team → Vision → Market →
+ * Traction & Feedback → Ask → Contact.
  */
 export default function DeckPage() {
   return (
@@ -28,20 +26,15 @@ export default function DeckPage() {
       <DeckChrome />
       <div className="h-screen overflow-y-auto snap-y snap-mandatory print:overflow-visible print:h-auto">
         <S01Cover />
-        <S02Bet />
-        <S03Problem />
-        <S04Solution />
-        <S05Demo />
-        <S06WhyNow />
-        <S07Voice />
+        <S02Problem />
+        <S03Solution />
+        <S04Demo />
+        <S05Team />
+        <S06Vision />
+        <S07Market />
         <S08Traction />
-        <S09Model />
-        <S10Vision />
-        <S11Market />
-        <S12Competition />
-        <S13Team />
-        <S14Funds />
-        <S15Ask />
+        <S09Ask />
+        <S10Contact />
       </div>
     </>
   );
