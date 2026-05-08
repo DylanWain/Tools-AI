@@ -39,7 +39,7 @@ export function Pricing() {
               </span>
             </a>
             <a
-              href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.0-arm64.dmg"
+              href="https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum-1.2.0-arm64.dmg"
               className="inline-flex items-center border border-ink/30 text-ink px-5 py-3 rounded-full text-[14.5px] font-medium hover:bg-ink/[0.04] transition"
             >
               Start free trial
