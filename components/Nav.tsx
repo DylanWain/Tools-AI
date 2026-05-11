@@ -44,8 +44,16 @@ export function Nav() {
             See our Deck
           </Link>
           <a
-            href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.1-arm64.dmg"
+            href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.2-x64.dmg"
+            className="hidden md:inline-block text-[13px] text-ink-soft hover:text-ink transition"
+            title="For Intel Macs (Mac mini 2018, older MacBook Pros). Check Apple menu → About This Mac to confirm."
+          >
+            Intel?
+          </a>
+          <a
+            href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.2-arm64.dmg"
             className="inline-flex items-center bg-slate-dark text-ivory px-4 py-[7px] rounded-full text-[14.5px] font-medium hover:bg-slate-medium transition"
+            title="For Apple Silicon (M1, M2, M3, M4). Default for Macs sold since 2020."
           >
             Download
           </a>
