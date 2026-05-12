@@ -39,22 +39,15 @@ export function Pricing() {
               </span>
             </a>
             <a
-              href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.2-arm64.dmg"
+              href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.3-universal.dmg"
               className="inline-flex items-center border border-ink/30 text-ink px-5 py-3 rounded-full text-[14.5px] font-medium hover:bg-ink/[0.04] transition"
             >
-              Start free trial (Apple Silicon)
-            </a>
-            <a
-              href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.2-x64.dmg"
-              className="inline-flex items-center border border-ink/30 text-ink px-5 py-3 rounded-full text-[14.5px] font-medium hover:bg-ink/[0.04] transition"
-            >
-              Start free trial (Intel)
+              Start free trial
             </a>
           </div>
           <p className="mt-4 text-[14px] text-ink-faded">
-            No credit card required for the trial. Apple menu → About This
-            Mac to check whether you&apos;re on Apple Silicon (M1–M4) or
-            Intel.
+            No credit card required for the trial. One universal Mac
+            build — works on Apple Silicon and Intel.
           </p>
         </div>
       </div>
