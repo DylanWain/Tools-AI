@@ -44,7 +44,7 @@ export function Nav() {
             See our Deck
           </Link>
           <a
-            href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.4-universal.dmg"
+            href="https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.5-universal.dmg"
             className="inline-flex items-center bg-slate-dark text-ivory px-4 py-[7px] rounded-full text-[14.5px] font-medium hover:bg-slate-medium transition"
             title="Universal Mac build — works on Apple Silicon (M1–M4) and Intel"
           >
