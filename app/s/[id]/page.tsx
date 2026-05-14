@@ -41,7 +41,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 const DOWNLOAD_URL =
-  "https://github.com/DylanWain/veronum-releases/releases/latest/download/Veronum-1.2.4-universal.dmg";
+  "https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum-1.2.7-universal.dmg";
 
 async function loadShare(id: string): Promise<ShareRow | null> {
   if (!/^[A-Za-z0-9]{6,32}$/.test(id)) return null;
