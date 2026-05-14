@@ -250,7 +250,7 @@ export function S05Team() {
         >
           Same playbook. 9 weeks into Veronum:{" "}
           <span className="font-medium">
-            350+ users · $325 May revenue · 0% churn.
+            350+ users · $375 May revenue · 0% churn.
           </span>
         </p>
       </div>
@@ -353,7 +353,7 @@ export function S07Market() {
 export function S08Traction() {
   const stats = [
     { v: "350+", l: "Users" },
-    { v: "$325", l: "May revenue" },
+    { v: "$375", l: "May revenue" },
     { v: "0%", l: "Churn" },
     { v: "$0", l: "Marketing spend" },
   ];
