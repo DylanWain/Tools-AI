@@ -57,7 +57,7 @@ export function Footer() {
                   { label: "Meeting transcripts", href: "#meetings" },
                   { label: "Connectors", href: "#connectors" },
                   { label: "Try in browser", href: "/app" },
-                  { label: "Download for Mac", href: "https://github.com/DylanWain/veronum-overlay/releases/latest" },
+                  { label: "Download for Mac", href: "https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum.dmg" },
                   { label: "Pricing", href: "#pricing" },
                 ]}
               />
