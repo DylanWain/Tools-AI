@@ -24,8 +24,13 @@ export const metadata: Metadata = {
     "You just installed Veronum for Chrome. Get the desktop app to unlock 10 parallel agents, live shared sessions, version history, and undo for every AI edit.",
 };
 
+// Versionless filename — the veronum-overlay release workflow uploads
+// a `Veronum.dmg` copy alongside the versioned DMG on every release
+// (see scripts/post-release-upload-versionless.sh in the overlay repo).
+// Using the versionless name means this URL keeps working across every
+// release without a marketing-site code change.
 const DOWNLOAD_URL =
-  "https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum-1.2.7-universal.dmg";
+  "https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum.dmg";
 
 export default function WelcomePage() {
   return (
