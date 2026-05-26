@@ -124,12 +124,20 @@ export default function PairBridgePage() {
         };
         if (cancelled) return;
         if (!res.ok || !body.bridge_id || !body.install_id) {
+          // Surface BOTH the error code and the underlying detail
+          // (Postgres message, network error text, etc.) — the parent
+          // code alone (e.g. "complete_pair_failed") often isn't
+          // enough to diagnose. Truncated for sane UI.
+          const code = body.error || `HTTP ${res.status}`;
+          const detail = (body as { detail?: string }).detail;
           setView({
             kind: "error",
             message:
-              body.error === "invalid_or_expired_pair_code"
-                ? "That pair code is invalid or has expired. Try again from the Bridge app — it'll mint a fresh one."
-                : body.error || "Failed to pair. Please try again.",
+              code === "invalid_or_expired_pair_code"
+                ? "That pair code is invalid or has expired. Generate a fresh one from the Bridge app."
+                : detail
+                ? `${code} · ${detail.slice(0, 240)}`
+                : code,
           });
           return;
         }
@@ -287,9 +295,21 @@ export default function PairBridgePage() {
               <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
                 Couldn&rsquo;t pair
               </h1>
-              <p className="text-[14px] text-ink-faded mb-6">{view.message}</p>
+              <p className="text-[14px] text-ink-faded mb-6 break-words">{view.message}</p>
               <button
-                onClick={() => setView({ kind: "signed-out" })}
+                onClick={async () => {
+                  // Re-check session first. If still signed in (the most
+                  // common case after a transient FK / network error),
+                  // retry /complete-pair instead of forcing the user
+                  // through another magic-link email (which hits the
+                  // Supabase free-tier 3-emails-per-hour rate limit).
+                  const { data } = await supabase.auth.getSession();
+                  if (data.session?.user?.id) {
+                    setView({ kind: "pairing", userId: data.session.user.id });
+                  } else {
+                    setView({ kind: "signed-out" });
+                  }
+                }}
                 className="w-full bg-slate-dark text-ivory rounded-full px-4 py-2.5 text-[15px] font-medium hover:bg-slate-medium transition"
               >
                 Try again
