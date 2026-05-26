@@ -161,7 +161,14 @@ export async function POST(req: NextRequest) {
             updates.current_period_start = new Date(sub.current_period_start * 1000).toISOString();
           }
         }
-        const { error } = await sb.from("users").update(updates).eq("id", userId);
+        // Don't overwrite admin tier — admins are exempt from Stripe state.
+        // .neq("tier", "admin") gates the UPDATE at the row level so a
+        // future Stripe event can't accidentally revoke admin access.
+        const { error } = await sb
+          .from("users")
+          .update(updates)
+          .eq("id", userId)
+          .neq("tier", "admin");
         if (error) {
           console.error("[stripe/webhook] users update failed:", error);
           return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -185,10 +192,12 @@ export async function POST(req: NextRequest) {
         if (sub.current_period_end) {
           updates.current_period_end = new Date(sub.current_period_end * 1000).toISOString();
         }
+        // Same admin guard — never let a Stripe event revoke admin access.
         const { error } = await sb
           .from("users")
           .update(updates)
-          .eq("stripe_customer_id", stripeCustomerId);
+          .eq("stripe_customer_id", stripeCustomerId)
+          .neq("tier", "admin");
         if (error) {
           console.error("[stripe/webhook] sub update failed:", error);
           return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
