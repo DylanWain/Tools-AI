@@ -44,9 +44,9 @@ export function Nav() {
             See our Deck
           </Link>
           <a
-            href="https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum.dmg"
+            href="https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg"
             className="inline-flex items-center bg-slate-dark text-ivory px-4 py-[7px] rounded-full text-[14.5px] font-medium hover:bg-slate-medium transition"
-            title="Universal Mac build — works on Apple Silicon (M1–M4) and Intel"
+            title="Universal Mac build — Apple Silicon (M1–M4) and Intel · signed + notarized by Apple"
           >
             Download
           </a>
