@@ -37,7 +37,13 @@ type ViewState =
   | { kind: "no-bridge" }
   | { kind: "no-tunnel"; bridgeHost: string | null }
   | { kind: "redirecting"; url: string }
+  | { kind: "paywall"; consumedCents: number; userId: string }
   | { kind: "error"; message: string };
+
+// Stripe Payment Link for the $25/mo subscription. We append
+// ?client_reference_id={user_id} so the /api/stripe/webhook handler
+// can bind the resulting subscription to the right Veronum user.
+const STRIPE_CHECKOUT_BASE = "https://buy.stripe.com/fZu28tb3x9aufwJeLt1sQ00";
 
 export default function ChatRedirect() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
@@ -47,12 +53,38 @@ export default function ChatRedirect() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
   // Find the user's bridge and redirect, or report what's missing.
+  // Billing gate runs BEFORE the bridge lookup so a free user who's
+  // exhausted their $0.25 quota lands on the paywall instead of being
+  // bounced into the chat UI just to get 402'd on their first send.
   async function findBridgeAndRedirect() {
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData?.session?.user?.id) {
       setView({ kind: "sign-in", mode });
       return;
     }
+    const userId = sessionData.session.user.id;
+
+    // Billing check via the SECURITY DEFINER RPC. Returns the caller's
+    // own state only — auth.uid() inside the function uses the JWT
+    // attached to this supabase client instance.
+    const { data: billing, error: billingErr } = await supabase
+      .rpc("veronum_my_billing_state")
+      .single();
+    if (billingErr) {
+      // Non-fatal — log and proceed. We'd rather risk over-serving a
+      // free user (the daemon's per-request gate is the canonical
+      // enforcement point) than block a paying user out of their own
+      // chat because Supabase had a hiccup.
+      console.warn("[chat] billing check failed:", billingErr.message);
+    } else if (billing && (billing as { over_quota?: boolean }).over_quota) {
+      setView({
+        kind: "paywall",
+        consumedCents: (billing as { period_consumed_cents: number }).period_consumed_cents,
+        userId,
+      });
+      return;
+    }
+
     const { data: bridges, error } = await supabase
       .from("veronum_bridges")
       .select("install_id, hostname, tunnel_url, last_seen_at")
@@ -86,6 +118,7 @@ export default function ChatRedirect() {
       // one-shot URL during MVP testing. Verifies the OTP inline,
       // establishes a real persistent Supabase session, then proceeds
       // through the normal bridge-lookup → redirect flow.
+      let stripeReturning = false;
       if (typeof window !== "undefined") {
         const params = new URL(window.location.href).searchParams;
         const urlEmail = params.get("email");
@@ -103,6 +136,27 @@ export default function ChatRedirect() {
           }
           // Clean the OTP out of the URL so a back-tap doesn't reuse it.
           window.history.replaceState({}, "", window.location.pathname);
+        }
+        stripeReturning = params.get("stripe_success") === "1";
+        if (stripeReturning) {
+          // Strip the marker so a back-tap doesn't loop the polling.
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      }
+      if (cancelled) return;
+      if (stripeReturning) {
+        // Stripe redirected us back. The webhook usually arrives within
+        // 1–3 s but can lag. Poll billing state up to 5 times (10 s
+        // total) before falling through to the normal flow. Avoids
+        // showing the paywall again on a fresh subscription.
+        for (let i = 0; i < 5; i++) {
+          if (cancelled) return;
+          const { data: billing } = await supabase
+            .rpc("veronum_my_billing_state")
+            .single();
+          const active = (billing as { has_active_subscription?: boolean } | null)?.has_active_subscription;
+          if (active) break;
+          await new Promise((r) => setTimeout(r, 2000));
         }
       }
       if (!cancelled) findBridgeAndRedirect();
@@ -261,6 +315,33 @@ export default function ChatRedirect() {
             >
               Retry
             </button>
+          </div>
+        )}
+
+        {view.kind === "paywall" && (
+          <div className="rounded-2xl border border-ink/10 bg-white shadow-sm p-6 sm:p-8 text-left">
+            <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
+              You&rsquo;ve used your free trial
+            </h1>
+            <p className="text-[14px] text-ink-faded mb-2">
+              Veronum gives you 25¢ of free use to try the chat and voice
+              agent. You&rsquo;ve hit the cap — subscribe for $25/month to
+              keep going. Cancel anytime.
+            </p>
+            <p className="text-[13px] text-ink-faded mb-6">
+              Used: <span className="font-mono text-ink">{(view.consumedCents / 100).toFixed(2)}</span> /
+              {" "}<span className="font-mono text-ink">$0.25</span>
+            </p>
+            <a
+              href={`${STRIPE_CHECKOUT_BASE}?client_reference_id=${encodeURIComponent(view.userId)}`}
+              className="inline-block bg-slate-dark text-ivory rounded-full px-6 py-2.5 text-[15px] font-medium hover:bg-slate-medium transition"
+            >
+              Subscribe — $25/month
+            </a>
+            <p className="text-[12px] text-ink-faded mt-4">
+              Paid via Stripe. After checkout you&rsquo;ll come back here and
+              the chat opens automatically.
+            </p>
           </div>
         )}
 

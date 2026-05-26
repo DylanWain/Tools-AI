@@ -66,6 +66,27 @@ export function serverSupabase(): SupabaseClient {
   });
 }
 
+/**
+ * Service-role server client — bypasses RLS. Use ONLY in route handlers
+ * that have already authenticated the caller out-of-band (e.g. the
+ * Stripe webhook, which is verified by signature, not by JWT).
+ *
+ * Requires SUPABASE_SERVICE_ROLE_KEY env var. Throws at runtime if
+ * missing — fail loud so a misconfigured deploy doesn't silently fall
+ * through to the anon client.
+ */
+export function serverSupabaseAdmin(): SupabaseClient {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY missing — set it in Vercel env vars before invoking admin paths.",
+    );
+  }
+  return createClient(SUPABASE_URL, key, {
+    auth: { persistSession: false },
+  });
+}
+
 // Suppress the unused-singleton warning above; kept the var so future
 // callers see it's intentionally lazy.
 void browserSingleton;
