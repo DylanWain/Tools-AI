@@ -75,12 +75,44 @@ export default function ChatRedirect() {
   }
 
   useEffect(() => {
-    findBridgeAndRedirect();
+    let cancelled = false;
+    (async () => {
+      // First — check the URL for an admin-issued OTP bypass:
+      //   /chat?email=...&otp=...
+      // We use this when Supabase's redirect_to-stripping kills the
+      // magic-link redirect, or when the maintainer hands the user a
+      // one-shot URL during MVP testing. Verifies the OTP inline,
+      // establishes a real persistent Supabase session, then proceeds
+      // through the normal bridge-lookup → redirect flow.
+      if (typeof window !== "undefined") {
+        const params = new URL(window.location.href).searchParams;
+        const urlEmail = params.get("email");
+        const urlOtp = params.get("otp");
+        if (urlEmail && urlOtp) {
+          const { error: vErr } = await supabase.auth.verifyOtp({
+            email: urlEmail,
+            token: urlOtp,
+            type: "magiclink",
+          });
+          if (cancelled) return;
+          if (vErr) {
+            setView({ kind: "error", message: vErr.message });
+            return;
+          }
+          // Clean the OTP out of the URL so a back-tap doesn't reuse it.
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      }
+      if (!cancelled) findBridgeAndRedirect();
+    })();
     // Re-attempt on SIGNED_IN (covers the magic-link redirect landing here).
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") findBridgeAndRedirect();
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
