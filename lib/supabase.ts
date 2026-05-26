@@ -35,8 +35,22 @@ export function getBrowserSupabase(): SupabaseClient {
   };
   const w = window as WinWithCache;
   if (w.__veronumSupabaseClient) return w.__veronumSupabaseClient;
+  // persistSession: true so the magic-link login on /pair-bridge and
+  // /chat survives navigation + reload. Without it, every retry forced
+  // a new magic-link email and quickly hit the Supabase free-tier
+  // 3-emails-per-hour rate limit. The marketing surfaces (Hero,
+  // Pricing, FAQ, etc.) never touch auth, so having a session in
+  // localStorage there is harmless. detectSessionInUrl handles the
+  // magic-link redirect's access_token fragment. Custom storageKey
+  // namespaces our auth state away from any other Supabase clients
+  // a future page might use (e.g. embedded /api/share callers).
   const c = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: "veronum-auth",
+    },
   });
   w.__veronumSupabaseClient = c;
   return c;
