@@ -54,8 +54,16 @@ export default function PairBridgePage() {
     setCode(normalized);
   }, []);
 
-  // ─── Decide initial flow: signed-in or sign-in-needed ───────────────────
+  // ─── Decide initial flow ──────────────────────────────────────────────────
+  // Three paths in order of preference:
+  //   1. Already-signed-in session — straight to pairing.
+  //   2. Admin-issued OTP in URL (?email=&otp=) — verify it inline to
+  //      establish a session WITHOUT going through the email rate-limited
+  //      magic-link flow. Used by `supabase auth admin generate_link` to
+  //      hand a tester a one-shot pair URL during MVP testing.
+  //   3. No session and no OTP — fall back to magic-link email form.
   useEffect(() => {
+    if (typeof window === "undefined") return;
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase.auth.getSession();
@@ -66,9 +74,31 @@ export default function PairBridgePage() {
       }
       if (data.session?.user?.id) {
         setView({ kind: "pairing", userId: data.session.user.id });
-      } else {
-        setView({ kind: "signed-out" });
+        return;
       }
+
+      // No session — check for admin-issued OTP in the URL.
+      const params = new URL(window.location.href).searchParams;
+      const urlEmail = params.get("email");
+      const urlOtp = params.get("otp");
+      if (urlEmail && urlOtp) {
+        setView({ kind: "loading" });
+        const { data: verified, error: verErr } = await supabase.auth.verifyOtp(
+          { email: urlEmail, token: urlOtp, type: "magiclink" },
+        );
+        if (cancelled) return;
+        if (verErr || !verified?.session?.user?.id) {
+          setView({
+            kind: "error",
+            message: verErr?.message || "OTP verification failed",
+          });
+          return;
+        }
+        setView({ kind: "pairing", userId: verified.session.user.id });
+        return;
+      }
+
+      setView({ kind: "signed-out" });
     })();
     return () => {
       cancelled = true;
