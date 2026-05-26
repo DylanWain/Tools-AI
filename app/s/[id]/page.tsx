@@ -46,7 +46,7 @@ const SOURCE_LABEL: Record<string, string> = {
 // Using the versionless name means this URL keeps working across every
 // release without a marketing-site code change.
 const DOWNLOAD_URL =
-  "https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum.dmg";
+  "https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg";
 
 async function loadShare(id: string): Promise<ShareRow | null> {
   if (!/^[A-Za-z0-9]{6,32}$/.test(id)) return null;
