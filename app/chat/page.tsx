@@ -27,60 +27,82 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getBrowserSupabase } from "@/lib/supabase";
 
 type ViewState =
   | { kind: "checking" }
-  | { kind: "no-session" }
+  | { kind: "sign-in"; emailSent?: string }
   | { kind: "no-bridge" }
   | { kind: "no-tunnel"; bridgeHost: string | null }
-  | { kind: "redirecting"; url: string };
+  | { kind: "redirecting"; url: string }
+  | { kind: "error"; message: string };
 
 export default function ChatRedirect() {
+  const supabase = useMemo(() => getBrowserSupabase(), []);
   const [view, setView] = useState<ViewState>({ kind: "checking" });
+  const [email, setEmail] = useState("");
+
+  // Find the user's bridge and redirect, or report what's missing.
+  async function findBridgeAndRedirect() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session?.user?.id) {
+      setView({ kind: "sign-in" });
+      return;
+    }
+    const { data: bridges, error } = await supabase
+      .from("veronum_bridges")
+      .select("install_id, hostname, tunnel_url, last_seen_at")
+      .not("user_id", "is", null)
+      .order("last_seen_at", { ascending: false })
+      .limit(1);
+    if (error) {
+      setView({ kind: "error", message: error.message });
+      return;
+    }
+    if (!bridges || bridges.length === 0) {
+      setView({ kind: "no-bridge" });
+      return;
+    }
+    const bridge = bridges[0];
+    if (!bridge.tunnel_url) {
+      setView({ kind: "no-tunnel", bridgeHost: bridge.hostname });
+      return;
+    }
+    setView({ kind: "redirecting", url: bridge.tunnel_url });
+    window.location.href = bridge.tunnel_url;
+  }
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const supabase = getBrowserSupabase();
+    findBridgeAndRedirect();
+    // Re-attempt on SIGNED_IN (covers the magic-link redirect landing here).
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") findBridgeAndRedirect();
+    });
+    return () => sub.subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
-      // 1. Auth check
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session?.user?.id) {
-        if (!cancelled) setView({ kind: "no-session" });
-        return;
-      }
-
-      // 2. Look up user's bridge(s)
-      const { data: bridges, error } = await supabase
-        .from("veronum_bridges")
-        .select("install_id, hostname, tunnel_url, tunnel_url_updated_at, last_seen_at")
-        .not("user_id", "is", null)
-        .order("last_seen_at", { ascending: false })
-        .limit(1);
-
-      if (cancelled) return;
-      if (error || !bridges || bridges.length === 0) {
-        setView({ kind: "no-bridge" });
-        return;
-      }
-      const bridge = bridges[0];
-
-      if (!bridge.tunnel_url) {
-        setView({ kind: "no-tunnel", bridgeHost: bridge.hostname });
-        return;
-      }
-
-      // 3. Redirect
-      setView({ kind: "redirecting", url: bridge.tunnel_url });
-      window.location.href = bridge.tunnel_url;
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  async function sendMagicLink(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!/.+@.+\..+/.test(trimmed)) {
+      setView({ kind: "error", message: "Enter a valid email address." });
+      return;
+    }
+    // Redirect the magic link back to /chat so we land here, query the
+    // bridge, and tunnel-redirect — no detour through /pair-bridge.
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmed,
+      options: { emailRedirectTo: `${window.location.origin}/chat` },
+    });
+    if (error) {
+      setView({ kind: "error", message: error.message });
+      return;
+    }
+    setView({ kind: "sign-in", emailSent: trimmed });
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-ivory px-6 py-16">
@@ -96,20 +118,66 @@ export default function ChatRedirect() {
           <p className="text-[14px] text-ink-faded">Finding your Mac…</p>
         )}
 
-        {view.kind === "no-session" && (
+        {view.kind === "sign-in" && (
+          <div className="rounded-2xl border border-ink/10 bg-white shadow-sm p-6 sm:p-8">
+            {view.emailSent ? (
+              <>
+                <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
+                  Check your email
+                </h1>
+                <p className="text-[14px] text-ink-faded">
+                  Sent a sign-in link to{" "}
+                  <span className="font-mono text-ink">{view.emailSent}</span>.
+                  Tap it to come back here and open your Mac.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
+                  Sign in
+                </h1>
+                <p className="text-[14px] text-ink-faded mb-6">
+                  We&rsquo;ll email you a one-time link. Click it and you&rsquo;ll
+                  land back here, then we open the chat on your paired Mac.
+                </p>
+                <form onSubmit={sendMagicLink} className="space-y-3">
+                  <input
+                    type="email"
+                    required
+                    autoFocus
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-full border border-ink/15 px-4 py-2.5 text-[15px] focus:outline-none focus:border-slate-dark"
+                  />
+                  <button
+                    type="submit"
+                    className="w-full bg-slate-dark text-ivory rounded-full px-4 py-2.5 text-[15px] font-medium hover:bg-slate-medium transition"
+                  >
+                    Send sign-in link
+                  </button>
+                </form>
+                <p className="text-[12px] text-ink-faded mt-4">
+                  Don&rsquo;t have Veronum Bridge installed yet?{" "}
+                  <Link href="/pair-bridge" className="underline">Pair your Mac</Link>.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
+        {view.kind === "error" && (
           <div className="rounded-2xl border border-ink/10 bg-white shadow-sm p-6 sm:p-8">
             <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
-              Sign in to chat
+              Couldn&rsquo;t open chat
             </h1>
-            <p className="text-[14px] text-ink-faded mb-6">
-              You need a paired Mac before opening the chat.
-            </p>
-            <Link
-              href="/pair-bridge"
+            <p className="text-[14px] text-ink-faded break-words mb-6">{view.message}</p>
+            <button
+              onClick={() => findBridgeAndRedirect()}
               className="inline-block bg-slate-dark text-ivory rounded-full px-6 py-2.5 text-[15px] font-medium hover:bg-slate-medium transition"
             >
-              Pair this Mac
-            </Link>
+              Retry
+            </button>
           </div>
         )}
 
