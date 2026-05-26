@@ -146,6 +146,12 @@
         if (status === "SUBSCRIBED") resolve();
       });
     });
+    // Supabase broadcast has a ~2s warmup window after SUBSCRIBED where
+    // outgoing messages can silently drop (the channel join hasn't
+    // fully propagated to the broker yet). Without this wait, app.js's
+    // first batch of fetch calls (loadProjects, loadModels) never get
+    // responses from the daemon and the UI sits stuck on "loading…".
+    await new Promise((r) => setTimeout(r, 2500));
 
     // ─── 3. fetch monkeypatch ──────────────────────────────────────────────
     const _origFetch = window.fetch.bind(window);
@@ -165,30 +171,47 @@
 
       if (!isStream) {
         // ─── One-shot JSON path ────────────────────────────────────────
-        return new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            pending.delete(requestId);
-            reject(new Error(`bridge.fetch timeout: ${path}`));
-          }, 30_000);
-          pending.set(requestId, {
-            onResponse: ({ status, ok, body }) => {
-              clearTimeout(timeout);
-              const text = typeof body === "string" ? body : JSON.stringify(body);
-              resolve(new Response(text, {
-                status: status || (ok ? 200 : 500),
-                headers: { "Content-Type": "application/json" },
-              }));
-            },
-            onError: ({ message }) => {
-              clearTimeout(timeout);
-              reject(new Error(message || "bridge fetch error"));
-            },
-          });
-          channel.send({
-            type: "broadcast",
-            event: "bridge.fetch.request",
-            payload: { request_id: requestId, method, path, body, stream: false },
-          });
+        // Supabase broadcast can silently drop messages occasionally
+        // (especially right after subscribe). To be resilient, we
+        // retry up to 2 times on a 4-second timeout per attempt.
+        return new Promise(async (resolve, reject) => {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const settled = await new Promise((settleResolve) => {
+              const timeout = setTimeout(() => {
+                pending.delete(requestId);
+                settleResolve({ kind: "timeout" });
+              }, 4_000);
+              pending.set(requestId, {
+                onResponse: ({ status, ok, body }) => {
+                  clearTimeout(timeout);
+                  const text = typeof body === "string" ? body : JSON.stringify(body);
+                  settleResolve({
+                    kind: "response",
+                    res: new Response(text, {
+                      status: status || (ok ? 200 : 500),
+                      headers: { "Content-Type": "application/json" },
+                    }),
+                  });
+                },
+                onError: ({ message }) => {
+                  clearTimeout(timeout);
+                  settleResolve({ kind: "error", message });
+                },
+              });
+              channel.send({
+                type: "broadcast",
+                event: "bridge.fetch.request",
+                payload: { request_id: requestId, method, path, body, stream: false },
+              });
+            });
+            if (settled.kind === "response") return resolve(settled.res);
+            if (settled.kind === "error") return reject(new Error(settled.message));
+            // timeout — loop and resend if attempts left
+            if (attempt < 2) {
+              console.warn(`[bridge] retry ${path} (attempt ${attempt + 2}/3)`);
+            }
+          }
+          reject(new Error(`bridge.fetch timeout after retries: ${path}`));
         });
       }
 
