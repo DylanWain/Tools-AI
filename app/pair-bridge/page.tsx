@@ -306,9 +306,9 @@ export default function PairBridgePage() {
               <p className="text-[13px] text-ink-faded mb-6">
                 You can close this tab. The Veronum Bridge menu-bar icon will turn
                 on. Use any device&rsquo;s browser at{" "}
-                <Link href="/chat" className="underline">
+                <a href="/chat-app/" className="underline">
                   chat.thetoolswebsite.com
-                </Link>{" "}
+                </a>{" "}
                 to start a session.
               </p>
               <a
