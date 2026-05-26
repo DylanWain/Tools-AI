@@ -33,7 +33,7 @@ import { getBrowserSupabase } from "@/lib/supabase";
 
 type ViewState =
   | { kind: "checking" }
-  | { kind: "sign-in"; emailSent?: string }
+  | { kind: "sign-in"; mode: "signin" | "signup"; busy?: boolean }
   | { kind: "no-bridge" }
   | { kind: "no-tunnel"; bridgeHost: string | null }
   | { kind: "redirecting"; url: string }
@@ -43,12 +43,14 @@ export default function ChatRedirect() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [view, setView] = useState<ViewState>({ kind: "checking" });
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
 
   // Find the user's bridge and redirect, or report what's missing.
   async function findBridgeAndRedirect() {
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData?.session?.user?.id) {
-      setView({ kind: "sign-in" });
+      setView({ kind: "sign-in", mode });
       return;
     }
     const { data: bridges, error } = await supabase
@@ -105,7 +107,8 @@ export default function ChatRedirect() {
       }
       if (!cancelled) findBridgeAndRedirect();
     })();
-    // Re-attempt on SIGNED_IN (covers the magic-link redirect landing here).
+    // Re-attempt on SIGNED_IN (covers either password sign-in or
+    // the OTP-bypass path establishing a session inline).
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") findBridgeAndRedirect();
     });
@@ -116,24 +119,41 @@ export default function ChatRedirect() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  async function sendMagicLink(e: React.FormEvent) {
+  // Email + password sign-in / sign-up. No emails sent — Supabase auth
+  // config has mailer_autoconfirm=true so new accounts skip the
+  // confirmation step. Existing magic-link users (no password) can
+  // sign up here with their same email + a new password; Supabase
+  // upgrades the row to have a password without losing the user_id.
+  async function submitAuth(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = email.trim();
-    if (!/.+@.+\..+/.test(trimmed)) {
+    const eml = email.trim();
+    const pwd = password;
+    if (!/.+@.+\..+/.test(eml)) {
       setView({ kind: "error", message: "Enter a valid email address." });
       return;
     }
-    // Redirect the magic link back to /chat so we land here, query the
-    // bridge, and tunnel-redirect — no detour through /pair-bridge.
-    const { error } = await supabase.auth.signInWithOtp({
-      email: trimmed,
-      options: { emailRedirectTo: `${window.location.origin}/chat` },
-    });
-    if (error) {
-      setView({ kind: "error", message: error.message });
+    if (pwd.length < 8) {
+      setView({ kind: "error", message: "Password must be at least 8 characters." });
       return;
     }
-    setView({ kind: "sign-in", emailSent: trimmed });
+    setView({ kind: "sign-in", mode, busy: true });
+    const fn = mode === "signin"
+      ? supabase.auth.signInWithPassword({ email: eml, password: pwd })
+      : supabase.auth.signUp({ email: eml, password: pwd });
+    const { error } = await fn;
+    if (error) {
+      // Friendly mapping for the common cases.
+      let msg = error.message;
+      if (/Invalid login credentials/i.test(msg)) {
+        msg = "Email or password is wrong. (If you used a magic link before, hit 'Sign up' to set a password.)";
+      } else if (/User already registered/i.test(msg)) {
+        msg = "That email is already registered. Hit 'Sign in' instead.";
+      }
+      setView({ kind: "error", message: msg });
+      return;
+    }
+    // Success — onAuthStateChange SIGNED_IN fires next and runs
+    // findBridgeAndRedirect, which navigates away.
   }
 
   return (
@@ -151,50 +171,81 @@ export default function ChatRedirect() {
         )}
 
         {view.kind === "sign-in" && (
-          <div className="rounded-2xl border border-ink/10 bg-white shadow-sm p-6 sm:p-8">
-            {view.emailSent ? (
-              <>
-                <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
-                  Check your email
-                </h1>
-                <p className="text-[14px] text-ink-faded">
-                  Sent a sign-in link to{" "}
-                  <span className="font-mono text-ink">{view.emailSent}</span>.
-                  Tap it to come back here and open your Mac.
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
-                  Sign in
-                </h1>
-                <p className="text-[14px] text-ink-faded mb-6">
-                  We&rsquo;ll email you a one-time link. Click it and you&rsquo;ll
-                  land back here, then we open the chat on your paired Mac.
-                </p>
-                <form onSubmit={sendMagicLink} className="space-y-3">
-                  <input
-                    type="email"
-                    required
-                    autoFocus
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-full border border-ink/15 px-4 py-2.5 text-[15px] focus:outline-none focus:border-slate-dark"
-                  />
+          <div className="rounded-2xl border border-ink/10 bg-white shadow-sm p-6 sm:p-8 text-left">
+            <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
+              {mode === "signin" ? "Sign in" : "Create account"}
+            </h1>
+            <p className="text-[14px] text-ink-faded mb-5">
+              {mode === "signin"
+                ? "Email and password. After sign-in we open your paired Mac."
+                : "Pick a password. No email confirmation needed — you'll be signed in immediately."}
+            </p>
+            <form onSubmit={submitAuth} className="space-y-3">
+              <input
+                type="email"
+                required
+                autoFocus
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-full border border-ink/15 px-4 py-2.5 text-[15px] focus:outline-none focus:border-slate-dark"
+                autoComplete="email"
+              />
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="Password (min 8 chars)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-full border border-ink/15 px-4 py-2.5 text-[15px] focus:outline-none focus:border-slate-dark"
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              />
+              <button
+                type="submit"
+                disabled={view.busy}
+                className="w-full bg-slate-dark text-ivory rounded-full px-4 py-2.5 text-[15px] font-medium hover:bg-slate-medium transition disabled:opacity-50"
+              >
+                {view.busy
+                  ? "…"
+                  : mode === "signin"
+                  ? "Sign in"
+                  : "Create account"}
+              </button>
+            </form>
+            <p className="text-[13px] text-ink-faded mt-4 text-center">
+              {mode === "signin" ? (
+                <>
+                  No account yet?{" "}
                   <button
-                    type="submit"
-                    className="w-full bg-slate-dark text-ivory rounded-full px-4 py-2.5 text-[15px] font-medium hover:bg-slate-medium transition"
+                    onClick={() => {
+                      setMode("signup");
+                      setView({ kind: "sign-in", mode: "signup" });
+                    }}
+                    className="underline text-ink hover:opacity-70"
                   >
-                    Send sign-in link
+                    Create one
                   </button>
-                </form>
-                <p className="text-[12px] text-ink-faded mt-4">
-                  Don&rsquo;t have Veronum Bridge installed yet?{" "}
-                  <Link href="/pair-bridge" className="underline">Pair your Mac</Link>.
-                </p>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  Already signed up?{" "}
+                  <button
+                    onClick={() => {
+                      setMode("signin");
+                      setView({ kind: "sign-in", mode: "signin" });
+                    }}
+                    className="underline text-ink hover:opacity-70"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </p>
+            <p className="text-[12px] text-ink-faded mt-4 text-center">
+              Don&rsquo;t have Veronum Bridge installed yet?{" "}
+              <Link href="/pair-bridge" className="underline">Pair your Mac</Link>.
+            </p>
           </div>
         )}
 

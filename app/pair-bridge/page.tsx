@@ -30,8 +30,7 @@ import { getBrowserSupabase } from "@/lib/supabase";
 
 type ViewState =
   | { kind: "loading" }              // initial mount, checking auth state
-  | { kind: "signed-out" }           // need magic link
-  | { kind: "magic-link-sent"; email: string }
+  | { kind: "signed-out" }           // needs sign-in / sign-up
   | { kind: "pairing"; userId: string }   // signed in, about to call /complete-pair
   | { kind: "paired"; bridgeId: string; installId: string; hostname: string | null }
   | { kind: "error"; message: string };
@@ -44,6 +43,8 @@ export default function PairBridgePage() {
   const [view, setView] = useState<ViewState>({ kind: "loading" });
   const [code, setCode] = useState<string>("");
   const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [mode, setMode] = useState<"signin" | "signup">("signup");
 
   // ─── Read pair code from URL once on mount ──────────────────────────────
   useEffect(() => {
@@ -191,26 +192,39 @@ export default function PairBridgePage() {
     };
   }, [view, code, supabase]);
 
-  // ─── Magic link submit ─────────────────────────────────────────────────
-  const sendMagicLink = async (e: React.FormEvent) => {
+  // ─── Email + password sign-in/up ──────────────────────────────────────────
+  // Magic-link removed: Supabase free-tier caps email sends at 3/hour,
+  // and the round-trip is annoying anyway. Auth is now classic
+  // email + password with autoconfirm enabled in Supabase config
+  // (mailer_autoconfirm=true) so signups skip the confirmation step.
+  const submitAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = email.trim();
-    if (!trimmed || !/.+@.+\..+/.test(trimmed)) {
+    const eml = email.trim();
+    const pwd = password;
+    if (!eml || !/.+@.+\..+/.test(eml)) {
       setView({ kind: "error", message: "Enter a valid email address." });
       return;
     }
-    // Preserve the pair code in the redirect URL so when the user clicks
-    // the link in their inbox they land back here mid-pair.
-    const redirectTo = `${window.location.origin}/pair-bridge?code=${encodeURIComponent(code)}`;
-    const { error } = await supabase.auth.signInWithOtp({
-      email: trimmed,
-      options: { emailRedirectTo: redirectTo },
-    });
-    if (error) {
-      setView({ kind: "error", message: error.message });
+    if (pwd.length < 8) {
+      setView({ kind: "error", message: "Password must be at least 8 characters." });
       return;
     }
-    setView({ kind: "magic-link-sent", email: trimmed });
+    const fn = mode === "signin"
+      ? supabase.auth.signInWithPassword({ email: eml, password: pwd })
+      : supabase.auth.signUp({ email: eml, password: pwd });
+    const { error } = await fn;
+    if (error) {
+      let msg = error.message;
+      if (/Invalid login credentials/i.test(msg)) {
+        msg = "Email or password is wrong. (If you used a magic link before, hit 'Sign up' to set a password.)";
+      } else if (/User already registered/i.test(msg)) {
+        msg = "That email is already registered. Hit 'Sign in' instead.";
+      }
+      setView({ kind: "error", message: msg });
+      return;
+    }
+    // Success — onAuthStateChange SIGNED_IN fires, the existing
+    // 'pairing' useEffect runs /complete-pair with the new JWT.
   };
 
   // ─── Render ────────────────────────────────────────────────────────────
@@ -245,13 +259,14 @@ export default function PairBridgePage() {
           {view.kind === "signed-out" && (
             <>
               <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
-                Sign in to pair
+                {mode === "signin" ? "Sign in to pair" : "Create account to pair"}
               </h1>
               <p className="text-[14px] text-ink-faded mb-6">
-                We&rsquo;ll email you a one-time link. Click it to come back here and
-                confirm the bridge.
+                {mode === "signin"
+                  ? "Email and password. After sign-in we link this Mac to your account."
+                  : "Pick a password. No email confirmation — you'll be signed in immediately."}
               </p>
-              <form onSubmit={sendMagicLink} className="space-y-3">
+              <form onSubmit={submitAuth} className="space-y-3">
                 <input
                   type="email"
                   required
@@ -260,29 +275,53 @@ export default function PairBridgePage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-full border border-ink/15 px-4 py-2.5 text-[15px] focus:outline-none focus:border-slate-dark"
+                  autoComplete="email"
+                />
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  placeholder="Password (min 8 chars)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-full border border-ink/15 px-4 py-2.5 text-[15px] focus:outline-none focus:border-slate-dark"
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
                 />
                 <button
                   type="submit"
                   className="w-full bg-slate-dark text-ivory rounded-full px-4 py-2.5 text-[15px] font-medium hover:bg-slate-medium transition"
                 >
-                  Send sign-in link
+                  {mode === "signin" ? "Sign in & pair" : "Create account & pair"}
                 </button>
               </form>
-            </>
-          )}
-
-          {view.kind === "magic-link-sent" && (
-            <>
-              <h1 className="font-serif text-[22px] font-medium text-ink mb-2">
-                Check your email
-              </h1>
-              <p className="text-[14px] text-ink-faded">
-                Sent a sign-in link to{" "}
-                <span className="font-mono text-ink">{view.email}</span>. Click the
-                link to come back here and finish pairing.
+              <p className="text-[13px] text-ink-faded mt-4 text-center">
+                {mode === "signin" ? (
+                  <>
+                    No account yet?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setMode("signup")}
+                      className="underline text-ink hover:opacity-70"
+                    >
+                      Create one
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Already signed up?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setMode("signin")}
+                      className="underline text-ink hover:opacity-70"
+                    >
+                      Sign in
+                    </button>
+                  </>
+                )}
               </p>
             </>
           )}
+
 
           {view.kind === "pairing" && (
             <p className="text-center text-ink-faded">Pairing&hellip;</p>
