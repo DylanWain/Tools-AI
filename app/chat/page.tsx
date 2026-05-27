@@ -40,10 +40,16 @@ type ViewState =
   | { kind: "paywall"; consumedCents: number; userId: string }
   | { kind: "error"; message: string };
 
-// Stripe Payment Link for the $25/mo subscription. We append
-// ?client_reference_id={user_id} so the /api/stripe/webhook handler
+// Stripe Payment Link for the $25/mo flat subscription. We append
+// ?client_reference_id={user_id} so the stripe-webhook edge function
 // can bind the resulting subscription to the right Veronum user.
 const STRIPE_CHECKOUT_BASE = "https://buy.stripe.com/fZu28tb3x9aufwJeLt1sQ00";
+
+// Supabase Edge Function endpoint that creates a Stripe Checkout
+// Session for the metered PAYG (3x) plan. The function is JWT-gated
+// and returns a one-shot checkout URL we redirect to.
+const PAYG_CHECKOUT_URL =
+  "https://synpjcammfjebwsmtfpz.supabase.co/functions/v1/veronum-payg-checkout";
 
 export default function ChatRedirect() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
@@ -325,22 +331,91 @@ export default function ChatRedirect() {
             </h1>
             <p className="text-[14px] text-ink-faded mb-2">
               Veronum gives you 25¢ of free use to try the chat and voice
-              agent. You&rsquo;ve hit the cap — subscribe for $25/month to
-              keep going. Cancel anytime.
+              agent. You&rsquo;ve hit the cap — pick a plan below to keep
+              going. Cancel anytime.
             </p>
             <p className="text-[13px] text-ink-faded mb-6">
-              Used: <span className="font-mono text-ink">{(view.consumedCents / 100).toFixed(2)}</span> /
+              Used: <span className="font-mono text-ink">${(view.consumedCents / 100).toFixed(2)}</span> /
               {" "}<span className="font-mono text-ink">$0.25</span>
             </p>
-            <a
-              href={`${STRIPE_CHECKOUT_BASE}?client_reference_id=${encodeURIComponent(view.userId)}`}
-              className="inline-block bg-slate-dark text-ivory rounded-full px-6 py-2.5 text-[15px] font-medium hover:bg-slate-medium transition"
-            >
-              Subscribe — $25/month
-            </a>
-            <p className="text-[12px] text-ink-faded mt-4">
-              Paid via Stripe. After checkout you&rsquo;ll come back here and
-              the chat opens automatically.
+
+            {/* Plan picker — Subscribe (flat $25/mo, 2x overage past $15) vs
+                Pay as you go (no flat, billed metered at 3x). Subscribe is
+                the primary recommendation for steady users; PAYG fits users
+                with bursty usage who don't want a monthly commitment. */}
+            <div className="space-y-3">
+              <a
+                href={`${STRIPE_CHECKOUT_BASE}?client_reference_id=${encodeURIComponent(view.userId)}`}
+                className="block rounded-2xl border border-ink/15 bg-white hover:border-ink/30 transition p-4"
+              >
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-[18px] font-medium text-ink">
+                    Subscribe
+                  </span>
+                  <span className="font-mono text-[14px] text-ink">$25/mo</span>
+                </div>
+                <p className="text-[13px] text-ink-faded mt-1">
+                  Includes $15 of usage at 1× rate. Overage billed at 2×. Cancel anytime.
+                </p>
+                <p className="text-[12px] text-ink mt-3 underline">Choose subscribe →</p>
+              </a>
+
+              <button
+                onClick={async () => {
+                  // Pull the JWT and call the PAYG checkout edge function.
+                  const { data: sessionData } = await supabase.auth.getSession();
+                  const token = sessionData.session?.access_token;
+                  if (!token) {
+                    setView({ kind: "error", message: "Sign in again to subscribe." });
+                    return;
+                  }
+                  try {
+                    const res = await fetch(PAYG_CHECKOUT_URL, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({}),
+                    });
+                    const body = (await res.json().catch(() => ({}))) as {
+                      checkoutUrl?: string;
+                      error?: string;
+                      detail?: string;
+                    };
+                    if (!res.ok || !body.checkoutUrl) {
+                      setView({
+                        kind: "error",
+                        message: body.detail || body.error || `Couldn't start PAYG checkout (HTTP ${res.status}).`,
+                      });
+                      return;
+                    }
+                    window.location.href = body.checkoutUrl;
+                  } catch (err) {
+                    setView({
+                      kind: "error",
+                      message: (err as Error).message || "Network error starting PAYG checkout.",
+                    });
+                  }
+                }}
+                className="block w-full text-left rounded-2xl border border-ink/15 bg-white hover:border-ink/30 transition p-4"
+              >
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-[18px] font-medium text-ink">
+                    Pay as you go
+                  </span>
+                  <span className="font-mono text-[14px] text-ink">3× per use</span>
+                </div>
+                <p className="text-[13px] text-ink-faded mt-1">
+                  No monthly fee. Card on file, billed only for what you use. Cheaper if your usage is light.
+                </p>
+                <p className="text-[12px] text-ink mt-3 underline">Choose pay-as-you-go →</p>
+              </button>
+            </div>
+
+            <p className="text-[12px] text-ink-faded mt-5">
+              Both plans are paid via Stripe. After checkout you&rsquo;ll come
+              back here and the chat opens automatically.
             </p>
           </div>
         )}
