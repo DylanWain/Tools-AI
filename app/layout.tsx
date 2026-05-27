@@ -24,14 +24,14 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Veronum — AI workspace built on Claude",
+  title: "Veronum — Reach your Mac's Claude Code & Cursor sessions from anywhere",
   description:
-    "Multi-agent composer, live meeting transcripts, and native connectors for Stripe, Supabase, and Slack. 7 days free, then $25/month.",
+    "Pair your Mac once, then chat with all your Claude Code and Cursor Agent sessions from your phone or any device. 25¢ free trial, then $25/month or pay-as-you-go.",
   metadataBase: new URL("https://www.thetoolswebsite.com"),
   openGraph: {
-    title: "Veronum — AI workspace built on Claude",
+    title: "Veronum — Your Mac's Claude/Cursor sessions, anywhere",
     description:
-      "Multi-agent composer, meeting transcripts, native connectors. 7 days free, then $25/month.",
+      "25¢ free trial, then $25/month flat or pay-as-you-go. Universal Mac app, signed + notarized.",
     type: "website",
   },
 };

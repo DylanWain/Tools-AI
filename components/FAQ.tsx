@@ -25,7 +25,7 @@ const faqs = [
   },
   {
     q: "How does the trial work?",
-    a: "First 7 days are free. No card needed during the trial. Pro features (multi-agent dispatch + version history) ask for $25/month after day 7. You can subscribe through Stripe Checkout straight from the app's Settings.",
+    a: "Every account starts with 25¢ of usage for free — no card needed. Once you hit the cap, pick a plan: $25/month flat (includes $15 of usage at the base rate, 2× after) or pay-as-you-go at 3× per use with no monthly fee. The plan picker appears in your chat as soon as you exceed the free amount.",
   },
   {
     q: "Can I cancel?",

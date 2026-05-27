@@ -89,7 +89,7 @@ export default function SupportPage() {
             />
             <Faq
               q="What's the difference between the Chrome extension and the desktop app?"
-              a="The extension lives in your browser and works on AI conversation pages. The desktop app (Mac, free 7-day trial then $25/mo) extends the same actions into your local files via Cursor, VS Code, Warp, Zed, and Claude Code — plus runs 10 parallel agents and live team coding rooms."
+              a="The extension lives in your browser and works on AI conversation pages. The Mac desktop app (Veronum Bridge — 25¢ free trial, then $25/month or pay-as-you-go) pairs your Mac so you can reach all your Claude Code and Cursor Agent sessions from your phone or any device, with voice + chat."
             />
             <Faq
               q="Can I use Veronum with my company's enterprise ChatGPT or Claude account?"
@@ -124,11 +124,13 @@ export default function SupportPage() {
 
           <Section title="Account, billing, refunds (desktop app)">
             <p>
-              The desktop app has a 7-day free trial, then $25/month.
-              Manage your subscription in the desktop app under{" "}
-              <strong>Settings → Account</strong>, or email us to
-              cancel / get a refund. We give a full refund within 14
-              days of purchase, no questions asked.
+              Every account starts with 25¢ of free usage — no card
+              needed. After that, choose <strong>$25/month flat</strong>{" "}
+              (covers $15 of usage at the base rate, 2× after) or{" "}
+              <strong>pay-as-you-go at 3×</strong> with no monthly fee.
+              Both plans are billed through Stripe; cancel any time from
+              the Stripe billing portal. Full refund within 14 days of
+              purchase, no questions asked.
             </p>
           </Section>
 

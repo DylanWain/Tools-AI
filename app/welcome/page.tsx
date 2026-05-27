@@ -71,7 +71,7 @@ export default function WelcomePage() {
               Download for Mac — Free
             </a>
             <span className="font-mono text-[var(--detail-xs)] text-ink-faded">
-              Universal build · Apple Silicon &amp; Intel · 7-day free trial
+              Universal build · Apple Silicon &amp; Intel · 25&cent; free trial
             </span>
           </div>
         </section>
@@ -149,9 +149,9 @@ export default function WelcomePage() {
               className="text-ink leading-[1.55] mb-7 max-w-[52ch]"
               style={{ fontSize: "var(--paragraph-s)" }}
             >
-              Veronum Desktop is a free 7-day trial. After that, $25/month
-              for unlimited agents, sessions, and shared rooms. Cancel any
-              time inside the app.
+              Every account starts with 25&cent; of free usage — no card needed.
+              After that, $25/month or pay-as-you-go at 3&times;. Cancel any
+              time through Stripe.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
               <a

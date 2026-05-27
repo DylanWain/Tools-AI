@@ -1,8 +1,21 @@
 import { ArrowRight } from "./ArrowRight";
 
 /**
- * Pricing — restyled as a quiet text block (no card) to match anthropic's
- * minimalism. Subscribe + Start trial as the two CTAs.
+ * Pricing — two-tier model matching the actual Stripe products + free trial:
+ *
+ *   Free trial:  $0.25 of usage, no card needed
+ *   Subscribe:   $25 / month, includes $15 of usage at 1x, 2x after
+ *   Pay-as-you-go: no flat fee, billed 3x per use, card on file
+ *
+ * The Subscribe CTA goes straight to the Stripe Payment Link (existing
+ * product). The PAYG flow needs the user to be signed in (so we know
+ * their user_id for the metered subscription), so we send them to
+ * /chat — once they hit the paywall there, both plan options are
+ * presented.
+ *
+ * Both Mac downloads point at the stable /latest/download URL on
+ * GitHub Releases. Each new DMG release uploads a renamed asset to
+ * keep this URL working.
  */
 export function Pricing() {
   return (
@@ -15,7 +28,7 @@ export function Pricing() {
           >
             $25 a month.
             <br />
-            <span className="italic font-light">Seven days free.</span>
+            <span className="italic font-light">Or pay as you go.</span>
           </h2>
         </div>
 
@@ -24,31 +37,42 @@ export function Pricing() {
             className="text-ink/85 leading-relaxed max-w-[55ch] mb-8"
             style={{ fontSize: "var(--paragraph-m)" }}
           >
-            One subscription unlocks the full app: Claude chat, multi-agent
-            composer, live meeting transcripts, and connectors for Stripe,
-            Supabase, and Slack. Cancel anytime through Stripe.
+            Try Veronum for free — every account starts with 25&cent; of
+            usage, no card needed. After that, pick a plan: $25 a month
+            (covers $15 of usage at the base rate, 2&times; after) or
+            pay-as-you-go at 3&times; per use with no monthly fee.
+            Cancel anytime through Stripe.
           </p>
           <div className="flex flex-wrap gap-3">
             <a
               href="https://buy.stripe.com/fZu28tb3x9aufwJeLt1sQ00"
               className="inline-flex items-center gap-1 bg-slate-dark text-ivory pl-5 pr-2 py-2 rounded-full text-[14.5px] font-medium hover:bg-slate-medium transition"
             >
-              <span>Subscribe</span>
+              <span>Subscribe — $25 / month</span>
               <span className="w-7 h-7 flex items-center justify-center">
                 <ArrowRight className="w-5 h-5" />
               </span>
             </a>
             <a
-              href="https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg"
+              href="/chat"
               className="inline-flex items-center border border-ink/30 text-ink px-5 py-3 rounded-full text-[14.5px] font-medium hover:bg-ink/[0.04] transition"
             >
-              Start free trial
+              Try free (25&cent;) or pay-as-you-go
             </a>
           </div>
           <p className="mt-4 text-[14px] text-ink-faded">
-            No credit card required for the trial. One universal Mac
-            build — works on Apple Silicon and Intel.
+            No credit card required for the free trial. Download the
+            Mac app — universal binary, signed + notarized by Apple,
+            works on Apple Silicon and Intel.
           </p>
+          <div className="mt-3">
+            <a
+              href="https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg"
+              className="text-[14px] text-ink underline hover:opacity-70"
+            >
+              Download Veronum Bridge for Mac &rarr;
+            </a>
+          </div>
         </div>
       </div>
     </section>
