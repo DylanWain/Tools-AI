@@ -1,32 +1,34 @@
 import { Slide } from "./Slide";
 import { VeronumMark } from "../VeronumMark";
 import { VSCodeVeronumDemo } from "../demos/VSCodeVeronumDemo";
+import { LocalViewDemo } from "../demos/LocalViewDemo";
 
 /**
- * Veronum pre-seed deck — 10 slides.
+ * Veronum pre-seed deck — 11 slides.
  *
  * Story-driven. One claim per slide, two-to-four sentences max. The
  * deck drags the reader into the pain (slide 2), pays it off with
- * the solution + a live demo (3–4), establishes the founder bet
- * (5), points at the bigger prize (6), bounds the market (7),
- * stacks user love + numbers (8), names the ask + investors (9),
- * and closes with contact (10). Live animated demo on web; static
- * fallback in the print/PDF.
+ * the solution + two live demos: multiplayer session (4) and the
+ * v0.3.6 local view with terminal + editor + activity feed (5).
+ * Then the founder bet (6), vision (7), market (8), user love +
+ * numbers (9), ask + investors (10), contact (11). Live animated
+ * demos on web; static fallback in the print/PDF.
  *
  * Order:
  *   1.  Cover
  *   2.  Problem
  *   3.  Solution
- *   4.  Demo
- *   5.  Team
- *   6.  Vision
- *   7.  Market
- *   8.  Traction + feedback (feedback above numbers)
- *   9.  Ask + committed investors
- *   10. Contact
+ *   4.  Demo — multiplayer session (VS Code + Veronum)
+ *   5.  Demo — live local view (terminal · editor · activity)
+ *   6.  Team
+ *   7.  Vision
+ *   8.  Market
+ *   9.  Traction + feedback (feedback above numbers)
+ *   10. Ask + committed investors
+ *   11. Contact
  */
 
-const TOTAL = 10;
+const TOTAL = 11;
 
 const COMMITTED_INVESTORS = [
   "Travis Laderer",
@@ -188,6 +190,64 @@ export function S04Demo() {
   );
 }
 
+/* ───────────── SLIDE 4b: LOCAL VIEW (v0.3.6 ship) ───────────── */
+export function S04bLocalView() {
+  return (
+    <Slide n={5} bg="ivory" className="!py-0" total={TOTAL} wide>
+      <div className="-my-8 lg:-my-16 print:hidden">
+        <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-2">
+          Demo · live local view · v0.3.6
+        </p>
+        <h2
+          className="font-serif font-medium leading-[1.0] text-ink mb-2 mx-auto max-w-[42ch]"
+          style={{ fontSize: "var(--display-m)" }}
+        >
+          Edit files, run terminals, watch AI edits land — from any device.
+        </h2>
+        <p
+          className="text-ink/75 leading-[1.45] mx-auto max-w-[64ch] mb-6"
+          style={{ fontSize: "var(--paragraph-s)" }}
+        >
+          The full Veronum workspace on a phone: file editor with ⌘S, real
+          zsh terminal, live diff feed of every AI change. Save versions to git
+          and revert in one tap.
+        </p>
+        <LocalViewDemo />
+      </div>
+
+      <div className="hidden print:block">
+        <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-6">
+          Live local view
+        </p>
+        <h2
+          className="font-serif font-medium leading-[1.0] text-ink mb-6 mx-auto max-w-[30ch]"
+          style={{ fontSize: "var(--display-l)" }}
+        >
+          Edit files, run terminals, watch AI edits land — from any device.
+        </h2>
+        <p
+          className="text-ink/85 leading-[1.5] mx-auto max-w-[62ch] mb-10"
+          style={{ fontSize: "var(--paragraph-m)" }}
+        >
+          Same Veronum window on Mac or phone: real file editor with ⌘S save,
+          real zsh terminal (multi-tab), live diff feed showing every Claude /
+          Cursor edit with red/green inline, named git versions you can revert
+          to in one tap.
+        </p>
+        <div className="p-5 bg-clay/8 border-l-4 border-clay rounded-r-lg mx-auto max-w-[60ch]">
+          <p className="font-serif text-[18px] leading-snug text-ink">
+            <span className="text-ink-faded text-[13px] font-mono uppercase tracking-[0.14em] block mb-1">
+              See it live
+            </span>
+            <span className="font-medium">thetoolswebsite.com/deck</span>{" "}
+            — animated workspace panel: Files → Terminal → Activity, looping.
+          </p>
+        </div>
+      </div>
+    </Slide>
+  );
+}
+
 /* ───────────── SLIDE 5: TEAM ───────────── */
 export function S05Team() {
   const dibby = [
@@ -198,7 +258,7 @@ export function S05Team() {
   ];
 
   return (
-    <Slide n={5} total={TOTAL}>
+    <Slide n={6} total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-8">
         Team
       </p>
@@ -261,7 +321,7 @@ export function S05Team() {
 /* ───────────── SLIDE 6: VISION ───────────── */
 export function S06Vision() {
   return (
-    <Slide n={6} bg="ink" total={TOTAL}>
+    <Slide n={7} bg="ink" total={TOTAL}>
       <div>
         <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ivory/55 mb-8">
           Vision
@@ -302,7 +362,7 @@ export function S07Market() {
   ];
 
   return (
-    <Slide n={7} total={TOTAL}>
+    <Slide n={8} total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-10">
         Market
       </p>
@@ -353,7 +413,7 @@ export function S07Market() {
 export function S08Traction() {
   const stats = [
     { v: "350+", l: "Users" },
-    { v: "$375", l: "May revenue" },
+    { v: "$175", l: "MRR" },
     { v: "0%", l: "Churn" },
     { v: "$0", l: "Marketing spend" },
   ];
@@ -392,7 +452,7 @@ export function S08Traction() {
   ];
 
   return (
-    <Slide n={8} bg="oat" total={TOTAL}>
+    <Slide n={9} bg="oat" total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-8">
         Traction · feedback
       </p>
@@ -478,7 +538,7 @@ export function S08Traction() {
 /* ───────────── SLIDE 9: ASK + INVESTORS ───────────── */
 export function S09Ask() {
   return (
-    <Slide n={9} bg="ink" total={TOTAL}>
+    <Slide n={10} bg="ink" total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ivory/55 mb-10">
         The ask
       </p>
@@ -533,7 +593,7 @@ function Milestone({ label }: { label: string }) {
 /* ───────────── SLIDE 10: CONTACT ───────────── */
 export function S10Contact() {
   return (
-    <Slide n={10} total={TOTAL}>
+    <Slide n={11} total={TOTAL}>
       <div className="flex flex-col items-center gap-8 lg:gap-10">
         <VeronumMark className="h-16 w-16 lg:h-20 lg:w-20 rounded-2xl" />
 

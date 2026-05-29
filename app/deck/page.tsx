@@ -3,6 +3,7 @@ import {
   S02Problem,
   S03Solution,
   S04Demo,
+  S04bLocalView,
   S05Team,
   S06Vision,
   S07Market,
@@ -29,6 +30,7 @@ export default function DeckPage() {
         <S02Problem />
         <S03Solution />
         <S04Demo />
+        <S04bLocalView />
         <S05Team />
         <S06Vision />
         <S07Market />
