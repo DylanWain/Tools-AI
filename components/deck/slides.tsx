@@ -1,34 +1,32 @@
 import { Slide } from "./Slide";
 import { VeronumMark } from "../VeronumMark";
-import { VSCodeVeronumDemo } from "../demos/VSCodeVeronumDemo";
 import { LocalViewDemo } from "../demos/LocalViewDemo";
 
 /**
- * Veronum pre-seed deck — 11 slides.
+ * Veronum pre-seed deck — 10 slides.
  *
- * Story-driven. One claim per slide, two-to-four sentences max. The
- * deck drags the reader into the pain (slide 2), pays it off with
- * the solution + two live demos: multiplayer session (4) and the
- * v0.3.6 local view with terminal + editor + activity feed (5).
- * Then the founder bet (6), vision (7), market (8), user love +
- * numbers (9), ask + investors (10), contact (11). Live animated
- * demos on web; static fallback in the print/PDF.
+ * Story-driven for the "code from your phone" pitch: pair your Mac
+ * once, then drive Claude / Cursor / VS Code from any device. The
+ * deck opens the pain (slide 2 — your code is stuck on a desktop),
+ * pays it off with the solution + the v0.3.6 local-view animation
+ * (3–4), establishes the founder bet (5), points at the bigger
+ * prize (6), bounds the market (7), stacks user love + numbers (8),
+ * names the ask + investors (9), and closes with contact (10).
  *
  * Order:
  *   1.  Cover
  *   2.  Problem
  *   3.  Solution
- *   4.  Demo — multiplayer session (VS Code + Veronum)
- *   5.  Demo — live local view (terminal · editor · activity)
- *   6.  Team
- *   7.  Vision
- *   8.  Market
- *   9.  Traction + feedback (feedback above numbers)
- *   10. Ask + committed investors
- *   11. Contact
+ *   4.  Demo — live local view (terminal · editor · activity)
+ *   5.  Team
+ *   6.  Vision
+ *   7.  Market
+ *   8.  Traction + feedback
+ *   9.  Ask + committed investors
+ *   10. Contact
  */
 
-const TOTAL = 11;
+const TOTAL = 10;
 
 const COMMITTED_INVESTORS = [
   "Travis Laderer",
@@ -53,7 +51,7 @@ export function S01Cover() {
           className="font-serif italic font-light text-ink/85 leading-[1.15] mx-auto max-w-[28ch]"
           style={{ fontSize: "var(--display-m)" }}
         >
-          Code with anyone, on any platform.
+          Code from your phone.
         </p>
         <p className="text-[14px] text-ink-faded font-mono uppercase tracking-[0.14em] mt-6">
           Pre-seed · $200K · May 2026
@@ -65,7 +63,7 @@ export function S01Cover() {
 
 /* ───────────── SLIDE 2: PROBLEM ───────────── */
 export function S02Problem() {
-  const tools = ["Cursor", "VS Code", "Warp", "Claude", "ChatGPT", "T3"];
+  const places = ["airport", "cab", "couch", "park", "bed", "anywhere"];
   return (
     <Slide n={2} bg="oat" total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-10">
@@ -76,12 +74,12 @@ export function S02Problem() {
         className="font-serif font-medium leading-[0.95] text-ink mx-auto mb-14 max-w-[22ch]"
         style={{ fontSize: "var(--display-xxl)" }}
       >
-        Code editors can&apos;t talk to each other.
+        Your code is stuck on your desktop.
       </h2>
 
-      {/* Six tool chips, separated by × */}
+      {/* Six places where you can't currently ship */}
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-3 mb-12">
-        {tools.map((t, i) => (
+        {places.map((t, i) => (
           <span key={t} className="flex items-center gap-3">
             <span
               className="px-4 py-1.5 rounded-full bg-ink/[0.06] text-ink font-medium"
@@ -89,7 +87,7 @@ export function S02Problem() {
             >
               {t}
             </span>
-            {i < tools.length - 1 && (
+            {i < places.length - 1 && (
               <span className="text-clay font-bold text-[18px]">×</span>
             )}
           </span>
@@ -97,11 +95,11 @@ export function S02Problem() {
       </div>
 
       <p
-        className="font-serif italic font-light text-ink/75 leading-[1.3] mx-auto max-w-[34ch]"
+        className="font-serif italic font-light text-ink/75 leading-[1.3] mx-auto max-w-[36ch]"
         style={{ fontSize: "var(--paragraph-l)" }}
       >
-        Six tools. Six conversations. Same project. None of them know what
-        the others said.
+        Cursor, Claude, VS Code — all locked to the laptop you might be a
+        thousand miles from.
       </p>
     </Slide>
   );
@@ -119,22 +117,22 @@ export function S03Solution() {
         className="font-serif font-medium leading-[0.92] text-ink mx-auto mb-12 max-w-[22ch]"
         style={{ fontSize: "var(--display-xxl)" }}
       >
-        Veronum connects every coding tool.
+        Veronum gives you your Mac, anywhere.
       </h2>
 
       <p
-        className="text-ink/85 leading-[1.5] mx-auto max-w-[58ch]"
+        className="text-ink/85 leading-[1.5] mx-auto max-w-[60ch]"
         style={{ fontSize: "var(--paragraph-l)" }}
       >
-        One app that bridges Cursor, VS Code, Warp, Claude, and Zed. Your
-        teammate joins your session live — same chat, same files, same
-        edits. No commits, no push, no link.
+        Pair your Mac once. Then drive your Claude Code, Cursor, and VS Code
+        sessions from any device — phone, tablet, browser. Edit files, run
+        the terminal, watch AI ship code. Your actual project, just remote.
       </p>
     </Slide>
   );
 }
 
-/* ───────────── SLIDE 4: DEMO ───────────── */
+/* ───────────── SLIDE 4: DEMO — live local view ───────────── */
 export function S04Demo() {
   return (
     <Slide n={4} bg="ivory" className="!py-0" total={TOTAL} wide>
@@ -143,19 +141,20 @@ export function S04Demo() {
           Demo · live in this slide
         </p>
         <h2
-          className="font-serif font-medium leading-[1.0] text-ink mb-2 mx-auto max-w-[40ch]"
+          className="font-serif font-medium leading-[1.0] text-ink mb-2 mx-auto max-w-[42ch]"
           style={{ fontSize: "var(--display-m)" }}
         >
-          One engineer in VS Code. One in Veronum. Same session.
+          Edit files, run terminals, ship code — from any device.
         </h2>
         <p
           className="text-ink/75 leading-[1.45] mx-auto max-w-[64ch] mb-6"
           style={{ fontSize: "var(--paragraph-s)" }}
         >
-          Watch the prompt land in Veronum, Claude rewrite the file, and
-          the change appear in VS Code in real time.
+          The full Veronum workspace on a phone: real file editor with ⌘S,
+          real zsh terminal, live diff feed of every AI change. Save versions
+          to git and revert in one tap. Same as your Mac, just remote.
         </p>
-        <VSCodeVeronumDemo />
+        <LocalViewDemo />
       </div>
 
       <div className="hidden print:block">
@@ -166,64 +165,7 @@ export function S04Demo() {
           className="font-serif font-medium leading-[1.0] text-ink mb-6 mx-auto max-w-[30ch]"
           style={{ fontSize: "var(--display-l)" }}
         >
-          One engineer in VS Code. One in Veronum. Same session.
-        </h2>
-        <p
-          className="text-ink/85 leading-[1.5] mx-auto max-w-[62ch] mb-10"
-          style={{ fontSize: "var(--paragraph-m)" }}
-        >
-          Dylan edits session.ts in VS Code. Katya types a prompt in Veronum.
-          Claude rewrites the file. The diff appears in both windows live.
-          Same Claude session — different editors.
-        </p>
-        <div className="p-5 bg-clay/8 border-l-4 border-clay rounded-r-lg mx-auto max-w-[60ch]">
-          <p className="font-serif text-[18px] leading-snug text-ink">
-            <span className="text-ink-faded text-[13px] font-mono uppercase tracking-[0.14em] block mb-1">
-              See it live
-            </span>
-            <span className="font-medium">thetoolswebsite.com/deck</span>{" "}
-            — VS Code + Veronum side by side, looping demo.
-          </p>
-        </div>
-      </div>
-    </Slide>
-  );
-}
-
-/* ───────────── SLIDE 4b: LOCAL VIEW (v0.3.6 ship) ───────────── */
-export function S04bLocalView() {
-  return (
-    <Slide n={5} bg="ivory" className="!py-0" total={TOTAL} wide>
-      <div className="-my-8 lg:-my-16 print:hidden">
-        <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-2">
-          Demo · live local view · v0.3.6
-        </p>
-        <h2
-          className="font-serif font-medium leading-[1.0] text-ink mb-2 mx-auto max-w-[42ch]"
-          style={{ fontSize: "var(--display-m)" }}
-        >
-          Edit files, run terminals, watch AI edits land — from any device.
-        </h2>
-        <p
-          className="text-ink/75 leading-[1.45] mx-auto max-w-[64ch] mb-6"
-          style={{ fontSize: "var(--paragraph-s)" }}
-        >
-          The full Veronum workspace on a phone: file editor with ⌘S, real
-          zsh terminal, live diff feed of every AI change. Save versions to git
-          and revert in one tap.
-        </p>
-        <LocalViewDemo />
-      </div>
-
-      <div className="hidden print:block">
-        <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-6">
-          Live local view
-        </p>
-        <h2
-          className="font-serif font-medium leading-[1.0] text-ink mb-6 mx-auto max-w-[30ch]"
-          style={{ fontSize: "var(--display-l)" }}
-        >
-          Edit files, run terminals, watch AI edits land — from any device.
+          Edit files, run terminals, ship code — from any device.
         </h2>
         <p
           className="text-ink/85 leading-[1.5] mx-auto max-w-[62ch] mb-10"
@@ -258,7 +200,7 @@ export function S05Team() {
   ];
 
   return (
-    <Slide n={6} total={TOTAL}>
+    <Slide n={5} total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-8">
         Team
       </p>
@@ -321,7 +263,7 @@ export function S05Team() {
 /* ───────────── SLIDE 6: VISION ───────────── */
 export function S06Vision() {
   return (
-    <Slide n={7} bg="ink" total={TOTAL}>
+    <Slide n={6} bg="ink" total={TOTAL}>
       <div>
         <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ivory/55 mb-8">
           Vision
@@ -331,17 +273,17 @@ export function S06Vision() {
           className="font-serif font-medium leading-[0.95] text-ivory mb-12 max-w-[26ch]"
           style={{ fontSize: "var(--display-xxl)" }}
         >
-          The infrastructure that connects every dev tool.
+          The code-from-anywhere standard.
         </h2>
 
         <p
           className="text-ivory/80 leading-[1.5] max-w-[64ch]"
           style={{ fontSize: "var(--paragraph-l)" }}
         >
-          Veronum integrates fully into every coding platform — Cursor,
-          VS Code, Warp, Claude, Zed today; Codex, Gemini, and whatever
-          ships next on top of the same plumbing. One workspace,
-          everyone&apos;s tools, every conversation in one place.
+          Pair once, code forever — from phone, tablet, browser, anywhere
+          you have a signal. Your Mac is the source of truth; every device
+          is a window into it. Claude, Cursor, VS Code today; Codex,
+          Gemini, and whatever ships next on top of the same plumbing.
         </p>
       </div>
     </Slide>
@@ -362,7 +304,7 @@ export function S07Market() {
   ];
 
   return (
-    <Slide n={8} total={TOTAL}>
+    <Slide n={7} total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-10">
         Market
       </p>
@@ -371,14 +313,14 @@ export function S07Market() {
         className="font-serif font-medium leading-[0.92] text-ink mx-auto mb-3 max-w-[18ch]"
         style={{ fontSize: "var(--display-xxl)" }}
       >
-        50M developers. One workspace.
+        50M developers. Any device.
       </h2>
 
       <p
         className="font-serif italic font-light text-ink/70 mb-12 mx-auto max-w-[44ch]"
         style={{ fontSize: "var(--display-s)" }}
       >
-        $5B+ a year flowing into AI dev tools — every one of them an island.
+        $5B+ a year flowing into AI dev tools — every one of them stuck on a desktop.
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4 mx-auto max-w-[68ch] text-left mb-12">
@@ -452,7 +394,7 @@ export function S08Traction() {
   ];
 
   return (
-    <Slide n={9} bg="oat" total={TOTAL}>
+    <Slide n={8} bg="oat" total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faded mb-8">
         Traction · feedback
       </p>
@@ -538,7 +480,7 @@ export function S08Traction() {
 /* ───────────── SLIDE 9: ASK + INVESTORS ───────────── */
 export function S09Ask() {
   return (
-    <Slide n={10} bg="ink" total={TOTAL}>
+    <Slide n={9} bg="ink" total={TOTAL}>
       <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-ivory/55 mb-10">
         The ask
       </p>
@@ -593,7 +535,7 @@ function Milestone({ label }: { label: string }) {
 /* ───────────── SLIDE 10: CONTACT ───────────── */
 export function S10Contact() {
   return (
-    <Slide n={11} total={TOTAL}>
+    <Slide n={10} total={TOTAL}>
       <div className="flex flex-col items-center gap-8 lg:gap-10">
         <VeronumMark className="h-16 w-16 lg:h-20 lg:w-20 rounded-2xl" />
 

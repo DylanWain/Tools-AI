@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { VeronumMark } from "./VeronumMark";
+import { DownloadLink } from "./DownloadLink";
 
 /**
  * Top nav — sticky, ivory backdrop with subtle blur. Mirrors anthropic's
@@ -56,13 +57,14 @@ export function Nav() {
           {/* Download — secondary. Existing users already have Bridge;
               this button is for first-time visitors. Styled as
               outlined-pill to step back from the primary 'Open chat'. */}
-          <a
+          <DownloadLink
             href="https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg"
+            source="nav"
             className="hidden sm:inline-flex items-center border border-ink/30 text-ink px-3 sm:px-4 py-[6px] rounded-full text-[14px] sm:text-[14.5px] font-medium hover:bg-ink/[0.04] transition"
             title="Universal Mac build — Apple Silicon (M1–M4) and Intel · signed + notarized by Apple"
           >
             Download
-          </a>
+          </DownloadLink>
         </div>
       </div>
     </header>

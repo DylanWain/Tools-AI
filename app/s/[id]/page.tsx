@@ -19,6 +19,7 @@ import type { Metadata } from "next";
 import { serverSupabase } from "@/lib/supabase";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
+import { DownloadLink } from "@/components/DownloadLink";
 
 type Turn = { role: "user" | "assistant"; text: string };
 type ShareRow = {
@@ -210,12 +211,13 @@ function FunnelCard() {
           undo any edit, and keep version history for every turn.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <a
+          <DownloadLink
             href={DOWNLOAD_URL}
+            source="share-page"
             className="inline-flex items-center justify-center bg-slate-dark text-ivory px-5 py-[10px] rounded-full text-[15px] font-medium hover:bg-slate-medium transition"
           >
             Download for Mac — Free
-          </a>
+          </DownloadLink>
           <Link
             href="/welcome?source=share"
             className="inline-flex items-center justify-center border border-ink/20 text-ink px-5 py-[10px] rounded-full text-[15px] font-medium hover:bg-ink/[0.04] transition"

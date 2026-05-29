@@ -1,4 +1,10 @@
 import { VeronumMark } from "./VeronumMark";
+import { DownloadLink } from "./DownloadLink";
+
+// Matches any href that points to a Veronum Bridge download — these
+// get wrapped in <DownloadLink> instead of a plain <a> so the click
+// records a download_events row before the browser navigates.
+const DOWNLOAD_URL_RE = /veronum-bridge\/releases\/latest\/download/i;
 
 /**
  * Footer — anthropic.com's `footer_grid` structure.
@@ -147,12 +153,22 @@ function FooterColumn({
       <ul className="space-y-3">
         {items.map((item) => (
           <li key={item.label}>
-            <a
-              href={item.href}
-              className="text-[14px] text-ivory/70 hover:text-ivory transition"
-            >
-              {item.label}
-            </a>
+            {DOWNLOAD_URL_RE.test(item.href) ? (
+              <DownloadLink
+                href={item.href}
+                source="footer"
+                className="text-[14px] text-ivory/70 hover:text-ivory transition"
+              >
+                {item.label}
+              </DownloadLink>
+            ) : (
+              <a
+                href={item.href}
+                className="text-[14px] text-ivory/70 hover:text-ivory transition"
+              >
+                {item.label}
+              </a>
+            )}
           </li>
         ))}
       </ul>

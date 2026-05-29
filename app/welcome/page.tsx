@@ -17,6 +17,7 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { ExtensionInstallDemo } from "@/components/ExtensionInstallDemo";
+import { DownloadLink } from "@/components/DownloadLink";
 
 export const metadata: Metadata = {
   title: "You're in — get Veronum Desktop",
@@ -64,12 +65,13 @@ export default function WelcomePage() {
           </div>
 
           <div className="mt-10 sm:mt-14 flex flex-col sm:flex-row gap-3 sm:items-center animate-veronum-fade-up animation-delay-300">
-            <a
+            <DownloadLink
               href={DOWNLOAD_URL}
+              source="welcome-hero"
               className="inline-flex items-center justify-center bg-slate-dark text-ivory px-6 py-[12px] rounded-full text-[15.5px] font-medium hover:bg-slate-medium transition"
             >
               Download for Mac — Free
-            </a>
+            </DownloadLink>
             <span className="font-mono text-[var(--detail-xs)] text-ink-faded">
               Universal build · Apple Silicon &amp; Intel · 25&cent; free trial
             </span>
@@ -154,12 +156,13 @@ export default function WelcomePage() {
               time through Stripe.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-              <a
+              <DownloadLink
                 href={DOWNLOAD_URL}
+                source="welcome-bottom"
                 className="inline-flex items-center justify-center bg-slate-dark text-ivory px-5 py-[10px] rounded-full text-[15px] font-medium hover:bg-slate-medium transition"
               >
                 Download for Mac — Free
-              </a>
+              </DownloadLink>
               <Link
                 href="/"
                 className="inline-flex items-center justify-center border border-ink/20 text-ink px-5 py-[10px] rounded-full text-[15px] font-medium hover:bg-ink/[0.04] transition"

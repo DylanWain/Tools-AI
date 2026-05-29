@@ -1,4 +1,5 @@
 import { ArrowRight } from "./ArrowRight";
+import { DownloadLink } from "./DownloadLink";
 
 /**
  * Pricing — two-tier model matching the actual Stripe products + free trial:
@@ -66,12 +67,13 @@ export function Pricing() {
             works on Apple Silicon and Intel.
           </p>
           <div className="mt-3">
-            <a
+            <DownloadLink
               href="https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg"
+              source="pricing"
               className="text-[14px] text-ink underline hover:opacity-70"
             >
               Download Veronum Bridge for Mac &rarr;
-            </a>
+            </DownloadLink>
           </div>
         </div>
       </div>
