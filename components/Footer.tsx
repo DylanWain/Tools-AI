@@ -115,6 +115,17 @@ export function Footer() {
           <p className="text-[13px] text-ivory/60">© 2026 Veronum</p>
         </div>
       </div>
+      {/* Secret admin entry — looks like a typo dot in the corner. Not
+          labeled, not in nav, noindex on the page itself. /admin gates
+          access by Supabase sign-in + tier='admin' check. */}
+      <a
+        href="/admin"
+        aria-label="admin"
+        className="fixed right-2 bottom-2 z-50 inline-flex h-4 w-4 items-center justify-center text-[18px] leading-none text-ivory/10 no-underline"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        ·
+      </a>
     </footer>
   );
 }
