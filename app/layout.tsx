@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Newsreader, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { PageViewTracker } from "@/components/PageViewTracker";
 
 const newsreader = Newsreader({
   subsets: ["latin"],
@@ -46,7 +47,10 @@ export default function RootLayout({
       lang="en"
       className={`${newsreader.variable} ${inter.variable} ${jetbrains.variable}`}
     >
-      <body>{children}</body>
+      <body>
+        <PageViewTracker />
+        {children}
+      </body>
     </html>
   );
 }

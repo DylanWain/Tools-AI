@@ -14,14 +14,34 @@ import { getBrowserSupabase } from "@/lib/supabase";
 type Stats = {
   generated_at?: string;
   error?: string;
-  users?: { total: number; active_24h: number; active_7d: number; active_30d: number; signups_24h: number; signups_7d: number };
-  subscriptions?: { flat: number; payg: number; free: number; admin: number };
-  downloads?: { total: number; last_24h: number; last_7d: number; unique_users: number; unique_ip_hashes: number };
-  installs?: { total_paired: number; paired_24h: number; paired_7d: number };
+  range?: { from: string; to: string };
+  users?: { total: number; in_range: number; active_24h: number; active_7d: number; active_30d: number };
+  subscriptions?: { flat_total: number; payg_total: number; free: number; admin: number; subscribed_in_range: number };
+  website?: { visits_in_range: number; unique_visitors_in_range: number; top_pages: Array<{ page: string; visits: number }> };
+  downloads?: {
+    total: number;
+    in_range: number;
+    unique_users: number;
+    per_user: Array<{ user_id: string; email: string | null; downloads: number; last: string | null }>;
+  };
+  conversations?: { in_range: number; by_editor: Record<string, number> };
+  dispatch_modes?: Record<string, number>;
+  editors_used?: Record<string, number>;
+  terminal_opens?: number;
+  voice_sessions?: number;
+  installs?: { total_paired: number; paired_in_range: number };
   usage?: { total_billed_cents: number; mtd_billed_cents: number };
   recent_users?: Array<{ id: string; email: string | null; tier: string; last_call_at: string | null; period_billed_cents: number | null; created_at: string | null }>;
   recent_downloads?: Array<{ ts: string; source: string | null; app_version: string | null; user_email: string | null }>;
 };
+
+const RANGE_OPTIONS: Array<{ label: string; days: number }> = [
+  { label: "24h", days: 1 },
+  { label: "7d", days: 7 },
+  { label: "30d", days: 30 },
+  { label: "90d", days: 90 },
+  { label: "1y", days: 365 },
+];
 
 // Reuse the shared browser Supabase client — it now persists sessions
 // to localStorage ("veronum-auth" storageKey) so the magic-link
@@ -45,6 +65,7 @@ export default function AdminPage() {
   const [email, setEmail] = useState<string>("");
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [rangeDays, setRangeDays] = useState<number>(7);
 
   // Sign-in form state
   const [emailInput, setEmailInput] = useState("");
@@ -61,7 +82,7 @@ export default function AdminPage() {
       if (session?.user) {
         setSignedIn(true);
         setEmail(session.user.email || session.user.id.slice(0, 8));
-        await loadStats();
+        await loadStats(rangeDays);
       } else {
         setSignedIn(false);
         setStats(null);
@@ -73,9 +94,17 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadStats() {
+  // Re-load stats when the user changes the range picker.
+  useEffect(() => {
+    if (signedIn) loadStats(rangeDays);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeDays]);
+
+  async function loadStats(days: number) {
     setLoadError(null);
-    const { data, error } = await getClient().rpc("veronum_admin_stats");
+    const to = new Date().toISOString();
+    const from = new Date(Date.now() - days * 86400_000).toISOString();
+    const { data, error } = await getClient().rpc("veronum_admin_stats", { p_from: from, p_to: to });
     if (error) { setLoadError(error.message); return; }
     setStats((data ?? null) as Stats);
   }
@@ -159,14 +188,69 @@ export default function AdminPage() {
         <div className="text-ivory/60 text-[13px]">Loading stats…</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
-            <Card label="Total users" num={stats.users?.total ?? 0} sub={`${stats.users?.active_24h ?? 0} active 24h · ${stats.users?.active_7d ?? 0} 7d`} />
-            <Card label="Signups · 24h" num={stats.users?.signups_24h ?? 0} sub={`${stats.users?.signups_7d ?? 0} this week`} />
-            <Card label="Downloads" num={stats.downloads?.total ?? 0} sub={`${stats.downloads?.last_24h ?? 0} 24h · ${stats.downloads?.last_7d ?? 0} 7d`} />
-            <Card label="Paired bridges" num={stats.installs?.total_paired ?? 0} sub={`${stats.installs?.paired_24h ?? 0} new 24h`} />
-            <Card label="Subscribers" num={(stats.subscriptions?.flat ?? 0) + (stats.subscriptions?.payg ?? 0)} sub={`${stats.subscriptions?.flat ?? 0} flat · ${stats.subscriptions?.payg ?? 0} payg`} />
+          <div className="mb-5 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] uppercase tracking-wider text-ivory/40 mr-2">Range</span>
+            {RANGE_OPTIONS.map((o) => (
+              <button
+                key={o.days}
+                onClick={() => setRangeDays(o.days)}
+                className={`rounded-full px-3 py-1 text-[12px] font-mono ${
+                  rangeDays === o.days
+                    ? "bg-veronum text-slate-dark"
+                    : "bg-ivory/[.06] text-ivory/70 hover:bg-ivory/[.10]"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <Card label="Website visits" num={stats.website?.visits_in_range ?? 0} sub={`${stats.website?.unique_visitors_in_range ?? 0} unique`} />
+            <Card label="Total users" num={stats.users?.total ?? 0} sub={`${stats.users?.in_range ?? 0} new in range`} />
+            <Card label="Downloads" num={stats.downloads?.total ?? 0} sub={`${stats.downloads?.in_range ?? 0} in range · ${stats.downloads?.unique_users ?? 0} unique users`} />
+            <Card label="Paired bridges" num={stats.installs?.total_paired ?? 0} sub={`${stats.installs?.paired_in_range ?? 0} new in range`} />
+            <Card label="Subscribers" num={(stats.subscriptions?.flat_total ?? 0) + (stats.subscriptions?.payg_total ?? 0)} sub={`${stats.subscriptions?.flat_total ?? 0} flat · ${stats.subscriptions?.payg_total ?? 0} payg · ${stats.subscriptions?.subscribed_in_range ?? 0} new in range`} />
+            <Card label="Conversations" num={stats.conversations?.in_range ?? 0} sub={Object.entries(stats.conversations?.by_editor || {}).map(([k, v]) => `${k} ${v}`).join(" · ") || "—"} />
+            <Card label="Voice sessions" num={stats.voice_sessions ?? 0} sub="in range" />
+            <Card label="Terminals opened" num={stats.terminal_opens ?? 0} sub="in range" />
+            <Card label="Active 24h / 7d / 30d" num={stats.users?.active_24h ?? 0} sub={`${stats.users?.active_7d ?? 0} · ${stats.users?.active_30d ?? 0}`} />
             <Card label="Total billed" num={fmtCents(stats.usage?.total_billed_cents)} sub={`MTD ${fmtCents(stats.usage?.mtd_billed_cents)}`} />
           </div>
+
+          <Section title="How they're coding (in range)">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <BreakdownBox label="Input mode" data={stats.dispatch_modes || {}} />
+              <BreakdownBox label="Editor" data={stats.editors_used || {}} />
+              <BreakdownBox label="Top pages" data={Object.fromEntries((stats.website?.top_pages || []).map((p) => [p.page, p.visits]))} />
+            </div>
+          </Section>
+
+          <Section title="Downloads per user (top 30)">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px] font-mono">
+                <thead>
+                  <tr className="text-left text-ivory/50 uppercase tracking-wider text-[10px]">
+                    <th className="py-2 pr-3">Email</th>
+                    <th className="py-2 pr-3">Times downloaded</th>
+                    <th className="py-2 pr-3">Last</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(stats.downloads?.per_user || []).map((u, i) => (
+                    <tr key={i} className="border-t border-ivory/5 text-ivory/80">
+                      <td className="py-2 pr-3 whitespace-nowrap">{u.email || u.user_id?.slice(0, 8) || "—"}</td>
+                      <td className="py-2 pr-3">{u.downloads}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap">{fmtTime(u.last)}</td>
+                    </tr>
+                  ))}
+                  {(stats.downloads?.per_user || []).length === 0 && (
+                    <tr><td colSpan={3} className="py-5 text-center text-ivory/40">no downloads with a signed-in user yet</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Section>
 
           <Section title="Recent users">
             <div className="overflow-x-auto">
@@ -274,6 +358,36 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     <div className="rounded-xl border border-ivory/10 bg-ivory/[.04] p-4 mb-4 overflow-hidden">
       <h3 className="text-[14px] font-medium mb-3 text-ivory/80">{title}</h3>
       {children}
+    </div>
+  );
+}
+
+function BreakdownBox({ label, data }: { label: string; data: Record<string, number> }) {
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  return (
+    <div className="rounded-lg border border-ivory/10 bg-ivory/[.02] p-3">
+      <div className="text-[10px] uppercase tracking-wider text-ivory/50 mb-2">{label}</div>
+      {entries.length === 0 ? (
+        <div className="text-[12px] text-ivory/30">no data</div>
+      ) : (
+        <ul className="space-y-1.5">
+          {entries.slice(0, 8).map(([k, v]) => {
+            const pct = total > 0 ? (v / total) * 100 : 0;
+            return (
+              <li key={k} className="text-[12px]">
+                <div className="flex justify-between font-mono">
+                  <span className="truncate text-ivory/80 mr-2" title={k}>{k}</span>
+                  <span className="text-ivory/60">{v}</span>
+                </div>
+                <div className="mt-1 h-1 rounded-full bg-ivory/[.05] overflow-hidden">
+                  <div className="h-full bg-veronum/60" style={{ width: `${pct}%` }} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
