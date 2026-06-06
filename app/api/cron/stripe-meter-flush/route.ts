@@ -17,8 +17,8 @@
  * overage price, $0.03/unit for PAYG) apply the 2x/3x multiplier and
  * include the amount on the user's next invoice.
  *
- * For flat-plan ('chad') users, the first $15 of usage is included in
- * the $25/mo flat fee — we only report the OVERAGE portion past 1500
+ * For flat-plan ('chad') users, the first $25 of usage is included in
+ * the $25/mo flat fee — we only report the OVERAGE portion past 2500
  * cents of consumed.
  *
  * Idempotency: each meter event is sent with a deterministic
@@ -58,7 +58,7 @@ export const maxDuration = 60;
 // is missing (we never want to silently bill 100% of usage if config
 // is wrong).
 const FLAT_INCLUDED_CENTS = parseInt(
-  process.env.CHAD_INCLUDED_CENTS || "1500",
+  process.env.CHAD_INCLUDED_CENTS || "2500",
   10,
 );
 const METER_EVENT_NAME =
@@ -90,7 +90,7 @@ type UserRow = {
 
 // Compute the raw cents to report to Stripe for this period.
 // - PAYG users: report everything (delta from consumed - already reported)
-// - Flat ('chad') users: report only the portion past the $15 included
+// - Flat ('chad') users: report only the portion past the $25 included
 function billableCents(u: UserRow): number {
   const consumed = u.period_consumed_cents || 0;
   const alreadyReported = u.period_billed_to_stripe_cents || 0;

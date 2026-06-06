@@ -1,5 +1,57 @@
 @import "tailwindcss";
 
+/* VS Code Seti UI icon font — used by /compare's file tree to show
+   per-file-type icons (TypeScript, Python, Markdown, etc). The woff
+   ships at /public/seti/seti.woff (~37KB) and is paired with the
+   `setiIcons.ts` resolver that maps filenames → Private-Use codepoints.
+   Ported verbatim from veronum-overlay's renderer. */
+@font-face {
+  font-family: "seti";
+  src: url("/seti/seti.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+.seti-icon {
+  font-family: "seti";
+  font-weight: normal;
+  font-style: normal;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  display: inline-block;
+  line-height: 1;
+}
+
+/* VS Code Codicon font — used for folder + chevron glyphs (Seti has
+   no folder icons). Copied from Cursor.app/Contents/Resources/app/
+   out/media/codicon.ttf so /compare's tree renders the same folder
+   and chevron-right/chevron-down icons VS Code/Cursor use. */
+@font-face {
+  font-family: "codicon";
+  src: url("/seti/codicon.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+.codicon {
+  font-family: "codicon";
+  font-weight: normal;
+  font-style: normal;
+  text-decoration: none;
+  text-rendering: auto;
+  text-align: center;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  display: inline-block;
+}
+.codicon-folder:before         { content: "\ea83"; }
+.codicon-folder-opened:before  { content: "\eaf7"; }
+.codicon-chevron-right:before  { content: "\eab6"; }
+.codicon-chevron-down:before   { content: "\eab4"; }
+.codicon-file:before           { content: "\ea7b"; }
+
 @theme {
   /* Exact swatches lifted from anthropic.com's compiled CSS so colors
      match their site to the hex. clay = their brand orange, oat = the

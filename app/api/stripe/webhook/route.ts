@@ -26,7 +26,7 @@
  *     starts treating the user as a free-quota user again. The
  *     period_consumed_cents counter is intentionally NOT reset — that
  *     happens on the next *paid* renewal so a user can't "subscribe →
- *     use 25 cents free → cancel → re-subscribe" to dodge the cap.
+ *     use 10 cents free → cancel → re-subscribe" to dodge the cap.
  *
  * Env vars required (set in Vercel):
  *   STRIPE_SECRET_KEY            — sk_live_... or sk_test_...

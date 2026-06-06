@@ -60,7 +60,7 @@ export default function ChatRedirect() {
 
   // Find the user's bridge and redirect, or report what's missing.
   // Billing gate runs BEFORE the bridge lookup so a free user who's
-  // exhausted their $0.25 quota lands on the paywall instead of being
+  // exhausted their $0.10 quota lands on the paywall instead of being
   // bounced into the chat UI just to get 402'd on their first send.
   async function findBridgeAndRedirect() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -330,16 +330,16 @@ export default function ChatRedirect() {
               You&rsquo;ve used your free trial
             </h1>
             <p className="text-[14px] text-ink-faded mb-2">
-              Veronum gives you 25¢ of free use to try the chat and voice
+              Veronum gives you 10¢ of free use to try the chat and voice
               agent. You&rsquo;ve hit the cap — pick a plan below to keep
               going. Cancel anytime.
             </p>
             <p className="text-[13px] text-ink-faded mb-6">
               Used: <span className="font-mono text-ink">${(view.consumedCents / 100).toFixed(2)}</span> /
-              {" "}<span className="font-mono text-ink">$0.25</span>
+              {" "}<span className="font-mono text-ink">$0.10</span>
             </p>
 
-            {/* Plan picker — Subscribe (flat $25/mo, 2x overage past $15) vs
+            {/* Plan picker — Subscribe (flat $25/mo, 2x overage past $25) vs
                 Pay as you go (no flat, billed metered at 3x). Subscribe is
                 the primary recommendation for steady users; PAYG fits users
                 with bursty usage who don't want a monthly commitment. */}
@@ -355,7 +355,7 @@ export default function ChatRedirect() {
                   <span className="font-mono text-[14px] text-ink">$25/mo</span>
                 </div>
                 <p className="text-[13px] text-ink-faded mt-1">
-                  Includes $15 of usage at 1× rate. Overage billed at 2×. Cancel anytime.
+                  Includes $25 of usage at 1× rate. Overage billed at 2×. Cancel anytime.
                 </p>
                 <p className="text-[12px] text-ink mt-3 underline">Choose subscribe →</p>
               </a>

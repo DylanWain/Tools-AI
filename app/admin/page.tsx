@@ -30,7 +30,19 @@ type Stats = {
   terminal_opens?: number;
   voice_sessions?: number;
   installs?: { total_paired: number; paired_in_range: number };
-  usage?: { total_billed_cents: number; mtd_billed_cents: number };
+  usage?: {
+    total_billed_cents: number;
+    mtd_billed_cents: number;
+    // Cost layer (populated by veronum_admin_cost_stats — what WE pay
+    // OpenAI vs what we charge users). Optional because the RPC is
+    // additive; if it errors the existing usage card still renders.
+    total_consumed_cents?: number;
+    mtd_consumed_cents?: number;
+    range_consumed_cents?: number;
+    range_billed_cents?: number;
+    margin_cents?: number;
+    cost_by_api?: Record<string, number>;
+  };
   recent_users?: Array<{ id: string; email: string | null; tier: string; last_call_at: string | null; period_billed_cents: number | null; created_at: string | null }>;
   recent_downloads?: Array<{ ts: string; source: string | null; app_version: string | null; user_email: string | null }>;
 };
@@ -104,9 +116,37 @@ export default function AdminPage() {
     setLoadError(null);
     const to = new Date().toISOString();
     const from = new Date(Date.now() - days * 86400_000).toISOString();
-    const { data, error } = await getClient().rpc("veronum_admin_stats", { p_from: from, p_to: to });
-    if (error) { setLoadError(error.message); return; }
-    setStats((data ?? null) as Stats);
+    const supabase = getClient();
+    // Fetch the main dashboard + the cost breakdown in parallel. The
+    // cost RPC is additive — if it fails (e.g. migration not yet
+    // applied), we still render the existing cards with whatever the
+    // main RPC returned.
+    const [statsRes, costRes] = await Promise.all([
+      supabase.rpc("veronum_admin_stats", { p_from: from, p_to: to }),
+      supabase.rpc("veronum_admin_cost_stats", { p_from: from, p_to: to }),
+    ]);
+    if (statsRes.error) { setLoadError(statsRes.error.message); return; }
+    const base = (statsRes.data ?? {}) as Stats;
+    if (!costRes.error && costRes.data && typeof costRes.data === "object" && !("error" in costRes.data)) {
+      const c = costRes.data as {
+        total_consumed_cents?: number;
+        mtd_consumed_cents?: number;
+        range_consumed_cents?: number;
+        range_billed_cents?: number;
+        margin_cents?: number;
+        cost_by_api?: Record<string, number>;
+      };
+      base.usage = {
+        ...(base.usage ?? { total_billed_cents: 0, mtd_billed_cents: 0 }),
+        total_consumed_cents: c.total_consumed_cents,
+        mtd_consumed_cents: c.mtd_consumed_cents,
+        range_consumed_cents: c.range_consumed_cents,
+        range_billed_cents: c.range_billed_cents,
+        margin_cents: c.margin_cents,
+        cost_by_api: c.cost_by_api,
+      };
+    }
+    setStats(base);
   }
 
   async function sendMagicLink(e: React.FormEvent) {
@@ -217,6 +257,50 @@ export default function AdminPage() {
             <Card label="Active 24h / 7d / 30d" num={stats.users?.active_24h ?? 0} sub={`${stats.users?.active_7d ?? 0} · ${stats.users?.active_30d ?? 0}`} />
             <Card label="Total billed" num={fmtCents(stats.usage?.total_billed_cents)} sub={`MTD ${fmtCents(stats.usage?.mtd_billed_cents)}`} />
           </div>
+
+          {/* Cost analytics row — separate strip so the "money we owe
+              OpenAI vs money we're collecting" view reads at a glance. */}
+          <div className="mb-2 mt-6 flex items-baseline gap-2">
+            <h3 className="text-[11px] uppercase tracking-wider text-ivory/50">Cost · margin</h3>
+            <span className="text-[10px] text-ivory/30">what we pay OpenAI vs what we should be getting</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <Card
+              label="API cost (we pay)"
+              num={fmtCents(stats.usage?.range_consumed_cents)}
+              sub={`MTD ${fmtCents(stats.usage?.mtd_consumed_cents)} · all-time ${fmtCents(stats.usage?.total_consumed_cents)}`}
+            />
+            <Card
+              label="Billed in range"
+              num={fmtCents(stats.usage?.range_billed_cents)}
+              sub="metered events only (voice, whisper, web-search)"
+            />
+            <Card
+              label="Margin"
+              num={fmtCents(stats.usage?.margin_cents)}
+              sub={(() => {
+                const billed = stats.usage?.range_billed_cents ?? 0;
+                const consumed = stats.usage?.range_consumed_cents ?? 0;
+                if (!billed) return "—";
+                const pct = ((billed - consumed) / billed) * 100;
+                return `${pct.toFixed(0)}% of billed`;
+              })()}
+            />
+            <Card
+              label="Avg margin multiplier"
+              num={(() => {
+                const consumed = stats.usage?.range_consumed_cents ?? 0;
+                const billed = stats.usage?.range_billed_cents ?? 0;
+                if (!consumed) return "—";
+                return `${(billed / consumed).toFixed(2)}×`;
+              })()}
+              sub="billed ÷ consumed in range"
+            />
+          </div>
+
+          <Section title="Cost by API (in range)">
+            <BreakdownBox label="raw_cents by service" data={stats.usage?.cost_by_api || {}} />
+          </Section>
 
           <Section title="How they're coding (in range)">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

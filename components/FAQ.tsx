@@ -25,7 +25,7 @@ const faqs = [
   },
   {
     q: "How does the trial work?",
-    a: "Every account starts with 25¢ of usage for free — no card needed. Once you hit the cap, pick a plan: $25/month flat (includes $15 of usage at the base rate, 2× after) or pay-as-you-go at 3× per use with no monthly fee. The plan picker appears in your chat as soon as you exceed the free amount.",
+    a: "Every account starts with 10¢ of usage for free — no card needed. Once you hit the cap, pick a plan: $25/month flat (includes $25 of usage at the base rate, 2× after) or pay-as-you-go at 3× per use with no monthly fee. The plan picker appears in your chat as soon as you exceed the free amount.",
   },
   {
     q: "Can I cancel?",

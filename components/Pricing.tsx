@@ -4,8 +4,8 @@ import { DownloadLink } from "./DownloadLink";
 /**
  * Pricing — two-tier model matching the actual Stripe products + free trial:
  *
- *   Free trial:  $0.25 of usage, no card needed
- *   Subscribe:   $25 / month, includes $15 of usage at 1x, 2x after
+ *   Free trial:  $0.10 of usage, no card needed
+ *   Subscribe:   $25 / month, includes $25 of usage at 1x, 2x after
  *   Pay-as-you-go: no flat fee, billed 3x per use, card on file
  *
  * The Subscribe CTA goes straight to the Stripe Payment Link (existing
@@ -38,9 +38,9 @@ export function Pricing() {
             className="text-ink/85 leading-relaxed max-w-[55ch] mb-8"
             style={{ fontSize: "var(--paragraph-m)" }}
           >
-            Try Veronum for free — every account starts with 25&cent; of
+            Try Veronum for free — every account starts with 10&cent; of
             usage, no card needed. After that, pick a plan: $25 a month
-            (covers $15 of usage at the base rate, 2&times; after) or
+            (covers $25 of usage at the base rate, 2&times; after) or
             pay-as-you-go at 3&times; per use with no monthly fee.
             Cancel anytime through Stripe.
           </p>
@@ -58,7 +58,7 @@ export function Pricing() {
               href="/chat"
               className="inline-flex items-center border border-ink/30 text-ink px-5 py-3 rounded-full text-[14.5px] font-medium hover:bg-ink/[0.04] transition"
             >
-              Try free (25&cent;) or pay-as-you-go
+              Try free (10&cent;) or pay-as-you-go
             </a>
           </div>
           <p className="mt-4 text-[14px] text-ink-faded">
