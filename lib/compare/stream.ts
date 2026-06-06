@@ -8,7 +8,7 @@
  * for debugging, and lets each provider's quirks stay isolated.
  */
 
-import type { CompareModel } from "./models";
+import { providerKey, type CompareModel } from "./models";
 import type { WireAttachment } from "./attachments";
 
 export type Chunk = { text?: string; done?: boolean; error?: string };
@@ -69,8 +69,8 @@ function buildTextPreamble(atts: WireAttachment[]): string {
 // We parse incrementally and yield content deltas.
 // ──────────────────────────────────────────────────────────────
 async function* streamOpenAI(m: CompareModel, prompt: string, sys: string, atts: WireAttachment[], history: ChatMessage[]): AsyncGenerator<Chunk> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) { yield { error: "OPENAI_API_KEY not set on server" }; return; }
+  const key = providerKey("openai");
+  if (!key) { yield { error: "OPENAI_API_KEY (or OPENAI_KEY) not set on server" }; return; }
   const images = atts.filter((a) => a.isImage && a.image);
   const userContent: unknown = images.length === 0
     ? prompt
@@ -120,8 +120,8 @@ async function* streamOpenAI(m: CompareModel, prompt: string, sys: string, atts:
 // Anthropic — Messages API with stream=true.
 // ──────────────────────────────────────────────────────────────
 async function* streamAnthropic(m: CompareModel, prompt: string, sys: string, atts: WireAttachment[], history: ChatMessage[]): AsyncGenerator<Chunk> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) { yield { error: "ANTHROPIC_API_KEY not set on server" }; return; }
+  const key = providerKey("anthropic");
+  if (!key) { yield { error: "ANTHROPIC_API_KEY (or ANTHROPIC_KEY) not set on server" }; return; }
   // Anthropic supports content arrays with image AND document blocks
   // (native PDF). Mix in the user's images + PDFs alongside the text.
   const blocks: unknown[] = [];
@@ -171,8 +171,8 @@ async function* streamAnthropic(m: CompareModel, prompt: string, sys: string, at
 // mode the final frame puts the answer in `choices[0].message.content`
 // (not `delta.content` like real OpenAI). We accept either.
 async function* streamPerplexity(m: CompareModel, prompt: string, sys: string, atts: WireAttachment[], history: ChatMessage[]): AsyncGenerator<Chunk> {
-  const key = process.env.PERPLEXITY_API_KEY;
-  if (!key) { yield { error: "PERPLEXITY_API_KEY not set on server" }; return; }
+  const key = providerKey("perplexity");
+  if (!key) { yield { error: "PERPLEXITY_API_KEY (or PERPLEXITY_KEY) not set on server" }; return; }
   // Sonar Pro accepts images via OpenAI-compatible image_url blocks.
   // Basic Sonar is text-only — we silently drop images for it; users
   // see "image attached" badge in the UI but no error.
@@ -221,8 +221,8 @@ async function* streamPerplexity(m: CompareModel, prompt: string, sys: string, a
 
 // Gemini streamGenerateContent — different envelope shape.
 async function* streamGemini(m: CompareModel, prompt: string, sys: string, atts: WireAttachment[], history: ChatMessage[]): AsyncGenerator<Chunk> {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) { yield { error: "GEMINI_API_KEY not set on server" }; return; }
+  const key = providerKey("gemini");
+  if (!key) { yield { error: "GEMINI_API_KEY (or GEMINI_KEYS) not set on server" }; return; }
   // Gemini takes images + PDFs as inline_data parts alongside text.
   const currentParts: unknown[] = [];
   for (const a of atts) {
@@ -257,8 +257,8 @@ async function* streamGemini(m: CompareModel, prompt: string, sys: string, atts:
 
 // xAI Grok — OpenAI-compatible.
 async function* streamXAI(m: CompareModel, prompt: string, sys: string, atts: WireAttachment[], history: ChatMessage[]): AsyncGenerator<Chunk> {
-  const key = process.env.XAI_API_KEY;
-  if (!key) { yield { error: "XAI_API_KEY not set on server" }; return; }
+  const key = providerKey("xai");
+  if (!key) { yield { error: "XAI_API_KEY (or XAI_KEY) not set on server" }; return; }
   // grok-vision-* / grok-2-vision-1212 accept image_url like OpenAI.
   // Non-vision Grok 3 silently drops images.
   const images = atts.filter((a) => a.isImage && a.image);

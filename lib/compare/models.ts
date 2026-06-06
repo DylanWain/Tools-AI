@@ -177,14 +177,36 @@ export const MODELS: CompareModel[] = [
   },
 ];
 
-/** Returns whether a provider has its env key set on the server. */
+/** Returns whether a provider has its env key set on the server.
+ *  Accepts BOTH naming conventions — the standard `*_API_KEY` AND
+ *  the shorter `*_KEY` aliases that older deploys use. Gemini also
+ *  accepts a comma-separated `GEMINI_KEYS` list (we only need one). */
 export function providerAvailable(p: ProviderId): boolean {
+  return !!providerKey(p);
+}
+
+/** Resolve the actual key string for a provider. Returns null if no
+ *  env var is set under any of the accepted names. Shared by
+ *  `providerAvailable` (above) and the stream handlers in stream.ts. */
+export function providerKey(p: ProviderId): string | null {
+  const env = process.env;
   switch (p) {
-    case "openai":     return !!process.env.OPENAI_API_KEY;
-    case "anthropic":  return !!process.env.ANTHROPIC_API_KEY;
-    case "perplexity": return !!process.env.PERPLEXITY_API_KEY;
-    case "gemini":     return !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_API_KEY;
-    case "xai":        return !!process.env.XAI_API_KEY;
+    case "openai":     return env.OPENAI_API_KEY     || env.OPENAI_KEY     || null;
+    case "anthropic":  return env.ANTHROPIC_API_KEY  || env.ANTHROPIC_KEY  || null;
+    case "perplexity": return env.PERPLEXITY_API_KEY || env.PERPLEXITY_KEY || null;
+    case "xai":        return env.XAI_API_KEY        || env.XAI_KEY        || null;
+    case "gemini": {
+      // GEMINI_KEYS can be a comma-separated list (older deploys hold
+      // multiple keys for rotation). Take the first non-empty one.
+      const single = env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.GEMINI_KEY;
+      if (single) return single;
+      const list = env.GEMINI_KEYS;
+      if (list) {
+        const first = list.split(",").map((s) => s.trim()).find(Boolean);
+        if (first) return first;
+      }
+      return null;
+    }
   }
 }
 
