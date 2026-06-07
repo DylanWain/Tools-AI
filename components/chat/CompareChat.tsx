@@ -17,7 +17,7 @@
  * the mode to whatever the session was.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { MODELS, type ProviderId } from "@/lib/compare/models";
 import {
@@ -179,11 +179,51 @@ export function CompareChat({ availableProviders }: Props) {
   // Auth-required modal — pops when /api/compare returns 401 on a Send
   // attempt and the user isn't currently signed in. Mutually exclusive
   // with the paywall (you need a JWT for 402 to be possible at all).
-  // Auto-hides the moment `signedIn` flips to true, no manual dismissal.
   const authRequired = useMemo(() => {
     if (signedIn) return false;
     return Object.values(runs).some((r) => r.errorKind === "auth");
   }, [runs, signedIn]);
+
+  /** Clear auth-errored runs so the auth modal closes and the user
+   *  sees the composer again. Called from the modal's backdrop click,
+   *  Escape key, and after a successful sign-in (right before retry). */
+  const clearAuthErrors = useCallback(() => {
+    const cleaned: Record<string, RunState> = {};
+    for (const [id, r] of Object.entries(runs)) {
+      if (r.errorKind !== "auth") cleaned[id] = r;
+    }
+    replaceState(cleaned, lastSlots);
+  }, [runs, lastSlots, replaceState]);
+
+  // Auto-retry on sign-in. The user clicked a magic link, came back
+  // signed in — we want them to SEE THE RESPONSES to the prompt they
+  // originally tried to send, not stale "unauthenticated" error cards.
+  // Fires the previously-blocked slots again now that the bearer token
+  // is available. Only runs when signedIn flips true AND we have a
+  // batch with auth errors to retry — no-op otherwise.
+  useEffect(() => {
+    if (!signedIn) return;
+    const hasAuthErrors = Object.values(runs).some((r) => r.errorKind === "auth");
+    if (!hasAuthErrors || lastSlots.length === 0) return;
+    // Re-fire the same slots; useCompareStream's start() resets the
+    // runs map for these IDs, so the stale errors get replaced with
+    // fresh streaming state.
+    void start(lastSlots);
+    // intentionally only depend on signedIn — we want this to fire
+    // ONCE when sign-in completes, not every time runs/lastSlots change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn]);
+
+  // Escape key dismisses the auth modal (matches the modal pattern in
+  // VersionHistoryModal). Only active while the modal is showing.
+  useEffect(() => {
+    if (!authRequired) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") clearAuthErrors();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [authRequired, clearAuthErrors]);
   // Compare-mode transcript. Every completed Send becomes one FrozenTurn
   // here; lastSlots/runs hold the IN-FLIGHT (or most recent) batch.
   // When the user submits a new prompt, the current live batch is frozen
@@ -808,12 +848,16 @@ export function CompareChat({ availableProviders }: Props) {
 
       {authRequired && (
         <div
+          onClick={clearAuthErrors}
           className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Sign in to send"
         >
-          <CompareAuthGate onSignedIn={() => setSignedIn(true)} />
+          {/* stopPropagation so clicks on the card itself don't dismiss. */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <CompareAuthGate onSignedIn={() => setSignedIn(true)} />
+          </div>
         </div>
       )}
 

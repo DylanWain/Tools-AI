@@ -37,8 +37,12 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
     setBusy(true);
     try {
       const supabase = getBrowserSupabase();
+      // Redirect to "/" directly (not "/compare" → 308 → "/") so the
+      // browser preserves the access_token URL fragment without ever
+      // bouncing through a redirect — fragments survive 308s in most
+      // browsers but it's fragile, so avoid it.
       const redirect = typeof window !== "undefined"
-        ? `${window.location.origin}/compare`
+        ? `${window.location.origin}/`
         : undefined;
       const { error } = await supabase.auth.signInWithOtp({
         email: target,
@@ -46,10 +50,10 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
       });
       if (error) throw error;
       setSent(true);
-      // Once the magic link is clicked, the redirect will come back
-      // to /compare with the access_token in the URL fragment;
-      // detectSessionInUrl handles it. Parent component listens for
-      // auth-state changes and fires onSignedIn.
+      // Once the magic link is clicked, the redirect lands back on /
+      // with the access_token in the URL fragment; detectSessionInUrl
+      // (configured in lib/supabase.ts) parses it. The parent
+      // component listens for auth-state changes and fires onSignedIn.
     } catch (e) {
       setErr((e as Error).message || "Failed to send magic link.");
     } finally {
