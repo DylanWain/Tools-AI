@@ -56,7 +56,7 @@ export type CompareSession = {
   id: string;
   title: string;              // first ~60 chars of the prompt / synthesized for agents
   createdAt: number;          // epoch ms
-  mode: "compare" | "agents"; // default 'compare' for backward compat
+  mode: "compare" | "agents" | "auto-research"; // default 'compare' for backward compat
   // Compare-mode fields
   prompt?: string;            // the single user prompt fan'd out to N models
   modelIds?: string[];        // which models the user picked
@@ -114,7 +114,7 @@ function isValidSession(s: unknown): s is CompareSession {
   if (typeof r.runs !== "object") return false;
   // Mode is optional for back-compat — pre-existing rows without
   // `mode` are treated as compare. Normalize on read.
-  if (r.mode && r.mode !== "compare" && r.mode !== "agents") return false;
+  if (r.mode && r.mode !== "compare" && r.mode !== "agents" && r.mode !== "auto-research") return false;
   return true;
 }
 

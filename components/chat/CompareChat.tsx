@@ -182,10 +182,14 @@ export function CompareChat({ availableProviders }: Props) {
   useEffect(() => {
     if (!signedIn) { setIsSubscribed(null); return; }
     let cancelled = false;
-    getBrowserSupabase()
-      .rpc("veronum_my_billing_state")
-      .single()
-      .then(({ data }) => {
+    // Wrap in async IIFE — supabase's .single() returns a PromiseLike
+    // that doesn't expose .catch(), so the try/catch shape is cleaner
+    // than chaining .then().catch().
+    (async () => {
+      try {
+        const { data } = await getBrowserSupabase()
+          .rpc("veronum_my_billing_state")
+          .single();
         if (cancelled) return;
         const b = data as {
           tier?: string;
@@ -194,8 +198,10 @@ export function CompareChat({ availableProviders }: Props) {
         const tier = b?.tier ?? "free";
         const ok = !!b?.has_active_subscription || tier === "chad" || tier === "payg" || tier === "admin";
         setIsSubscribed(ok);
-      })
-      .catch(() => { if (!cancelled) setIsSubscribed(false); });
+      } catch {
+        if (!cancelled) setIsSubscribed(false);
+      }
+    })();
     return () => { cancelled = true; };
   }, [signedIn]);
   // Derive paywall context from any over-quota run. The route returns
@@ -522,6 +528,10 @@ export function CompareChat({ availableProviders }: Props) {
   // Persist the session whenever runs finish + we have an active id.
   useEffect(() => {
     if (!currentId || lastSlots.length === 0 || busy) return;
+    // Auto-research sessions aren't persisted yet — pipeline_steps +
+    // per-step outputs aren't in the CompareSession shape. Bail
+    // rather than save a partial/broken row that won't rehydrate.
+    if (mode === "auto-research") return;
     const finalRuns: Record<string, SessionRun> = {};
     let anyFinished = false;
     for (const slot of lastSlots) {
