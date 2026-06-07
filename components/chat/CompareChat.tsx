@@ -179,15 +179,21 @@ export function CompareChat({ availableProviders }: Props) {
   // Auth-required modal — pops when /api/compare returns 401 on a Send
   // attempt and the user isn't currently signed in. Mutually exclusive
   // with the paywall (you need a JWT for 402 to be possible at all).
+  // Also pops when the user clicks "Sign in" in the bottom-left
+  // sidebar footer (manualAuthOpen).
+  const [manualAuthOpen, setManualAuthOpen] = useState(false);
   const authRequired = useMemo(() => {
     if (signedIn) return false;
+    if (manualAuthOpen) return true;
     return Object.values(runs).some((r) => r.errorKind === "auth");
-  }, [runs, signedIn]);
+  }, [runs, signedIn, manualAuthOpen]);
 
-  /** Clear auth-errored runs so the auth modal closes and the user
-   *  sees the composer again. Called from the modal's backdrop click,
-   *  Escape key, and after a successful sign-in (right before retry). */
+  /** Clear auth-errored runs AND drop the manual "Sign in" flag so the
+   *  auth modal closes and the user sees the composer again. Called
+   *  from the modal's backdrop click, Escape key, and after a
+   *  successful sign-in (right before retry). */
   const clearAuthErrors = useCallback(() => {
+    setManualAuthOpen(false);
     const cleaned: Record<string, RunState> = {};
     for (const [id, r] of Object.entries(runs)) {
       if (r.errorKind !== "auth") cleaned[id] = r;
@@ -722,6 +728,7 @@ export function CompareChat({ availableProviders }: Props) {
         onNewChat={newChat}
         onLoad={loadSession}
         onDelete={removeSession}
+        onRequestSignIn={() => setManualAuthOpen(true)}
       />
 
       <div className="flex-1 min-w-0 flex flex-col">

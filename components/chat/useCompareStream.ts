@@ -349,6 +349,7 @@ async function runOne(
       // responses carry context the UI uses to render its prompts.
       let errBody: {
         error?: string;
+        detail?: string;
         userId?: string;
         consumedCents?: number;
         freeTrialCents?: number;
@@ -361,9 +362,15 @@ async function runOne(
       } else if (r.status === 402 || code === "over_quota") {
         errorKind = "over_quota";
       }
+      // Prefer the detailed actionable message when the server sent one
+      // (e.g. lookup_failed → "SUPABASE_SERVICE_ROLE_KEY missing …").
+      // Falls back to the bare code so the user always sees something.
+      const message = errBody.detail
+        ? `${code}: ${errBody.detail}`
+        : code || `HTTP ${r.status}`;
       patch({
         status: "error",
-        error: code || `HTTP ${r.status}`,
+        error: message,
         errorKind,
         consumedCents: errBody.consumedCents,
         freeTrialCents: errBody.freeTrialCents,

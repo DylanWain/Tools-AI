@@ -76,10 +76,17 @@ export function serverSupabase(): SupabaseClient {
  * through to the anon client.
  */
 export function serverSupabaseAdmin(): SupabaseClient {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Accept the standard name AND a couple of common aliases — different
+  // deploys (and older Vercel projects) name this variously. Fail loud
+  // with an actionable message if none of them are set.
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY;
   if (!key) {
     throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY missing — set it in Vercel env vars before invoking admin paths.",
+      "SUPABASE_SERVICE_ROLE_KEY missing — set it in Vercel → Project → Settings → Environment Variables. Get the value from Supabase dashboard → Project → Settings → API → 'service_role' secret (the long JWT, not the anon key).",
     );
   }
   return createClient(SUPABASE_URL, key, {

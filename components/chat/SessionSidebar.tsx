@@ -23,10 +23,15 @@
  * on phones.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { CompareSession } from "@/lib/compare/sessions";
 import { VeronumMark } from "@/components/VeronumMark";
+import { getBrowserSupabase } from "@/lib/supabase";
+
+// Same Stripe Payment Link the /compare paywall + /chat page use —
+// one source of truth for the subscribe URL.
+const STRIPE_CHECKOUT_BASE = "https://buy.stripe.com/fZu28tb3x9aufwJeLt1sQ00";
 
 type Props = {
   sessions: CompareSession[];
@@ -34,12 +39,34 @@ type Props = {
   onNewChat: () => void;
   onLoad: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Opens the sign-in modal. Pulled up from CompareChat so the sidebar
+   *  doesn't need to own a second magic-link form — same flow as the
+   *  one that pops on Send 401. */
+  onRequestSignIn?: () => void;
 };
 
-export function SessionSidebar({ sessions, currentId, onNewChat, onLoad, onDelete }: Props) {
+export function SessionSidebar({
+  sessions, currentId, onNewChat, onLoad, onDelete, onRequestSignIn,
+}: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
   const buckets = useMemo(() => bucketByRecency(sessions), [sessions]);
+
+  // Auth state for the bottom-left footer. Watches Supabase session
+  // changes so signing in from anywhere (Send→modal, magic link return)
+  // immediately updates the avatar / email / menu items.
+  const [account, setAccount] = useState<{ email: string; id: string } | null>(null);
+  useEffect(() => {
+    const supabase = getBrowserSupabase();
+    const apply = (session: { user?: { email?: string | null; id?: string } } | null) => {
+      const email = session?.user?.email;
+      const id = session?.user?.id;
+      setAccount(email && id ? { email, id } : null);
+    };
+    supabase.auth.getSession().then(({ data }) => apply(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => apply(session));
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   if (collapsed) {
     return (
@@ -140,7 +167,139 @@ export function SessionSidebar({ sessions, currentId, onNewChat, onLoad, onDelet
           </div>
         )}
       </div>
+
+      {/* Bottom-left account / settings menu — Veronum-style.
+          When signed out: prompt to sign in. When signed in: avatar
+          initial + truncated email + popover menu (Subscribe / Sign out). */}
+      <AccountFooter account={account} onRequestSignIn={onRequestSignIn} />
     </aside>
+  );
+}
+
+/** Bottom-of-sidebar account row + popover menu. Matches the
+ *  bottom-left avatar pattern from the Veronum desktop app and from
+ *  Claude/Cursor's sidebars — Settings + Sign out live here, NOT in
+ *  the top nav. (See user memory: 'Veronum: Settings lives in
+ *  bottom-left avatar menu — Match Claude/Cursor'.) */
+function AccountFooter({
+  account, onRequestSignIn,
+}: {
+  account: { email: string; id: string } | null;
+  onRequestSignIn?: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  // Click-away to close the popover. Listening on mousedown rather
+  // than click so dragging selections inside the menu doesn't close it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (wrapRef.current.contains(e.target as Node)) return;
+      setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  async function signOut() {
+    setMenuOpen(false);
+    try {
+      const { error } = await getBrowserSupabase().auth.signOut();
+      if (error) console.warn("[sidebar] signOut error:", error.message);
+    } catch (e) {
+      console.warn("[sidebar] signOut threw:", (e as Error).message);
+    }
+  }
+
+  // Signed-out: small row that opens the sign-in modal (same modal
+  // used by Send→401). We never inline a second magic-link form here
+  // — one source of truth, less code to keep in sync.
+  if (!account) {
+    return (
+      <div className="px-2 pb-3 shrink-0">
+        <button
+          type="button"
+          onClick={onRequestSignIn}
+          className="w-full inline-flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.06] text-white/85 hover:text-white text-[13.5px] transition-colors"
+        >
+          <span
+            aria-hidden
+            className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-white/[0.08] text-white/55 text-[12px]"
+          >
+            ?
+          </span>
+          <span className="truncate">Sign in</span>
+        </button>
+      </div>
+    );
+  }
+
+  const initial = account.email.charAt(0).toUpperCase();
+  const subscribeHref = `${STRIPE_CHECKOUT_BASE}?client_reference_id=${encodeURIComponent(account.id)}`;
+  return (
+    <div ref={wrapRef} className="relative px-2 pb-3 shrink-0">
+      {menuOpen && (
+        <div
+          role="menu"
+          aria-label="Account menu"
+          className="absolute left-2 right-2 bottom-[calc(100%-8px)] mb-1 rounded-xl border border-white/10 bg-[#161616] shadow-[0_-12px_40px_rgba(0,0,0,0.45)] p-1.5 z-50"
+        >
+          <div className="px-3 py-2 border-b border-white/[0.06] mb-1">
+            <div className="text-[11px] uppercase tracking-wider text-white/35 font-mono">
+              Signed in
+            </div>
+            <div className="text-[13px] text-white/95 truncate mt-0.5" title={account.email}>
+              {account.email}
+            </div>
+          </div>
+          <a
+            href={subscribeHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            role="menuitem"
+            className="block px-3 py-2 rounded-lg text-[13px] text-white/85 hover:text-white hover:bg-white/[0.06] transition-colors"
+          >
+            Subscribe — $25 / month
+          </a>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={signOut}
+            className="w-full text-left px-3 py-2 rounded-lg text-[13px] text-white/85 hover:text-white hover:bg-white/[0.06] transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => setMenuOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        className="w-full inline-flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/[0.06] text-white/90 hover:text-white transition-colors"
+        title={account.email}
+      >
+        <span
+          aria-hidden
+          className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#d97757] text-white text-[12.5px] font-medium shrink-0"
+        >
+          {initial}
+        </span>
+        <span className="flex-1 min-w-0 text-left text-[13px] text-white/85 truncate">
+          {account.email}
+        </span>
+        <span aria-hidden className="text-white/45 text-[10px]">···</span>
+      </button>
+    </div>
   );
 }
 
