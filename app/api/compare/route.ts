@@ -25,6 +25,7 @@
  *   data: {"error": "..."}       // upstream rejected / network failed
  */
 
+import { after } from "next/server";
 import { findModel } from "@/lib/compare/models";
 import { streamCompletion, type ChatMessage } from "@/lib/compare/stream";
 import type { WireAttachment } from "@/lib/compare/attachments";
@@ -102,24 +103,28 @@ export async function POST(req: Request) {
   if (!decision.ok) {
     if (decision.reason === "over_quota") {
       // Log the paywall hit so the admin "activation funnel" knows
-      // they were turned away. Fire-and-forget; failures don't block.
-      logCompareEvent({
-        userId: decision.userId,
-        userEmail: decision.userEmail,
-        mode,
-        modelId,
-        prompt,
-        inputTokens: 0,
-        outputTokens: 0,
-        costCents: 0,
-        status: "error",
-        errorKind: "over_quota",
-        sessionId,
-        turnIndex,
-        durationMs: 0,
-      }).catch((e) => {
-        console.warn(`[/api/compare] paywall-log failed: ${(e as Error).message}`);
-      });
+      // they were turned away. Wrapped in after() so Vercel keeps the
+      // function alive until the write lands — fire-and-forget after
+      // a `return new Response(...)` is unreliable on Fluid Compute.
+      after(() =>
+        logCompareEvent({
+          userId: decision.userId,
+          userEmail: decision.userEmail,
+          mode,
+          modelId,
+          prompt,
+          inputTokens: 0,
+          outputTokens: 0,
+          costCents: 0,
+          status: "error",
+          errorKind: "over_quota",
+          sessionId,
+          turnIndex,
+          durationMs: 0,
+        }).catch((e) => {
+          console.warn(`[/api/compare] paywall-log failed: ${(e as Error).message}`);
+        }),
+      );
       // Surface the data the /compare paywall needs to wire the
       // Subscribe Payment Link (client_reference_id) and PAYG checkout.
       return new Response(
@@ -169,8 +174,12 @@ export async function POST(req: Request) {
       const send = (obj: unknown) => {
         controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
       };
+      // Variables that the FINALLY block needs — must be declared
+      // outside the try so the analytics + cost write can see them
+      // regardless of whether the stream finished normally or threw.
       let outputChars = 0;
       let sawError = false;
+      let crashMsg: string | null = null;
       try {
         for await (const chunk of streamCompletion(model, prompt, systemPrompt, attachments, prevTurns)) {
           if (chunk.text) outputChars += chunk.text.length;
@@ -183,54 +192,64 @@ export async function POST(req: Request) {
           }
           if (chunk.error || chunk.done) break;
         }
-        // Tally cost ONLY when we got a usable response. Errors are
-        // free — the upstream didn't bill us, so we don't bill the
-        // user. Partial streams (output > 0 then error) still charge
-        // for what came through, since the upstream did bill us for
-        // those tokens.
+      } catch (err) {
+        crashMsg = err instanceof Error ? err.message : "stream_failed";
+        sawError = true;
+        console.error(`[/api/compare] ${model.id} crashed: ${crashMsg}`);
+        send({ error: crashMsg });
+      } finally {
+        // Compute final tallies. This block runs whether the stream
+        // succeeded, yielded an error frame, or threw — every path
+        // gets logged, every successful path gets billed.
         const outputTokens = estimateTokens("x".repeat(outputChars));
+        // Tally cost only when there's usable output. Pure errors are
+        // free; partial streams (some tokens then error) still charge
+        // for what came through since the upstream billed us for them.
         const tallyCents = (outputTokens > 0 || !sawError)
           ? costCents(model.id, inputTokens, outputTokens)
           : 0;
-        if (tallyCents > 0) {
-          // Fire-and-forget so we don't hold the response open
-          // while writing to the DB. Failures are logged but don't
-          // fail the request.
-          recordUsageCents(billUserId, tallyCents).catch((err) => {
-            console.error(
-              `[/api/compare] usage record failed for ${billUserId}: ${(err as Error).message}`,
-            );
-          });
-        }
         const durationMs = Date.now() - startedAt;
-        // Log the event for the /admin dashboard. One row per upstream
-        // stream; the dashboard groups by (session_id, turn_index) to
-        // reconstruct the parallel fan-out as a single user Send.
-        logCompareEvent({
-          userId: billUserId,
-          userEmail: billUserEmail,
-          mode,
-          modelId: model.id,
-          prompt,
-          inputTokens,
-          outputTokens,
-          costCents: tallyCents,
-          status: sawError ? "error" : "ok",
-          errorKind: sawError ? "upstream" : null,
-          sessionId,
-          turnIndex,
-          durationMs,
-        }).catch((e) => {
-          console.warn(`[/api/compare] event log failed: ${(e as Error).message}`);
+        // Schedule the DB writes via after(). On Vercel Fluid Compute,
+        // a streaming response's function instance gets suspended
+        // shortly after controller.close() — fire-and-forget Promises
+        // queued at that moment frequently never flush. after() tells
+        // the platform "keep this function alive until these resolve."
+        after(async () => {
+          if (tallyCents > 0) {
+            try {
+              await recordUsageCents(billUserId, tallyCents);
+            } catch (err) {
+              console.error(
+                `[/api/compare] usage record failed for ${billUserId}: ${(err as Error).message}`,
+              );
+            }
+          }
+          try {
+            await logCompareEvent({
+              userId: billUserId,
+              userEmail: billUserEmail,
+              mode,
+              modelId: model.id,
+              prompt,
+              inputTokens,
+              outputTokens,
+              costCents: tallyCents,
+              status: sawError ? "error" : "ok",
+              // Distinguish thrown crashes from upstream-yielded errors
+              // so the dashboard can separate "OpenAI rejected us" from
+              // "our function threw before getting a response."
+              errorKind: sawError ? (crashMsg ? "crash" : "upstream") : null,
+              sessionId,
+              turnIndex,
+              durationMs,
+            });
+          } catch (e) {
+            console.warn(`[/api/compare] event log failed: ${(e as Error).message}`);
+          }
         });
         console.log(
-          `[/api/compare] ${model.id} ok in=${inputTokens}tok out=${outputChars}ch in ${durationMs}ms`,
+          `[/api/compare] ${model.id} ${sawError ? "err" : "ok"} in=${inputTokens}tok out=${outputChars}ch tally=${tallyCents}c in ${durationMs}ms`,
         );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "stream_failed";
-        console.error(`[/api/compare] ${model.id} crashed: ${msg}`);
-        send({ error: msg });
-      } finally {
         controller.close();
       }
     },
