@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Newsreader, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { PageViewTracker } from "@/components/PageViewTracker";
+import { ActivityTracker } from "@/components/ActivityTracker";
 
 const newsreader = Newsreader({
   subsets: ["latin"],
@@ -49,6 +50,7 @@ export default function RootLayout({
     >
       <body>
         <PageViewTracker />
+        <ActivityTracker />
         {children}
       </body>
     </html>

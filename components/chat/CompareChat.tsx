@@ -78,6 +78,7 @@ import { AutoResearchComposer } from "./AutoResearchComposer";
 import { PipelineView, type PipelineSlot } from "./PipelineView";
 import { useCompareStream, type RunSlot, type RunState } from "./useCompareStream";
 import { getBrowserSupabase } from "@/lib/supabase";
+import { trackActivity } from "@/lib/activity/track";
 import {
   buildStepPrompt,
   buildStepSystemPrompt,
@@ -825,6 +826,9 @@ export function CompareChat({ availableProviders }: Props) {
     if (next === mode) return;
     // Block free users from entering auto-research mode entirely.
     if (next === "auto-research" && !isSubscribed) return;
+    // Log the toggle for the admin Activity tab BEFORE updating state
+    // so the from→to direction is captured accurately.
+    trackActivity({ kind: "mode_change", fromMode: mode, toMode: next });
     setMode(next);
     newChat();
     setGoal("");
