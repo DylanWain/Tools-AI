@@ -55,6 +55,14 @@ export type RunSlot = {
    *  had a "picked" winner card, only that winner's text is included.
    *  When omitted/empty, the request collapses to single-turn behavior. */
   prevTurns?: ChatMessage[];
+  /** Analytics — the compare-session id this Send belongs to. Lets the
+   *  /admin dashboard group the N parallel-fanout events back into a
+   *  single logical user Send. */
+  sessionId?: string;
+  /** Analytics — 0-indexed turn number within the session. */
+  turnIndex?: number;
+  /** Analytics — mode label for the event ('compare' or 'agents'). */
+  mode?: "compare" | "agents";
 };
 
 type RunsBySlot = Record<string, RunState>;
@@ -108,6 +116,9 @@ export function useCompareStream() {
    */
   const startWorkflow = useCallback(async (input: {
     goal: string;
+    /** Analytics — the compare session this multi-agent run belongs to.
+     *  Used to group worker rows in the admin dashboard. */
+    sessionId?: string;
     workers: Array<{
       id: string;
       modelId: string;
@@ -174,6 +185,9 @@ export function useCompareStream() {
         prompt: w.task,
         role: "worker",
         attachments: w.attachments,
+        sessionId: input.sessionId,
+        turnIndex: 0,
+        mode: "agents",
         systemPrompt:
           `You are Agent ${i + 1} (${w.modelLabel}) on a multi-model team working toward the SAME common goal.\n\n` +
           `Common goal:\n${input.goal.trim()}\n\n` +
@@ -341,6 +355,9 @@ async function runOne(
         ...(slot.prevTurns && slot.prevTurns.length
           ? { prevTurns: slot.prevTurns }
           : {}),
+        ...(slot.sessionId ? { sessionId: slot.sessionId } : {}),
+        ...(typeof slot.turnIndex === "number" ? { turnIndex: slot.turnIndex } : {}),
+        ...(slot.mode ? { mode: slot.mode } : {}),
       }),
       signal,
     });

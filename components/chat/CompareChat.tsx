@@ -620,10 +620,17 @@ export function CompareChat({ availableProviders }: Props) {
     //    assistant message — un-picked cards are skipped per
     //    popup.js:8124 logic.
     const history = buildHistory(frozenTurnsBefore);
+    // Analytics tagging — `sessionId` + `turnIndex` let the admin
+    // dashboard group the N parallel-fanout events into a single
+    // logical user Send. `mode` is the label used on the chart.
+    const turnIndex = frozenTurnsBefore.length;
     const slots: RunSlot[] = [...selected].map((modelId) => ({
       id: modelId, modelId, prompt,
       attachments: wire.length ? wire : undefined,
       prevTurns: history.length ? history : undefined,
+      sessionId: sessId,
+      turnIndex,
+      mode: "compare",
     }));
     await start(slots);
   }
@@ -640,6 +647,7 @@ export function CompareChat({ availableProviders }: Props) {
       .map(toWireAttachment);
     await startWorkflow({
       goal: goal.trim(),
+      sessionId: id,
       workers: filled.map((a, idx) => {
         const model = MODELS.find((m) => m.id === a.modelId);
         return {

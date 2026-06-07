@@ -32,7 +32,13 @@ import { serverSupabaseAdmin } from "@/lib/supabase";
 export const FREE_TRIAL_CENTS = 10;
 
 export type BillingDecision =
-  | { ok: true; userId: string; tier: string; consumedCents: number }
+  | {
+      ok: true;
+      userId: string;
+      userEmail: string | null;
+      tier: string;
+      consumedCents: number;
+    }
   | { ok: false; reason: "unauthenticated"; httpStatus: 401 }
   | { ok: false; reason: "invalid_token"; httpStatus: 401 }
   | {
@@ -40,6 +46,7 @@ export type BillingDecision =
       reason: "over_quota";
       httpStatus: 402;
       userId: string;
+      userEmail: string | null;
       consumedCents: number;
     }
   | { ok: false; reason: "lookup_failed"; httpStatus: 500; detail?: string };
@@ -81,12 +88,14 @@ export async function decideBilling(token: string | null): Promise<BillingDecisi
   // unexpected (e.g. network) as `invalid_token` so the client renders
   // the sign-in flow instead of a generic error.
   let userId: string;
+  let userEmail: string | null = null;
   try {
     const { data: userData, error: userErr } = await admin.auth.getUser(token);
     if (userErr || !userData?.user?.id) {
       return { ok: false, reason: "invalid_token", httpStatus: 401 };
     }
     userId = userData.user.id;
+    userEmail = userData.user.email ?? null;
   } catch {
     return { ok: false, reason: "invalid_token", httpStatus: 401 };
   }
@@ -120,7 +129,7 @@ export async function decideBilling(token: string | null): Promise<BillingDecisi
   // Their request gets metered via meter-flush instead.
   const hasActiveSub = subStatus === "active" || subStatus === "trialing";
   if (tier === "admin" || tier === "chad" || tier === "payg" || hasActiveSub) {
-    return { ok: true, userId, tier, consumedCents: consumed };
+    return { ok: true, userId, userEmail, tier, consumedCents: consumed };
   }
 
   // Free tier with consumption past the cap → paywall.
@@ -130,11 +139,12 @@ export async function decideBilling(token: string | null): Promise<BillingDecisi
       reason: "over_quota",
       httpStatus: 402,
       userId,
+      userEmail,
       consumedCents: consumed,
     };
   }
 
-  return { ok: true, userId, tier, consumedCents: consumed };
+  return { ok: true, userId, userEmail, tier, consumedCents: consumed };
 }
 
 /** Record raw API cost against the user. Bumps period_consumed_cents

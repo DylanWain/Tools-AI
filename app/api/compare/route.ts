@@ -35,6 +35,7 @@ import {
   recordUsageCents,
 } from "@/lib/compare/billing";
 import { costCents, estimateTokens } from "@/lib/compare/cost";
+import { logCompareEvent } from "@/lib/compare/analytics";
 
 // Node runtime — streaming long-running fetch + 3rd-party SDKs work
 // better here than on Edge, and we don't need geographic distribution.
@@ -54,6 +55,14 @@ export async function POST(req: Request) {
     systemPrompt?: string;
     attachments?: WireAttachment[];
     prevTurns?: ChatMessage[];
+    // Analytics-only fields. The client passes its current compare-
+    // session id + turn index so the admin dashboard can group the N
+    // parallel-fanout rows back into one logical Send. Both are
+    // OPTIONAL — older clients won't send them and the log row just
+    // carries nulls.
+    sessionId?: string;
+    turnIndex?: number;
+    mode?: string;
   };
   try { body = await req.json(); }
   catch { return jsonError("invalid_json", 400); }
@@ -63,6 +72,13 @@ export async function POST(req: Request) {
   const systemPrompt = typeof body.systemPrompt === "string" ? body.systemPrompt : undefined;
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
   const prevTurns = sanitizeHistory(body.prevTurns);
+  const sessionId = typeof body.sessionId === "string" ? body.sessionId.slice(0, 128) : null;
+  const turnIndex = typeof body.turnIndex === "number" && Number.isFinite(body.turnIndex)
+    ? Math.max(0, Math.min(10_000, Math.floor(body.turnIndex))) : null;
+  // Mode is just for the dashboard label. Whitelist so a malicious
+  // client can't write arbitrary strings into the analytics table.
+  const mode: "compare" | "agents" =
+    body.mode === "agents" ? "agents" : "compare";
 
   if (!prompt) return jsonError("prompt_required", 400);
   if (prompt.length > MAX_PROMPT_CHARS) {
@@ -85,6 +101,25 @@ export async function POST(req: Request) {
   const decision = await decideBilling(token);
   if (!decision.ok) {
     if (decision.reason === "over_quota") {
+      // Log the paywall hit so the admin "activation funnel" knows
+      // they were turned away. Fire-and-forget; failures don't block.
+      logCompareEvent({
+        userId: decision.userId,
+        userEmail: decision.userEmail,
+        mode,
+        modelId,
+        prompt,
+        inputTokens: 0,
+        outputTokens: 0,
+        costCents: 0,
+        status: "error",
+        errorKind: "over_quota",
+        sessionId,
+        turnIndex,
+        durationMs: 0,
+      }).catch((e) => {
+        console.warn(`[/api/compare] paywall-log failed: ${(e as Error).message}`);
+      });
       // Surface the data the /compare paywall needs to wire the
       // Subscribe Payment Link (client_reference_id) and PAYG checkout.
       return new Response(
@@ -121,10 +156,11 @@ export async function POST(req: Request) {
     prevTurns.reduce((n, t) => n + t.content.length, 0) +
     attachments.reduce((n, a) => n + (a.text?.length ?? 0), 0);
   const inputTokens = estimateTokens("x".repeat(inputCharCount));
-  // The captured user_id is what we bill against at end-of-stream.
-  // Stable across the stream's lifetime — even if the user signs out
-  // mid-stream, the cost still settles against this id.
+  // The captured user_id/email is what we bill + log against at
+  // end-of-stream. Stable across the stream's lifetime — even if the
+  // user signs out mid-stream, the cost still settles against this id.
   const billUserId = decision.userId;
+  const billUserEmail = decision.userEmail;
 
   const enc = new TextEncoder();
   const startedAt = Date.now();
@@ -153,21 +189,42 @@ export async function POST(req: Request) {
         // for what came through, since the upstream did bill us for
         // those tokens.
         const outputTokens = estimateTokens("x".repeat(outputChars));
-        if (outputTokens > 0 || !sawError) {
-          const cents = costCents(model.id, inputTokens, outputTokens);
-          if (cents > 0) {
-            // Fire-and-forget so we don't hold the response open
-            // while writing to the DB. Failures are logged but don't
-            // fail the request.
-            recordUsageCents(billUserId, cents).catch((err) => {
-              console.error(
-                `[/api/compare] usage record failed for ${billUserId}: ${(err as Error).message}`,
-              );
-            });
-          }
+        const tallyCents = (outputTokens > 0 || !sawError)
+          ? costCents(model.id, inputTokens, outputTokens)
+          : 0;
+        if (tallyCents > 0) {
+          // Fire-and-forget so we don't hold the response open
+          // while writing to the DB. Failures are logged but don't
+          // fail the request.
+          recordUsageCents(billUserId, tallyCents).catch((err) => {
+            console.error(
+              `[/api/compare] usage record failed for ${billUserId}: ${(err as Error).message}`,
+            );
+          });
         }
+        const durationMs = Date.now() - startedAt;
+        // Log the event for the /admin dashboard. One row per upstream
+        // stream; the dashboard groups by (session_id, turn_index) to
+        // reconstruct the parallel fan-out as a single user Send.
+        logCompareEvent({
+          userId: billUserId,
+          userEmail: billUserEmail,
+          mode,
+          modelId: model.id,
+          prompt,
+          inputTokens,
+          outputTokens,
+          costCents: tallyCents,
+          status: sawError ? "error" : "ok",
+          errorKind: sawError ? "upstream" : null,
+          sessionId,
+          turnIndex,
+          durationMs,
+        }).catch((e) => {
+          console.warn(`[/api/compare] event log failed: ${(e as Error).message}`);
+        });
         console.log(
-          `[/api/compare] ${model.id} ok in=${inputTokens}tok out=${outputChars}ch in ${Date.now() - startedAt}ms`,
+          `[/api/compare] ${model.id} ok in=${inputTokens}tok out=${outputChars}ch in ${durationMs}ms`,
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "stream_failed";

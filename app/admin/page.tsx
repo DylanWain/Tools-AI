@@ -47,6 +47,38 @@ type Stats = {
   recent_downloads?: Array<{ ts: string; source: string | null; app_version: string | null; user_email: string | null }>;
 };
 
+/** Shape returned by veronum_admin_compare_stats(p_days). The compare
+ *  RPC is additive — if it fails (migration 003 not yet applied), the
+ *  rest of the dashboard still renders. */
+type CompareStats = {
+  generated_at?: string;
+  range_days?: number;
+  totals?: {
+    events: number;
+    unique_users: number;
+    cost_cents: number;
+    errors: number;
+    paywall_hits: number;
+  };
+  top_models?: Array<{ model_id: string; calls: number; cost_cents: number; errors: number }>;
+  mode_split?: Array<{ mode: string; calls: number }>;
+  top_spenders?: Array<{ email: string; cost_cents: number; calls: number }>;
+  funnel?: { signups: number; first_send: number; hit_paywall: number; subscribed: number };
+  dau?: Array<{ day: string; users: number; calls: number; cost_cents: number }>;
+  recent?: Array<{
+    ts: string;
+    user_email: string | null;
+    mode: string;
+    model_id: string;
+    status: string;
+    error_kind: string | null;
+    cost_cents: number;
+    prompt_chars: number;
+    prompt_preview: string | null;
+    duration_ms: number | null;
+  }>;
+};
+
 const RANGE_OPTIONS: Array<{ label: string; days: number }> = [
   { label: "24h", days: 1 },
   { label: "7d", days: 7 },
@@ -76,6 +108,7 @@ export default function AdminPage() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [email, setEmail] = useState<string>("");
   const [stats, setStats] = useState<Stats | null>(null);
+  const [compareStats, setCompareStats] = useState<CompareStats | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rangeDays, setRangeDays] = useState<number>(7);
 
@@ -121,9 +154,13 @@ export default function AdminPage() {
     // cost RPC is additive — if it fails (e.g. migration not yet
     // applied), we still render the existing cards with whatever the
     // main RPC returned.
-    const [statsRes, costRes] = await Promise.all([
+    const [statsRes, costRes, compareRes] = await Promise.all([
       supabase.rpc("veronum_admin_stats", { p_from: from, p_to: to }),
       supabase.rpc("veronum_admin_cost_stats", { p_from: from, p_to: to }),
+      // New compare-chat analytics. Additive — if the RPC is missing
+      // (migration 003 not applied yet) the rest of the dashboard
+      // still renders, and the compare section just stays empty.
+      supabase.rpc("veronum_admin_compare_stats", { p_days: days }),
     ]);
     if (statsRes.error) { setLoadError(statsRes.error.message); return; }
     const base = (statsRes.data ?? {}) as Stats;
@@ -147,6 +184,13 @@ export default function AdminPage() {
       };
     }
     setStats(base);
+    if (!compareRes.error && compareRes.data && typeof compareRes.data === "object") {
+      setCompareStats(compareRes.data as CompareStats);
+    } else if (compareRes.error) {
+      // Non-fatal — log so we know the migration needs applying.
+      console.warn("[admin] compare stats unavailable:", compareRes.error.message);
+      setCompareStats(null);
+    }
   }
 
   async function sendMagicLink(e: React.FormEvent) {
@@ -167,6 +211,7 @@ export default function AdminPage() {
     await getClient().auth.signOut();
     setSignedIn(false);
     setStats(null);
+    setCompareStats(null);
   }
 
   if (signedIn === null) {
@@ -394,12 +439,181 @@ export default function AdminPage() {
             </div>
           </Section>
 
+          {compareStats && compareStats.totals && (
+            <CompareChatSection cs={compareStats} />
+          )}
+
           <p className="mt-6 text-center text-[11px] text-ivory/40 leading-relaxed">
-            Chat content is never stored or surfaced here. Only metadata — sign-ins, downloads, dispatch counts, billing totals.
+            Prompts are stored as a 200-character preview only. Full conversation content is never surfaced here.
           </p>
         </>
       )}
     </Shell>
+  );
+}
+
+/** Compare-chat dedicated dashboard section. Reads from
+ *  veronum_admin_compare_stats (migration 003). Renders five panels:
+ *  totals, activation funnel, top models, top spenders, mode split,
+ *  and a live feed of the last 50 Sends with their prompt preview. */
+function CompareChatSection({ cs }: { cs: CompareStats }) {
+  const t = cs.totals!;
+  const f = cs.funnel;
+  const ms = cs.mode_split ?? [];
+  const compareCount = ms.find((x) => x.mode === "compare")?.calls ?? 0;
+  const agentsCount = ms.find((x) => x.mode === "agents")?.calls ?? 0;
+  // Conversion rates from the activation funnel. Floor to 0 when the
+  // upstream count is 0 so we don't render "NaN%".
+  const pctSendOfSignup = f && f.signups > 0
+    ? Math.round((f.first_send / f.signups) * 100) : 0;
+  const pctSubOfSignup = f && f.signups > 0
+    ? Math.round((f.subscribed / f.signups) * 100) : 0;
+  const pctSubOfPaywall = f && f.hit_paywall > 0
+    ? Math.round((f.subscribed / f.hit_paywall) * 100) : 0;
+
+  return (
+    <>
+      <Section title="Compare chat — activity">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+          <Card label="API calls" num={t.events} sub={`${t.unique_users} unique users`} />
+          <Card label="Total cost" num={`$${(t.cost_cents / 100).toFixed(2)}`} sub="raw API cost in range" />
+          <Card label="Errors" num={t.errors} sub={`${t.events > 0 ? Math.round((t.errors / t.events) * 100) : 0}% of calls`} />
+          <Card label="Paywall hits" num={t.paywall_hits} sub="free trial cap reached" />
+          <Card
+            label="Mode split"
+            num={`${compareCount} / ${agentsCount}`}
+            sub="compare / multi-agent"
+          />
+        </div>
+
+        {f && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card label="Signups (range)" num={f.signups} sub="created in window" />
+            <Card label="First Send" num={`${pctSendOfSignup}%`} sub={`${f.first_send} of ${f.signups}`} />
+            <Card label="Hit paywall" num={f.hit_paywall} sub="free-tier cap reached" />
+            <Card label="Subscribed" num={`${pctSubOfSignup}%`} sub={`${f.subscribed} of ${f.signups} (${pctSubOfPaywall}% of paywall hits)`} />
+          </div>
+        )}
+      </Section>
+
+      <Section title="Top models (by calls)">
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead className="text-ivory/45 text-left">
+              <tr className="border-b border-ivory/[.07]">
+                <th className="py-2 pr-4 font-medium">Model</th>
+                <th className="py-2 pr-4 font-medium text-right">Calls</th>
+                <th className="py-2 pr-4 font-medium text-right">Cost</th>
+                <th className="py-2 pr-4 font-medium text-right">Errors</th>
+                <th className="py-2 font-medium text-right">Err %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(cs.top_models ?? []).map((m) => (
+                <tr key={m.model_id} className="border-b border-ivory/[.04]">
+                  <td className="py-2 pr-4 font-mono text-[12px] text-ivory/90">{m.model_id}</td>
+                  <td className="py-2 pr-4 text-right font-mono">{m.calls}</td>
+                  <td className="py-2 pr-4 text-right font-mono">${(m.cost_cents / 100).toFixed(2)}</td>
+                  <td className="py-2 pr-4 text-right font-mono">{m.errors}</td>
+                  <td className="py-2 text-right font-mono">{m.calls > 0 ? Math.round((m.errors / m.calls) * 100) : 0}%</td>
+                </tr>
+              ))}
+              {(cs.top_models ?? []).length === 0 && (
+                <tr><td colSpan={5} className="py-3 text-ivory/40 text-[12px] text-center">No events in range.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Top spenders">
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead className="text-ivory/45 text-left">
+              <tr className="border-b border-ivory/[.07]">
+                <th className="py-2 pr-4 font-medium">Email</th>
+                <th className="py-2 pr-4 font-medium text-right">Cost</th>
+                <th className="py-2 font-medium text-right">Calls</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(cs.top_spenders ?? []).map((s) => (
+                <tr key={s.email} className="border-b border-ivory/[.04]">
+                  <td className="py-2 pr-4 text-ivory/85">{s.email}</td>
+                  <td className="py-2 pr-4 text-right font-mono">${(s.cost_cents / 100).toFixed(2)}</td>
+                  <td className="py-2 text-right font-mono">{s.calls}</td>
+                </tr>
+              ))}
+              {(cs.top_spenders ?? []).length === 0 && (
+                <tr><td colSpan={3} className="py-3 text-ivory/40 text-[12px] text-center">No spend yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Live feed (last 50 Sends)">
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12.5px]">
+            <thead className="text-ivory/45 text-left">
+              <tr className="border-b border-ivory/[.07]">
+                <th className="py-2 pr-3 font-medium">Time</th>
+                <th className="py-2 pr-3 font-medium">User</th>
+                <th className="py-2 pr-3 font-medium">Mode</th>
+                <th className="py-2 pr-3 font-medium">Model</th>
+                <th className="py-2 pr-3 font-medium">Prompt (first 200 chars)</th>
+                <th className="py-2 pr-3 font-medium text-right">¢</th>
+                <th className="py-2 font-medium text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(cs.recent ?? []).map((r, i) => (
+                <tr key={`${r.ts}-${i}`} className="border-b border-ivory/[.04]">
+                  <td className="py-2 pr-3 font-mono text-[11px] text-ivory/60 whitespace-nowrap">
+                    {new Date(r.ts).toLocaleString([], {
+                      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                    })}
+                  </td>
+                  <td className="py-2 pr-3 text-ivory/85 truncate max-w-[180px]">{r.user_email || "—"}</td>
+                  <td className="py-2 pr-3 text-ivory/65 text-[11px] uppercase tracking-wider">{r.mode}</td>
+                  <td className="py-2 pr-3 font-mono text-[11px] text-ivory/80">{r.model_id}</td>
+                  <td className="py-2 pr-3 text-ivory/70 max-w-[420px] truncate" title={r.prompt_preview ?? ""}>
+                    {r.prompt_preview || <span className="text-ivory/30">(empty)</span>}
+                  </td>
+                  <td className="py-2 pr-3 text-right font-mono text-ivory/85">{r.cost_cents}</td>
+                  <td className="py-2 text-right">
+                    <StatusPill status={r.status} kind={r.error_kind} />
+                  </td>
+                </tr>
+              ))}
+              {(cs.recent ?? []).length === 0 && (
+                <tr><td colSpan={7} className="py-4 text-ivory/40 text-center">No events yet — your first user signup + Send will land here.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+    </>
+  );
+}
+
+/** Tiny status chip for the live feed. Green ok, amber upstream/error,
+ *  red paywall/auth. */
+function StatusPill({ status, kind }: { status: string; kind: string | null }) {
+  const label = status === "ok" ? "ok" : (kind || status);
+  const color =
+    status === "ok"
+      ? { bg: "rgba(126,180,114,0.15)", fg: "#7eb472" }
+      : kind === "over_quota"
+        ? { bg: "rgba(217,119,87,0.18)", fg: "#d97757" }
+        : { bg: "rgba(214,177,91,0.16)", fg: "#d6b15b" };
+  return (
+    <span
+      className="inline-block px-2 py-0.5 rounded-full text-[10.5px] font-mono uppercase tracking-wider"
+      style={{ background: color.bg, color: color.fg }}
+    >
+      {label}
+    </span>
   );
 }
 
