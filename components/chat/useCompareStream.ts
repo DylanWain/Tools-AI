@@ -308,10 +308,163 @@ export function useCompareStream() {
     setLastSlots(newSlots);
   }, []);
 
+  /**
+   * Auto-research / pipeline run. Given an ordered list of models and
+   * a round count, executes them SEQUENTIALLY: each step's output
+   * becomes the working draft for the next step. The first step
+   * (round 0, slot 0) drafts fresh; every other step receives the
+   * prior draft and is asked to audit + improve.
+   *
+   * Each step is its own /api/compare call (one row in
+   * compare_events, billed normally). On any step error, subsequent
+   * steps are SKIPPED — the chain stops where it broke and the user
+   * sees the last good draft as the final.
+   *
+   * The slots are seeded as 'queued' upfront so the UI can render
+   * the full chain immediately. Each step flips to 'streaming' as it
+   * starts and 'done' / 'error' when it finishes.
+   */
+  const startPipeline = useCallback(async (input: {
+    sessionId: string;
+    originalPrompt: string;
+    /** Ordered model lineup. First entry drafts, rest audit + improve. */
+    lineup: Array<{ id: string; label: string }>;
+    rounds: number;
+    /** Pipeline-mode prompt builder + system-prompt builder from
+     *  lib/compare/pipeline.ts. Injected so this hook stays
+     *  decoupled from the pipeline lib's specific naming. */
+    buildPrompt: (args: { originalPrompt: string; previousOutput: string | null; isDraftStep: boolean }) => string;
+    buildSys: (args: {
+      modelLabel: string;
+      roundIndex: number;
+      slotIndex: number;
+      totalSteps: number;
+      isDraftStep: boolean;
+      isFinalStep: boolean;
+    }) => string;
+  }) => {
+    if (input.lineup.length === 0 || input.rounds < 1 || !input.originalPrompt.trim()) return;
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    // Build the full ordered step list. Each step's slot id is
+    // `r${round}-s${slot}` so the PipelineView component can
+    // address them positionally.
+    const steps: RunSlot[] = [];
+    for (let r = 0; r < input.rounds; r++) {
+      for (let i = 0; i < input.lineup.length; i++) {
+        const m = input.lineup[i];
+        steps.push({
+          id: `r${r}-s${i}`,
+          modelId: m.id,
+          prompt: "",  // filled per-step below
+          role: "worker",
+          sessionId: input.sessionId,
+          turnIndex: r,
+          mode: "agents",
+        });
+      }
+    }
+    const totalSteps = steps.length;
+    setLastSlots(steps);
+    // Seed every step as idle so the chain UI lays out instantly.
+    setRuns(() => {
+      const next: RunsBySlot = {};
+      for (const s of steps) {
+        next[s.id] = {
+          status: "idle",
+          text: "",
+          modelId: s.modelId,
+          task: input.originalPrompt,
+        };
+      }
+      return next;
+    });
+
+    // Sequential loop. We can't use the parallel `start()` helper
+    // because step N needs step N-1's full output as context.
+    let previousOutput: string | null = null;
+    for (let idx = 0; idx < steps.length; idx++) {
+      if (ac.signal.aborted) return;
+      const slot = steps[idx];
+      const isDraftStep = idx === 0;
+      const isFinalStep = idx === steps.length - 1;
+      const stepPrompt = input.buildPrompt({
+        originalPrompt: input.originalPrompt,
+        previousOutput,
+        isDraftStep,
+      });
+      const stepSys = input.buildSys({
+        modelLabel: input.lineup[slot.turnIndex !== undefined ? idx % input.lineup.length : 0].label,
+        roundIndex: slot.turnIndex ?? 0,
+        slotIndex: idx % input.lineup.length,
+        totalSteps,
+        isDraftStep,
+        isFinalStep,
+      });
+
+      // Concrete slot for this step.
+      const runSlot: RunSlot = {
+        ...slot,
+        prompt: stepPrompt,
+        systemPrompt: stepSys,
+      };
+      // Flip status to streaming so the UI shows the live caret.
+      setRuns((prev) => ({
+        ...prev,
+        [slot.id]: {
+          ...(prev[slot.id] ?? EMPTY),
+          status: "streaming",
+          text: "",
+          startedAt: Date.now(),
+          modelId: slot.modelId,
+          task: input.originalPrompt,
+        },
+      }));
+
+      await runOne(runSlot, ac.signal, setRuns);
+
+      // Snapshot the just-finished step's output for the NEXT step.
+      // We have to read it via a setRuns callback because React state
+      // isn't synchronously up-to-date at this point.
+      let stepText = "";
+      let stepError = false;
+      setRuns((prev) => {
+        const r = prev[slot.id];
+        stepText = r?.text ?? "";
+        stepError = r?.status === "error";
+        return prev;
+      });
+      // Yield a microtask so the read-back actually sees the latest.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      if (stepError) {
+        // Stop the chain on error — mark remaining steps as aborted
+        // so the UI doesn't sit forever showing 'idle' rows.
+        setRuns((prev) => {
+          const next = { ...prev };
+          for (let j = idx + 1; j < steps.length; j++) {
+            const nextSlot = steps[j];
+            next[nextSlot.id] = {
+              ...(next[nextSlot.id] ?? EMPTY),
+              status: "error",
+              error: "skipped — earlier step failed",
+              finishedAt: Date.now(),
+            };
+          }
+          return next;
+        });
+        return;
+      }
+      previousOutput = stepText;
+    }
+  }, []);
+
   return {
     runs,
     start,
     startWorkflow,
+    startPipeline,
     cancel,
     replaceState,
     lastSlots,

@@ -74,14 +74,22 @@ import { ProjectView } from "./ProjectView";
 import { VersionHistoryModal } from "./VersionHistoryModal";
 import { CompareAuthGate } from "./CompareAuthGate";
 import { ComparePaywall } from "./ComparePaywall";
+import { AutoResearchComposer } from "./AutoResearchComposer";
+import { PipelineView, type PipelineSlot } from "./PipelineView";
 import { useCompareStream, type RunSlot, type RunState } from "./useCompareStream";
 import { getBrowserSupabase } from "@/lib/supabase";
+import {
+  buildStepPrompt,
+  buildStepSystemPrompt,
+  buildSteps,
+} from "@/lib/compare/pipeline";
+import type { CompareModel } from "@/lib/compare/models";
 
 type Props = {
   availableProviders: ProviderId[];
 };
 
-type Mode = "compare" | "agents";
+type Mode = "compare" | "agents" | "auto-research";
 
 export function CompareChat({ availableProviders }: Props) {
   const availSet = useMemo(() => new Set(availableProviders), [availableProviders]);
@@ -139,7 +147,18 @@ export function CompareChat({ availableProviders }: Props) {
   // Common UI state
   const [favorite, setFavorite] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const { runs, start, startWorkflow, cancel, lastSlots, getRun, replaceState } = useCompareStream();
+  const { runs, start, startWorkflow, startPipeline, cancel, lastSlots, getRun, replaceState } = useCompareStream();
+  // Auto-research / pipeline mode state. These three drive the
+  // PipelineView render — pipelineSteps is the ordered chain,
+  // pipelinePrompt is what the user typed, autoLabel is the
+  // category badge ("research", "code", etc.) when auto mode picked
+  // the lineup itself. Null when not in auto-research mode.
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineSlot[] | null>(null);
+  const [pipelinePrompt, setPipelinePrompt] = useState<string>("");
+  const [autoLabel, setAutoLabel] = useState<string | null>(null);
+  // Subscription state for the auto-research gate. true = subscriber
+  // or PAYG, can use pipeline. false = free, locked. null = checking.
+  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
 
   // ── Auth + paywall state ─────────────────────────────────────────
   // `signedIn === null` means "still checking persisted session" — we
@@ -157,6 +176,28 @@ export function CompareChat({ availableProviders }: Props) {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+  // Subscription check — used to lock the Auto-research toggle for
+  // free users. Re-runs when signedIn flips so a freshly signed-in
+  // user gets their state without a reload.
+  useEffect(() => {
+    if (!signedIn) { setIsSubscribed(null); return; }
+    let cancelled = false;
+    getBrowserSupabase()
+      .rpc("veronum_my_billing_state")
+      .single()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const b = data as {
+          tier?: string;
+          has_active_subscription?: boolean;
+        } | null;
+        const tier = b?.tier ?? "free";
+        const ok = !!b?.has_active_subscription || tier === "chad" || tier === "payg" || tier === "admin";
+        setIsSubscribed(ok);
+      })
+      .catch(() => { if (!cancelled) setIsSubscribed(false); });
+    return () => { cancelled = true; };
+  }, [signedIn]);
   // Derive paywall context from any over-quota run. The route returns
   // the same userId/consumed/free numbers on every slot's 402, so
   // we just grab the first one. `paywallDismissed` lets the user click
@@ -671,11 +712,109 @@ export function CompareChat({ availableProviders }: Props) {
     setFavorite(null);
     setExpandedId(null);
     setTurns([]);
+    setPipelineSteps(null);
+    setPipelinePrompt("");
+    setAutoLabel(null);
     replaceState({}, []);
+  }
+
+  /** Auto-research / pipeline-mode Send handler. In auto sub-mode we
+   *  classify the prompt server-side first, then run the picked
+   *  lineup. In manual sub-mode we run the user's chosen lineup
+   *  verbatim. Either way the chain executes sequentially via
+   *  startPipeline(). */
+  async function submitAutoResearch(input: {
+    prompt: string;
+    mode: "auto" | "manual";
+    manualLineup?: CompareModel[];
+    rounds: number;
+  }) {
+    setFavorite(null);
+    setExpandedId(null);
+    setPaywallDismissed(false);
+    // Reuse the existing session id across pipeline runs so all the
+    // events land under one logical chat.
+    const sessId = currentId ?? newSessionId();
+    if (!currentId) setCurrentId(sessId);
+
+    // Resolve the lineup.
+    let lineup: CompareModel[] = [];
+    let label: string | null = null;
+    if (input.mode === "manual" && input.manualLineup) {
+      lineup = input.manualLineup;
+    } else {
+      // Auto — ask the classifier route which models to use.
+      try {
+        const { data: sessionData } = await getBrowserSupabase().auth.getSession();
+        const token = sessionData?.session?.access_token;
+        const r = await fetch("/api/auto-classify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ prompt: input.prompt }),
+        });
+        if (r.ok) {
+          const body = await r.json() as {
+            category: string;
+            lineup: Array<{ id: string; label: string; provider: string }>;
+          };
+          label = body.category;
+          // Resolve to full CompareModel objects.
+          lineup = body.lineup
+            .map((m) => MODELS.find((x) => x.id === m.id))
+            .filter((m): m is CompareModel => !!m);
+        }
+      } catch (e) {
+        console.warn("[auto-research] classify failed:", (e as Error).message);
+      }
+      // Fall back to a sensible default lineup if classification
+      // returned nothing.
+      if (lineup.length === 0) {
+        for (const id of ["gemini-pro", "gpt-4o", "claude-sonnet-4-5"]) {
+          const m = MODELS.find((x) => x.id === id);
+          if (m && availSet.has(m.provider)) lineup.push(m);
+          if (lineup.length >= 3) break;
+        }
+      }
+    }
+
+    if (lineup.length === 0) {
+      console.warn("[auto-research] no models available for pipeline");
+      return;
+    }
+
+    // Build the step list so the UI can render the chain immediately
+    // (status=queued for every step). startPipeline will then flip
+    // each step to streaming/done as it executes.
+    const stepList = buildSteps(
+      lineup.map((m) => ({ id: m.id, label: m.label })),
+      input.rounds,
+    );
+    setPipelineSteps(stepList.map((s) => ({
+      stepId: s.stepId,
+      modelId: s.modelId,
+      roundIndex: s.roundIndex,
+      slotIndex: s.slotIndex,
+    })));
+    setPipelinePrompt(input.prompt);
+    setAutoLabel(input.mode === "auto" ? `auto-picked · ${label ?? "general"}` : null);
+
+    await startPipeline({
+      sessionId: sessId,
+      originalPrompt: input.prompt,
+      lineup: lineup.map((m) => ({ id: m.id, label: m.label })),
+      rounds: input.rounds,
+      buildPrompt: buildStepPrompt,
+      buildSys: buildStepSystemPrompt,
+    });
   }
 
   function setModeAndReset(next: Mode) {
     if (next === mode) return;
+    // Block free users from entering auto-research mode entirely.
+    if (next === "auto-research" && !isSubscribed) return;
     setMode(next);
     newChat();
     setGoal("");
@@ -750,6 +889,7 @@ export function CompareChat({ availableProviders }: Props) {
             <EmptyState
               mode={mode}
               onModeChange={setModeAndReset}
+              autoResearchLocked={!isSubscribed}
               compare={
                 <PromptBar
                   busy={busy}
@@ -773,6 +913,32 @@ export function CompareChat({ availableProviders }: Props) {
                   onCancel={cancel}
                   availableProviders={availSet}
                   autoFocus
+                />
+              }
+              autoResearch={
+                <AutoResearchComposer
+                  busy={busy}
+                  onSubmit={submitAutoResearch}
+                  onCancel={cancel}
+                  availableProviders={availSet}
+                  autoFocus
+                />
+              }
+            />
+          ) : mode === "auto-research" ? (
+            <ActiveAutoResearch
+              onModeChange={setModeAndReset}
+              autoResearchLocked={!isSubscribed}
+              pipelineSteps={pipelineSteps ?? []}
+              pipelinePrompt={pipelinePrompt}
+              autoLabel={autoLabel}
+              runs={runs}
+              compose={
+                <AutoResearchComposer
+                  busy={busy}
+                  onSubmit={submitAutoResearch}
+                  onCancel={cancel}
+                  availableProviders={availSet}
                 />
               }
             />
@@ -956,22 +1122,46 @@ function WorkspaceIcon() {
   );
 }
 
-function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
+function ModeToggle({
+  mode, onChange, autoResearchLocked,
+}: {
+  mode: Mode;
+  onChange: (m: Mode) => void;
+  /** When true the Auto-research tab is greyed out + tooltip explains
+   *  it's subscriber-only. Lock state comes from CompareChat's
+   *  subscription check. */
+  autoResearchLocked?: boolean;
+}) {
+  const tabs: Array<{ id: Mode; label: string; locked?: boolean }> = [
+    { id: "compare",       label: "Compare" },
+    { id: "agents",        label: "Multi-agent" },
+    { id: "auto-research", label: "Auto-research", locked: autoResearchLocked },
+  ];
   return (
     <div className="inline-flex self-center rounded-full border border-white/10 bg-[#161616] p-1">
-      {(["compare", "agents"] as const).map((m) => (
+      {tabs.map((t) => (
         <button
-          key={m}
+          key={t.id}
           type="button"
-          onClick={() => onChange(m)}
+          onClick={() => !t.locked && onChange(t.id)}
+          disabled={t.locked}
+          title={t.locked ? "Subscribe ($25/mo) or pay-as-you-go to unlock Auto-research — it burns 6+ API calls per Send" : undefined}
           className={[
-            "px-3.5 py-1.5 rounded-full text-[12px] font-medium transition-colors",
-            mode === m
+            "px-3.5 py-1.5 rounded-full text-[12px] font-medium transition-colors inline-flex items-center gap-1.5",
+            mode === t.id
               ? "bg-white text-black"
-              : "text-white/60 hover:text-white",
+              : t.locked
+                ? "text-white/30 cursor-not-allowed"
+                : "text-white/60 hover:text-white",
           ].join(" ")}
         >
-          {m === "compare" ? "Compare" : "Multi-agent"}
+          {t.locked && (
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+              <rect x="2.5" y="5.5" width="7" height="5" rx="1" />
+              <path d="M4 5.5 V3.5 a2 2 0 0 1 4 0 V5.5" />
+            </svg>
+          )}
+          {t.label}
         </button>
       ))}
     </div>
@@ -979,13 +1169,19 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
 }
 
 function EmptyState({
-  mode, onModeChange, compare, agents,
+  mode, onModeChange, compare, agents, autoResearch, autoResearchLocked,
 }: {
   mode: Mode;
   onModeChange: (m: Mode) => void;
   compare: React.ReactNode;
   agents: React.ReactNode;
+  autoResearch: React.ReactNode;
+  autoResearchLocked?: boolean;
 }) {
+  const headline =
+    mode === "compare"       ? "What do you want compared?" :
+    mode === "agents"        ? "What should the team build?" :
+                               "What should we research?";
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-10 pb-24">
       <div className="w-full max-w-[820px]">
@@ -994,13 +1190,17 @@ function EmptyState({
             className="font-serif text-white leading-[1.05] mb-3"
             style={{ fontSize: "clamp(1.875rem, 3vw, 2.5rem)" }}
           >
-            {mode === "compare" ? "What do you want compared?" : "What should the team build?"}
+            {headline}
           </h1>
         </div>
         <div className="flex justify-center mb-4">
-          <ModeToggle mode={mode} onChange={onModeChange} />
+          <ModeToggle mode={mode} onChange={onModeChange} autoResearchLocked={autoResearchLocked} />
         </div>
-        {mode === "compare" ? compare : agents}
+        {mode === "compare"
+          ? compare
+          : mode === "agents"
+            ? agents
+            : autoResearch}
       </div>
     </div>
   );
@@ -1417,6 +1617,48 @@ function PickedReply({
         )}
       </div>
     </article>
+  );
+}
+
+/** Active state for Auto-research mode — renders the PipelineView
+ *  (chain of step rows + final assistant message) plus the composer
+ *  at the bottom so the user can fire another pipeline run without
+ *  scrolling all the way up. Mirrors the shape of ActiveCompare. */
+function ActiveAutoResearch({
+  onModeChange, autoResearchLocked,
+  pipelineSteps, pipelinePrompt, autoLabel, runs, compose,
+}: {
+  onModeChange: (m: Mode) => void;
+  autoResearchLocked?: boolean;
+  pipelineSteps: PipelineSlot[];
+  pipelinePrompt: string;
+  autoLabel: string | null;
+  runs: Record<string, RunState>;
+  compose: React.ReactNode;
+}) {
+  return (
+    <>
+      <div className="flex-1 px-4 sm:px-6 lg:px-10 pt-6 pb-40">
+        <div className="max-w-[920px] mx-auto flex flex-col gap-5">
+          <div className="flex justify-center">
+            <ModeToggle mode="auto-research" onChange={onModeChange} autoResearchLocked={autoResearchLocked} />
+          </div>
+          {pipelineSteps.length > 0 && (
+            <PipelineView
+              steps={pipelineSteps}
+              runs={runs}
+              originalPrompt={pipelinePrompt}
+              autoLabel={autoLabel}
+            />
+          )}
+        </div>
+      </div>
+      <div className="sticky bottom-0 px-4 sm:px-6 lg:px-10 pb-6 pt-12 bg-gradient-to-t from-black from-50% to-transparent pointer-events-none">
+        <div className="max-w-[920px] mx-auto pointer-events-auto">
+          {compose}
+        </div>
+      </div>
+    </>
   );
 }
 
