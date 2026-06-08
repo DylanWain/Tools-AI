@@ -39,7 +39,13 @@ type Props = {
 
 export function SandboxPreview({ project, canPreview }: Props) {
   const [state, setState] = useState<State>({ kind: "idle" });
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // Pre-opened browser tab. We grab it the INSTANT the user clicks
+  // Launch (still inside the click-handler user-gesture context, so
+  // popup blockers leave us alone). When the sandbox becomes ready
+  // ~60s later, we just set this tab's location. If we waited until
+  // the fetch resolved to call window.open, modern browsers would
+  // treat it as an unsolicited popup and block it.
+  const popupRef = useRef<Window | null>(null);
 
   // Tick every second while a preview is live so the user sees a
   // live "expires in 9m 47s" countdown — and auto-flip to `expired`
@@ -81,6 +87,25 @@ export function SandboxPreview({ project, canPreview }: Props) {
       return;
     }
 
+    // Grab a new tab IMMEDIATELY — we're still inside the user-gesture
+    // window the click started. The tab opens to about:blank and we'll
+    // navigate it to the real preview URL once the sandbox is ready.
+    // If the user has popups blocked entirely, this returns null and
+    // we fall back to the "click to open" button in the ready state.
+    popupRef.current = window.open("about:blank", "_blank");
+    if (popupRef.current) {
+      // Lightweight loading screen inside the popup so it doesn't sit
+      // on a blank page while the sandbox boots.
+      try {
+        popupRef.current.document.title = "Spinning up preview…";
+        popupRef.current.document.body.style.cssText = "background:#0d0d0d;color:#a8a8a8;font:14px system-ui;padding:48px;text-align:center;";
+        popupRef.current.document.body.innerHTML =
+          "<h2 style='font-weight:500;color:#fff;margin-bottom:8px;'>Spinning up preview…</h2>" +
+          "<p>Installing dependencies + starting your dev server. Usually 60-90 seconds on cold start.</p>" +
+          "<p style='color:#666;margin-top:24px;font-size:12px;'>Don't close this tab — we'll redirect it the moment the sandbox is ready.</p>";
+      } catch { /* same-origin policy can throw on about:blank in some browsers */ }
+    }
+
     setState({ kind: "spawning", startedAt: Date.now() });
 
     try {
@@ -88,6 +113,8 @@ export function SandboxPreview({ project, canPreview }: Props) {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) {
+        popupRef.current?.close();
+        popupRef.current = null;
         setState({ kind: "error", message: "unauthenticated", detail: "Sign in again to launch a preview." });
         return;
       }
@@ -106,6 +133,8 @@ export function SandboxPreview({ project, canPreview }: Props) {
         detail?: string;
       };
       if (!res.ok || !body.previewUrl) {
+        popupRef.current?.close();
+        popupRef.current = null;
         setState({
           kind: "error",
           message: body.error || `http_${res.status}`,
@@ -113,12 +142,18 @@ export function SandboxPreview({ project, canPreview }: Props) {
         });
         return;
       }
+      // Sandbox is up. Redirect the pre-opened tab to the live URL.
+      if (popupRef.current && !popupRef.current.closed) {
+        popupRef.current.location.href = body.previewUrl;
+      }
       setState({
         kind: "ready",
         previewUrl: body.previewUrl,
         expiresAt: new Date(body.expiresAt ?? Date.now() + 10 * 60_000).getTime(),
       });
     } catch (e) {
+      popupRef.current?.close();
+      popupRef.current = null;
       setState({ kind: "error", message: "network", detail: (e as Error).message });
     }
   }
@@ -136,19 +171,41 @@ export function SandboxPreview({ project, canPreview }: Props) {
         onReset={reset}
       />
       <div className="flex-1 min-h-0 relative">
-        {state.kind === "ready" && (
-          <iframe
-            ref={iframeRef}
-            src={state.previewUrl}
-            title="Live preview"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-            className="absolute inset-0 w-full h-full border-0 bg-white"
-          />
-        )}
+        {state.kind === "ready" && <ReadyOverlay state={state} />}
         {state.kind === "spawning" && <SpawningOverlay startedAt={state.startedAt} />}
         {state.kind === "idle" && <IdleOverlay canPreview={canPreview} onLaunch={launch} />}
         {state.kind === "error" && <ErrorOverlay state={state} onRetry={reset} />}
         {state.kind === "expired" && <ExpiredOverlay onRelaunch={launch} />}
+      </div>
+    </div>
+  );
+}
+
+/** Live-and-running state. Preview opens in a new tab (auto via the
+ *  pre-opened popup; manual click fallback if the popup blocker won.) */
+function ReadyOverlay({ state }: { state: Extract<State, { kind: "ready" }> }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
+      <div className="max-w-[480px]">
+        <div className="inline-flex items-center gap-2 mb-3 text-[#7eb472]">
+          <span aria-hidden className="w-2 h-2 rounded-full bg-[#7eb472] inline-block" />
+          <span className="text-[12.5px] font-mono uppercase tracking-wider">Preview running</span>
+        </div>
+        <div className="text-white/95 text-[16px] font-medium mb-1.5">Open in your new tab</div>
+        <p className="text-white/55 text-[12.5px] leading-[1.55] mb-3">
+          We auto-opened a tab when you clicked Preview. If your browser blocked it, click the button below.
+        </p>
+        <p className="text-white/40 text-[11px] font-mono break-all mb-5 px-3 py-2 rounded bg-black/30 border border-white/[0.06]">
+          {state.previewUrl}
+        </p>
+        <a
+          href={state.previewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block px-5 py-2 rounded-md bg-[#d97757] text-white text-[13.5px] font-medium hover:bg-[#c6613f] transition-colors"
+        >
+          ↗ Open preview
+        </a>
       </div>
     </div>
   );
