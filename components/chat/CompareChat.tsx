@@ -79,6 +79,7 @@ import { PipelineView, type PipelineSlot } from "./PipelineView";
 import { useCompareStream, type RunSlot, type RunState } from "./useCompareStream";
 import { getBrowserSupabase } from "@/lib/supabase";
 import { trackActivity } from "@/lib/activity/track";
+import { claimSubscriptionIfNeeded } from "@/lib/claim/claim";
 import {
   buildStepPrompt,
   buildStepSystemPrompt,
@@ -169,11 +170,21 @@ export function CompareChat({ availableProviders }: Props) {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   useEffect(() => {
     const supabase = getBrowserSupabase();
+    // On every sign-in event, fire a one-time claim attempt against
+    // Stripe. The helper is cached per-user_id in localStorage, so
+    // signed_in token refreshes don't re-hit the API. If a matching
+    // Stripe customer with an active subscription is found, the
+    // route promotes them to tier='chad' and the helper reloads the
+    // page so the UI picks up the new tier.
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setSignedIn(!!session?.user?.id);
+      const uid = session?.user?.id ?? null;
+      setSignedIn(!!uid);
+      if (uid) void claimSubscriptionIfNeeded(uid);
     });
     supabase.auth.getSession().then(({ data }) => {
-      setSignedIn(!!data.session?.user?.id);
+      const uid = data.session?.user?.id ?? null;
+      setSignedIn(!!uid);
+      if (uid) void claimSubscriptionIfNeeded(uid);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
