@@ -16,7 +16,7 @@
  * can release the sandbox early.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase";
 import type { ProjectFile } from "@/lib/compare/sessions";
 
@@ -37,7 +37,23 @@ type Props = {
   canPreview: boolean;
 };
 
-export function SandboxPreview({ project, canPreview }: Props) {
+/** Imperative API exposed to the parent (SplitWorkspace) so the
+ *  tab-click handler can fire a launch atomically — opening the
+ *  popup synchronously inside the click gesture and handing it down
+ *  here rather than waiting for the user to click a second button. */
+export type SandboxPreviewHandle = {
+  /** Launch a preview. The caller MUST have already called
+   *  `window.open('about:blank', '_blank')` inside their click
+   *  handler and passed the result here — opening it here async
+   *  would get blocked by popup-blockers. Pass null if you couldn't
+   *  open a popup and we'll fall back to the manual "Open preview"
+   *  button on the ready state. */
+  launchNow: (popup: Window | null) => void;
+};
+
+export const SandboxPreview = forwardRef<SandboxPreviewHandle, Props>(function SandboxPreview(
+  { project, canPreview }, ref,
+) {
   const [state, setState] = useState<State>({ kind: "idle" });
   // Pre-opened browser tab. We grab it the INSTANT the user clicks
   // Launch (still inside the click-handler user-gesture context, so
@@ -65,7 +81,13 @@ export function SandboxPreview({ project, canPreview }: Props) {
     return () => clearInterval(t);
   }, [state.kind, state.kind === "ready" ? state.expiresAt : 0]);
 
-  async function launch() {
+  /** Internal launch — accepts an externally-provided popup window
+   *  so the user-gesture context isn't lost. Callers from inside
+   *  this component (the IdleOverlay's fallback button) open the
+   *  popup themselves and pass it in; the parent SplitWorkspace
+   *  opens the popup synchronously in its tab-click handler and
+   *  passes it via the imperative ref. */
+  async function launch(externalPopup: Window | null) {
     if (!canPreview) return;
     if (state.kind === "spawning") return;
 
@@ -75,30 +97,26 @@ export function SandboxPreview({ project, canPreview }: Props) {
       files[path] = pf.content;
     }
     if (Object.keys(files).length === 0) {
+      externalPopup?.close();
       setState({ kind: "error", message: "no_files", detail: "Generate some code first — the workspace is empty." });
       return;
     }
-    // We DON'T check for package.json client-side anymore. The server
-    // now handles two paths: Node projects (with package.json + dev
-    // script) and static-only projects (any .html file, no install
-    // needed). Letting the server make that decision means a single
-    // HTML snippet from an agent previews instantly without errors.
+    // The server handles both Node and static-only project shapes
+    // (we don't pre-check for package.json client-side anymore — a
+    // single HTML file previews fine).
 
-    // Grab a new tab IMMEDIATELY — we're still inside the user-gesture
-    // window the click started. The tab opens to about:blank and we'll
-    // navigate it to the real preview URL once the sandbox is ready.
-    // If the user has popups blocked entirely, this returns null and
-    // we fall back to the "click to open" button in the ready state.
-    popupRef.current = window.open("about:blank", "_blank");
+    // Use the popup the caller already opened. If they didn't open
+    // one (e.g. internal launch button), we open one ourselves —
+    // that path requires the call to be inside a click handler, which
+    // the IdleOverlay fallback button satisfies.
+    popupRef.current = externalPopup ?? window.open("about:blank", "_blank");
     if (popupRef.current) {
-      // Lightweight loading screen inside the popup so it doesn't sit
-      // on a blank page while the sandbox boots.
       try {
         popupRef.current.document.title = "Spinning up preview…";
         popupRef.current.document.body.style.cssText = "background:#0d0d0d;color:#a8a8a8;font:14px system-ui;padding:48px;text-align:center;";
         popupRef.current.document.body.innerHTML =
           "<h2 style='font-weight:500;color:#fff;margin-bottom:8px;'>Spinning up preview…</h2>" +
-          "<p>Installing dependencies + starting your dev server. Usually 60-90 seconds on cold start.</p>" +
+          "<p>Installing dependencies + starting your dev server. Usually 5-10s for static HTML, 60-90s for npm projects.</p>" +
           "<p style='color:#666;margin-top:24px;font-size:12px;'>Don't close this tab — we'll redirect it the moment the sandbox is ready.</p>";
       } catch { /* same-origin policy can throw on about:blank in some browsers */ }
     }
@@ -159,24 +177,41 @@ export function SandboxPreview({ project, canPreview }: Props) {
     setState({ kind: "idle" });
   }
 
+  // Expose launch to the parent so SplitWorkspace's Preview-tab click
+  // handler can open the popup synchronously (preserving the user
+  // gesture context) and pass it in here. Single click flow:
+  // tab click → popup opens + sandbox fetch starts. No second button.
+  useImperativeHandle(ref, () => ({
+    launchNow: (popup: Window | null) => {
+      if (state.kind === "spawning" || state.kind === "ready") return;
+      void launch(popup);
+    },
+  }), [state.kind, canPreview, project]);
+
+  // Internal launch helper — the in-component buttons (IdleOverlay
+  // fallback, expired-state relaunch) open their own popup via this
+  // wrapper. The parent's tab-click handler uses launchNow() instead
+  // so it can pre-open the popup in the click context.
+  const launchSelfOpen = () => { void launch(null); };
+
   return (
     <div className="flex flex-col h-full bg-[#0d0d0d]">
       <Toolbar
         state={state}
         canPreview={canPreview}
-        onLaunch={launch}
+        onLaunch={launchSelfOpen}
         onReset={reset}
       />
       <div className="flex-1 min-h-0 relative">
         {state.kind === "ready" && <ReadyOverlay state={state} />}
         {state.kind === "spawning" && <SpawningOverlay startedAt={state.startedAt} />}
-        {state.kind === "idle" && <IdleOverlay canPreview={canPreview} onLaunch={launch} />}
+        {state.kind === "idle" && <IdleOverlay canPreview={canPreview} onLaunch={launchSelfOpen} />}
         {state.kind === "error" && <ErrorOverlay state={state} onRetry={reset} />}
-        {state.kind === "expired" && <ExpiredOverlay onRelaunch={launch} />}
+        {state.kind === "expired" && <ExpiredOverlay onRelaunch={launchSelfOpen} />}
       </div>
     </div>
   );
-}
+});
 
 /** Live-and-running state. Preview opens in a new tab (auto via the
  *  pre-opened popup; manual click fallback if the popup blocker won.) */

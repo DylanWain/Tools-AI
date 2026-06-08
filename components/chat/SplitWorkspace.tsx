@@ -38,7 +38,7 @@ import type { ProjectFile } from "@/lib/compare/sessions";
 import { FileTreePane } from "./FileTreePane";
 import { CodeEditor } from "./CodeEditor";
 import { TerminalPane } from "./TerminalPane";
-import { SandboxPreview } from "./SandboxPreview";
+import { SandboxPreview, type SandboxPreviewHandle } from "./SandboxPreview";
 
 type Props = {
   project: Record<string, ProjectFile>;
@@ -75,6 +75,32 @@ export function SplitWorkspace({
   const [topPct, setTopPct] = useState(70);          // top row vs terminal
   const [treePct, setTreePct] = useState(34);        // tree vs editor inside top row
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Imperative handle to SandboxPreview so the Preview-tab click can
+  // open the browser popup synchronously (preserving the user-gesture
+  // context that popup blockers check for) and hand it to the preview
+  // component in one atomic call. No "click Preview, then click
+  // Launch" two-step.
+  const previewRef = useRef<SandboxPreviewHandle | null>(null);
+
+  /** Handle a click on the Preview tab. If it's a FRESH click (we
+   *  were on the editor view), open the browser popup right now and
+   *  fire the launch — all inside the user-gesture context. If the
+   *  user is just toggling back to the preview tab on an
+   *  already-running preview, just switch views. */
+  function onPreviewTabClick() {
+    if (view === "preview") return;          // no-op, already there
+    if (!canPreview) { setView("preview"); return; }  // locked → show upsell
+    // Open the popup synchronously in the click handler. The popup
+    // shows a loading shim until the SandboxPreview redirects it to
+    // the live preview URL when the sandbox is ready.
+    const popup = window.open("about:blank", "_blank");
+    setView("preview");
+    // Defer ONE tick so the SandboxPreview is in the DOM (we mount
+    // it always via display swap, so the ref should already be live,
+    // but a microtask makes it bulletproof in cases where the first
+    // render hasn't flushed).
+    queueMicrotask(() => previewRef.current?.launchNow(popup));
+  }
 
   // Auto-select the first file when the project gains its first entry.
   useEffect(() => {
@@ -124,7 +150,9 @@ export function SplitWorkspace({
 
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
           {/* View tabs — Editor vs Preview. The preview tab is locked
-              for free users with a tooltip pointing to the upgrade. */}
+              for free users with a tooltip pointing to the upgrade.
+              Clicking Preview also fires the sandbox launch in one
+              atomic gesture (no second "Launch" button to click). */}
           <div className="flex items-center gap-0 bg-[#1a1918] border-b border-white/[0.06] shrink-0 text-[12px]">
             <ViewTab
               active={view === "editor"}
@@ -133,14 +161,26 @@ export function SplitWorkspace({
             />
             <ViewTab
               active={view === "preview"}
-              onClick={() => setView("preview")}
+              onClick={onPreviewTabClick}
               label="▶ Preview"
               locked={!canPreview}
               tooltip={canPreview ? undefined : "Subscribe ($25/mo) or pay-as-you-go to unlock live preview — runs your code in an ephemeral sandbox"}
             />
           </div>
-          <div className="flex-1 min-h-0">
-            {view === "editor" ? (
+          {/*
+            Both panels stay mounted; we just swap which is visible
+            via `display`. Two reasons:
+              1. SandboxPreview ref is always live, so onPreviewTabClick
+                 can call launchNow() synchronously inside the click
+                 handler (popup blockers require that).
+              2. The editor preserves its scroll + cursor position
+                 across view toggles.
+          */}
+          <div className="flex-1 min-h-0 relative">
+            <div
+              className="absolute inset-0"
+              style={{ display: view === "editor" ? "block" : "none" }}
+            >
               <CodeEditor
                 file={openFile}
                 onChange={(content) => {
@@ -154,9 +194,13 @@ export function SplitWorkspace({
                 onRedo={onRedo}
                 onOpenVersionHistory={onOpenVersionHistory}
               />
-            ) : (
-              <SandboxPreview project={project} canPreview={canPreview} />
-            )}
+            </div>
+            <div
+              className="absolute inset-0"
+              style={{ display: view === "preview" ? "block" : "none" }}
+            >
+              <SandboxPreview ref={previewRef} project={project} canPreview={canPreview} />
+            </div>
           </div>
         </div>
       </div>
