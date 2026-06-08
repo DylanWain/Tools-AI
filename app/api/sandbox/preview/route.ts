@@ -102,31 +102,40 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── Detect framework + commands ───────────────────────────────────
+  // ── Detect project type ───────────────────────────────────────────
+  // Two paths:
+  //   1. Node project — has package.json with a dev/start/serve script.
+  //      We install deps and run the script. Slow first boot (~60-90s).
+  //   2. Static project — no package.json (or package.json without a
+  //      runnable script) but has at least one HTML file. We skip
+  //      install entirely and serve the files from a tiny built-in
+  //      Node static server. Boot is ~5-10s instead of 90s.
   const pkgFile = files["package.json"];
-  if (!pkgFile) {
-    return jsonError(
-      "no_package_json",
-      400,
-      "Project needs a package.json at the root for the preview to know what to install + run.",
-    );
+  let pkg: Record<string, unknown> | null = null;
+  if (pkgFile) {
+    try { pkg = JSON.parse(pkgFile); }
+    catch { return jsonError("bad_package_json", 400, "package.json doesn't parse as JSON"); }
   }
-  let pkg: Record<string, unknown>;
-  try { pkg = JSON.parse(pkgFile); }
-  catch { return jsonError("bad_package_json", 400, "package.json doesn't parse as JSON"); }
-
-  const scripts = (pkg.scripts as Record<string, string>) || {};
-  const devScript =
+  const scripts = (pkg?.scripts as Record<string, string>) || {};
+  const nodeScript =
     body.devCommand ||
     (scripts.dev ? "dev" : scripts.start ? "start" : scripts.serve ? "serve" : null);
-  if (!devScript) {
+
+  // If there's no runnable Node script, treat this as a static project
+  // IF it has any HTML file. Otherwise we genuinely can't preview it.
+  const hasHtml = entries.some(([p]) => p.toLowerCase().endsWith(".html"));
+  const isStatic = !nodeScript && hasHtml;
+  if (!nodeScript && !hasHtml) {
     return jsonError(
-      "no_dev_script",
+      "no_runnable_project",
       400,
-      "package.json needs a 'dev', 'start', or 'serve' script for the preview to launch.",
+      "Project has no package.json with a dev script AND no HTML files — nothing to preview. Ask one of the agents to add either a package.json with a 'dev' script, or an HTML file.",
     );
   }
-  const port = Number(body.port) || detectDefaultPort(pkg, scripts[devScript] || "");
+
+  const port = isStatic
+    ? 3000
+    : (Number(body.port) || detectDefaultPort(pkg ?? {}, scripts[nodeScript ?? ""] || ""));
 
   const userId = decision.userId;
   const startedAt = Date.now();
@@ -166,34 +175,54 @@ export async function POST(req: Request) {
     return jsonError("write_failed", 502, msg);
   }
 
-  // ── Install deps + spawn dev server ───────────────────────────────
-  // Prefer bun if there's a bun.lock; falls back to npm. We don't
-  // await the dev server — it runs detached. We then poll the public
-  // URL until it responds, returning either the URL or a timeout.
-  const useBun = !!files["bun.lock"] || !!files["bun.lockb"];
-  const installer = useBun ? "bun" : "npm";
-  const runner = useBun ? "bun" : "npm";
-
-  try {
-    const install = await sandbox.runCommand(installer, ["install"]);
-    if (install.exitCode !== 0) {
-      const errText = (await install.stderr()).slice(-2000);
+  // ── Install (Node only) + spawn server ─────────────────────────────
+  // Static project: write a tiny ~30-line Node static file server
+  // alongside the user's files and run it. No npm install — Node 24
+  // is already in the sandbox. Total boot: ~5s.
+  //
+  // Node project: install deps (slow), then spawn the dev script
+  // detached so this handler can return.
+  let installer: "static" | "bun" | "npm";
+  if (isStatic) {
+    installer = "static";
+    // Inject a minimal Node static file server. Serves the directory
+    // recursively, falls back to the first .html file when '/' is
+    // requested and there's no index.html (so a project with just
+    // `snippet-1.html` previews without renames).
+    const staticServerJs = buildStaticServerJs(port, entries.map(([p]) => p));
+    try {
+      await sandbox.writeFiles([
+        { path: "__veronum_serve.js", content: Buffer.from(staticServerJs, "utf8") },
+      ]);
+    } catch (e) {
       await sandbox.stop().catch(() => {});
-      return jsonError("install_failed", 502, errText || `${installer} install exited ${install.exitCode}`);
+      return jsonError("write_failed", 502, (e as Error).message);
     }
-  } catch (e) {
-    await sandbox.stop().catch(() => {});
-    return jsonError("install_failed", 502, (e as Error).message);
+    void sandbox.runCommand("sh", [
+      "-c",
+      `nohup node __veronum_serve.js > /tmp/dev.log 2>&1 &`,
+    ]).catch((e) => console.warn(`[sandbox] static-server spawn warn: ${(e as Error).message}`));
+  } else {
+    // Prefer bun if there's a bun.lock; falls back to npm.
+    const useBun = !!files["bun.lock"] || !!files["bun.lockb"];
+    installer = useBun ? "bun" : "npm";
+    const runner = useBun ? "bun" : "npm";
+    try {
+      const install = await sandbox.runCommand(installer, ["install"]);
+      if (install.exitCode !== 0) {
+        const errText = (await install.stderr()).slice(-2000);
+        await sandbox.stop().catch(() => {});
+        return jsonError("install_failed", 502, errText || `${installer} install exited ${install.exitCode}`);
+      }
+    } catch (e) {
+      await sandbox.stop().catch(() => {});
+      return jsonError("install_failed", 502, (e as Error).message);
+    }
+    void sandbox.runCommand("sh", [
+      "-c",
+      `nohup ${runner} run ${nodeScript} > /tmp/dev.log 2>&1 &`,
+    ]).catch((e) => console.warn(`[sandbox] dev spawn warn: ${(e as Error).message}`));
   }
-
-  // Spawn the dev script DETACHED — we don't want runCommand to wait
-  // for it to finish (it never will, that's the point of a dev server).
-  // Using `nohup ... &` with stdout/stderr redirected so the sandbox
-  // doesn't block waiting for the process to flush.
-  void sandbox.runCommand("sh", [
-    "-c",
-    `nohup ${runner} run ${devScript} > /tmp/dev.log 2>&1 &`,
-  ]).catch((e) => console.warn(`[sandbox] dev spawn warn: ${(e as Error).message}`));
 
   // The public URL is deterministic from the sandbox + port.
   const previewUrl = sandbox.domain(port);
@@ -205,10 +234,63 @@ export async function POST(req: Request) {
   return Response.json({
     previewUrl,
     expiresAt: new Date(Date.now() + SANDBOX_TIMEOUT_MS).toISOString(),
-    devScript,
+    mode: isStatic ? "static" : "node",
+    devScript: isStatic ? null : nodeScript,
     port,
     installer,
   });
+}
+
+/** Inline static file server source — written into the sandbox + run
+ *  with `node`. ~30 lines, zero npm deps. Serves the working dir
+ *  recursively; if '/' is requested and index.html doesn't exist,
+ *  falls back to the first .html file in the project (so chats that
+ *  produced `snippet-1.html` preview cleanly without renames). */
+function buildStaticServerJs(port: number, paths: string[]): string {
+  const firstHtml = paths.find((p) => p.toLowerCase().endsWith(".html")) ?? "index.html";
+  return `
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const PORT = ${port};
+const FALLBACK_HTML = ${JSON.stringify(firstHtml)};
+const TYPES = {
+  html: 'text/html; charset=utf-8',
+  css:  'text/css; charset=utf-8',
+  js:   'application/javascript; charset=utf-8',
+  mjs:  'application/javascript; charset=utf-8',
+  json: 'application/json; charset=utf-8',
+  svg:  'image/svg+xml',
+  png:  'image/png',
+  jpg:  'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif:  'image/gif',
+  webp: 'image/webp',
+  ico:  'image/x-icon',
+  woff: 'font/woff',
+  woff2:'font/woff2',
+  txt:  'text/plain; charset=utf-8',
+};
+http.createServer((req, res) => {
+  let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (urlPath === '/' || urlPath === '') {
+    const idx = path.join(process.cwd(), 'index.html');
+    if (!fs.existsSync(idx)) urlPath = '/' + FALLBACK_HTML;
+    else urlPath = '/index.html';
+  }
+  const filePath = path.join(process.cwd(), urlPath);
+  fs.stat(filePath, (err, st) => {
+    if (err || !st.isFile()) {
+      res.writeHead(404, {'Content-Type': 'text/plain'});
+      res.end('Not Found: ' + urlPath);
+      return;
+    }
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    res.writeHead(200, {'Content-Type': TYPES[ext] || 'application/octet-stream'});
+    fs.createReadStream(filePath).pipe(res);
+  });
+}).listen(PORT, () => console.log('[veronum-static] serving on ' + PORT + ' (fallback: ' + FALLBACK_HTML + ')'));
+`;
 }
 
 function sandboxCredentials() {

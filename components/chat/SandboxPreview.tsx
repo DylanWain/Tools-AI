@@ -78,14 +78,11 @@ export function SandboxPreview({ project, canPreview }: Props) {
       setState({ kind: "error", message: "no_files", detail: "Generate some code first — the workspace is empty." });
       return;
     }
-    if (!files["package.json"]) {
-      setState({
-        kind: "error",
-        message: "no_package_json",
-        detail: "Project needs a package.json at the root. Ask one of the agents to add one.",
-      });
-      return;
-    }
+    // We DON'T check for package.json client-side anymore. The server
+    // now handles two paths: Node projects (with package.json + dev
+    // script) and static-only projects (any .html file, no install
+    // needed). Letting the server make that decision means a single
+    // HTML snippet from an agent previews instantly without errors.
 
     // Grab a new tab IMMEDIATELY — we're still inside the user-gesture
     // window the click started. The tab opens to about:blank and we'll
@@ -337,13 +334,13 @@ function SpawningOverlay({ startedAt }: { startedAt: number }) {
       <div className="max-w-[420px]">
         <div className="text-white/95 text-[15px] font-medium mb-3">Spinning up sandbox…</div>
         <div className="text-[11px] text-white/45 font-mono mb-3">
-          {elapsed}s elapsed · typical first boot 60-90s
+          {elapsed}s elapsed · 5-10s for static HTML, 60-90s for npm projects
         </div>
         <ul className="text-[12px] text-white/55 leading-[1.7] list-none">
           <li>· allocating Linux microVM</li>
           <li>· writing your project files</li>
-          <li>· installing dependencies (the slow part)</li>
-          <li>· starting dev server</li>
+          <li>· installing dependencies (skipped for static HTML)</li>
+          <li>· starting server</li>
         </ul>
       </div>
     </div>
