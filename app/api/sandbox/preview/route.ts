@@ -204,7 +204,6 @@ export async function POST(req: Request) {
 
   return Response.json({
     previewUrl,
-    sandboxId: sandbox.sandboxId,
     expiresAt: new Date(Date.now() + SANDBOX_TIMEOUT_MS).toISOString(),
     devScript,
     port,

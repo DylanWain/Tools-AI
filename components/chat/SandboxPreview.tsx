@@ -23,7 +23,7 @@ import type { ProjectFile } from "@/lib/compare/sessions";
 type State =
   | { kind: "idle" }
   | { kind: "spawning"; startedAt: number }
-  | { kind: "ready"; previewUrl: string; expiresAt: number; sandboxId: string }
+  | { kind: "ready"; previewUrl: string; expiresAt: number }
   | { kind: "error"; message: string; detail?: string }
   | { kind: "expired" };
 
@@ -101,7 +101,6 @@ export function SandboxPreview({ project, canPreview }: Props) {
       });
       const body = (await res.json().catch(() => ({}))) as {
         previewUrl?: string;
-        sandboxId?: string;
         expiresAt?: string;
         error?: string;
         detail?: string;
@@ -117,7 +116,6 @@ export function SandboxPreview({ project, canPreview }: Props) {
       setState({
         kind: "ready",
         previewUrl: body.previewUrl,
-        sandboxId: body.sandboxId ?? "",
         expiresAt: new Date(body.expiresAt ?? Date.now() + 10 * 60_000).getTime(),
       });
     } catch (e) {
