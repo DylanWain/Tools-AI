@@ -38,6 +38,7 @@ import type { ProjectFile } from "@/lib/compare/sessions";
 import { FileTreePane } from "./FileTreePane";
 import { CodeEditor } from "./CodeEditor";
 import { TerminalPane } from "./TerminalPane";
+import { SandboxPreview } from "./SandboxPreview";
 
 type Props = {
   project: Record<string, ProjectFile>;
@@ -54,14 +55,22 @@ type Props = {
   onUndo: () => void;
   onRedo: () => void;
   onOpenVersionHistory: () => void;
+  /** True when the signed-in user is on a paid tier (chad/payg/admin).
+   *  Gates the "▶ Preview" tab — free users see it but it's locked,
+   *  clicking opens an upsell. */
+  canPreview?: boolean;
 };
 
 export function SplitWorkspace({
   project, slotLabels, onFileEdit,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory,
+  canPreview = false,
 }: Props) {
   const [openPath, setOpenPath] = useState<string | null>(null);
+  // Editor pane has two views — code editor vs the live sandbox preview.
+  // The toggle lives in a tab strip at the top of the right column.
+  const [view, setView] = useState<"editor" | "preview">("editor");
   // Percentages of the workspace container — drag-resize updates these.
   const [topPct, setTopPct] = useState(70);          // top row vs terminal
   const [treePct, setTreePct] = useState(34);        // tree vs editor inside top row
@@ -113,20 +122,42 @@ export function SplitWorkspace({
           }}
         />
 
-        <div className="flex-1 min-w-0 min-h-0">
-          <CodeEditor
-            file={openFile}
-            onChange={(content) => {
-              if (openPath) onFileEdit(openPath, content);
-            }}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            undoTooltip={undoTooltip}
-            redoTooltip={redoTooltip}
-            onUndo={onUndo}
-            onRedo={onRedo}
-            onOpenVersionHistory={onOpenVersionHistory}
-          />
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+          {/* View tabs — Editor vs Preview. The preview tab is locked
+              for free users with a tooltip pointing to the upgrade. */}
+          <div className="flex items-center gap-0 bg-[#1a1918] border-b border-white/[0.06] shrink-0 text-[12px]">
+            <ViewTab
+              active={view === "editor"}
+              onClick={() => setView("editor")}
+              label="Editor"
+            />
+            <ViewTab
+              active={view === "preview"}
+              onClick={() => setView("preview")}
+              label="▶ Preview"
+              locked={!canPreview}
+              tooltip={canPreview ? undefined : "Subscribe ($25/mo) or pay-as-you-go to unlock live preview — runs your code in an ephemeral sandbox"}
+            />
+          </div>
+          <div className="flex-1 min-h-0">
+            {view === "editor" ? (
+              <CodeEditor
+                file={openFile}
+                onChange={(content) => {
+                  if (openPath) onFileEdit(openPath, content);
+                }}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                undoTooltip={undoTooltip}
+                redoTooltip={redoTooltip}
+                onUndo={onUndo}
+                onRedo={onRedo}
+                onOpenVersionHistory={onOpenVersionHistory}
+              />
+            ) : (
+              <SandboxPreview project={project} canPreview={canPreview} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -144,6 +175,44 @@ export function SplitWorkspace({
         <TerminalPane />
       </div>
     </div>
+  );
+}
+
+/** Tab strip button. Active tab is highlighted; locked tab is greyed
+ *  out with a tooltip explaining the gate. Used by the Editor/Preview
+ *  toggle above the right-side editor pane. */
+function ViewTab({
+  active, onClick, label, locked, tooltip,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  locked?: boolean;
+  tooltip?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => !locked && onClick()}
+      disabled={!!locked}
+      title={tooltip}
+      className={[
+        "px-3.5 py-1.5 transition-colors inline-flex items-center gap-1.5 border-b-2",
+        active
+          ? "border-[#d97757] text-white"
+          : locked
+            ? "border-transparent text-white/25 cursor-not-allowed"
+            : "border-transparent text-white/55 hover:text-white",
+      ].join(" ")}
+    >
+      {locked && (
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <rect x="2.5" y="5.5" width="7" height="5" rx="1" />
+          <path d="M4 5.5 V3.5 a2 2 0 0 1 4 0 V5.5" />
+        </svg>
+      )}
+      <span>{label}</span>
+    </button>
   );
 }
 

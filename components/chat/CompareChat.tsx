@@ -989,6 +989,7 @@ export function CompareChat({ availableProviders }: Props) {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onOpenVersionHistory={() => setVersionModalOpen(true)}
+              canPreview={isSubscribed === true}
               compose={
                 <PromptBar
                   busy={busy}
@@ -1028,6 +1029,7 @@ export function CompareChat({ availableProviders }: Props) {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onOpenVersionHistory={() => setVersionModalOpen(true)}
+              canPreview={isSubscribed === true}
             />
           )}
         </main>
@@ -1240,7 +1242,7 @@ function ActiveCompare({
   lastSlots, favorite, setFavorite, setExpandedId, getRun, compose,
   project, slotLabels, workspaceOpen, onFileEdit,
   canUndo, canRedo, undoTooltip, redoTooltip,
-  onUndo, onRedo, onOpenVersionHistory,
+  onUndo, onRedo, onOpenVersionHistory, canPreview,
 }: {
   onModeChange: (m: Mode) => void;
   turns: FrozenTurn[];
@@ -1263,6 +1265,7 @@ function ActiveCompare({
   onUndo: () => void;
   onRedo: () => void;
   onOpenVersionHistory: () => void;
+  canPreview: boolean;
 }) {
   const [chatPct, setChatPct] = useState(56);
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -1365,6 +1368,7 @@ function ActiveCompare({
             onUndo={onUndo}
             onRedo={onRedo}
             onOpenVersionHistory={onOpenVersionHistory}
+            canPreview={canPreview}
           />
         </div>
       </div>
@@ -1394,7 +1398,7 @@ function ActiveAgents({
   availableProviders, lastSlots, favorite, setFavorite, setExpandedId, getRun,
   project, slotLabels, workspaceOpen, onFileEdit,
   canUndo, canRedo, undoTooltip, redoTooltip,
-  onUndo, onRedo, onOpenVersionHistory,
+  onUndo, onRedo, onOpenVersionHistory, canPreview,
 }: {
   onModeChange: (m: Mode) => void;
   goal: string;
@@ -1423,6 +1427,7 @@ function ActiveAgents({
   onUndo: () => void;
   onRedo: () => void;
   onOpenVersionHistory: () => void;
+  canPreview: boolean;
 }) {
   const workerSlots = lastSlots.filter((s) => s.role !== "synthesizer");
   // Width split between the left chat column and the right workspace.
