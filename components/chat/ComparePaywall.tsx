@@ -4,71 +4,84 @@
  * ComparePaywall — over-quota overlay.
  *
  * Shown when /api/compare returns 402 (free user has used >= 10¢ and
- * has no active subscription). Offers the same two plans the rest of
- * the product surfaces: $25/mo flat (chad) via Stripe Payment Link, or
- * pay-as-you-go (3×) via the JWT-gated Supabase Edge Function.
+ * has no active subscription). Both plans now go through ONE server
+ * route (/api/checkout) which creates a proper Stripe Checkout
+ * Session via the SDK — no Payment Link, no Edge Function. Removes
+ * the two fragile external dependencies that broke the previous flow.
  *
- * Both URLs match the ones already wired in app/chat/page.tsx — single
- * source of truth for the checkout flow. Subscribers come back here
- * via the Stripe webhook, which flips their `subscription_status` to
- * 'active' and the next /api/compare call clears the gate.
+ *   Subscribe ($25/mo) → POST /api/checkout {plan:'subscribe'} → Stripe Checkout
+ *   Pay as you go (3×) → POST /api/checkout {plan:'payg'}      → Stripe Checkout
+ *
+ * Subscribers come back here via the existing Stripe webhook, which
+ * flips their `subscription_status` to 'active' and the next
+ * /api/compare call clears the gate.
  */
 
 import { useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase";
 
-const STRIPE_CHECKOUT_BASE = "https://buy.stripe.com/fZu28tb3x9aufwJeLt1sQ00";
-const PAYG_CHECKOUT_URL =
-  "https://synpjcammfjebwsmtfpz.supabase.co/functions/v1/veronum-payg-checkout";
-
 type Props = {
   consumedCents: number;
   freeTrialCents: number;
   userId: string;
-  /** Called after a successful Stripe webhook bounces back — the
-   *  parent re-runs the previously blocked Send. */
+  /** Called when the user dismisses the modal (re-check on next send). */
   onDismiss?: () => void;
 };
+
+type Plan = "subscribe" | "payg";
 
 export function ComparePaywall({
   consumedCents, freeTrialCents, userId, onDismiss,
 }: Props) {
-  const [busy, setBusy] = useState<"payg" | null>(null);
+  // `userId` is held in case we want to surface it in error messages
+  // for support, but the actual user_id used by /api/checkout is read
+  // from the JWT server-side (more trustworthy than client-supplied).
+  void userId;
+
+  const [busy, setBusy] = useState<Plan | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  async function startPayg() {
+  async function startCheckout(plan: Plan) {
     if (busy) return;
     setErr(null);
-    setBusy("payg");
+    setBusy(plan);
     try {
       const supabase = getBrowserSupabase();
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) {
         setErr("Sign in again to subscribe.");
+        setBusy(null);
         return;
       }
-      const res = await fetch(PAYG_CHECKOUT_URL, {
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ plan }),
       });
       const body = (await res.json().catch(() => ({}))) as {
-        checkoutUrl?: string;
+        url?: string;
         error?: string;
         detail?: string;
       };
-      if (!res.ok || !body.checkoutUrl) {
-        setErr(body.detail || body.error || `Couldn't start PAYG checkout (HTTP ${res.status}).`);
+      if (!res.ok || !body.url) {
+        setErr(
+          body.detail ||
+          body.error ||
+          `Couldn't start checkout (HTTP ${res.status}).`
+        );
+        setBusy(null);
         return;
       }
-      window.location.href = body.checkoutUrl;
+      // Hard navigate to the Stripe-hosted Checkout page. We don't
+      // open in a new tab — Stripe checkout works best as a full-page
+      // takeover, and the redirect back lands on our success URL.
+      window.location.href = body.url;
     } catch (e) {
-      setErr((e as Error).message || "Network error starting PAYG checkout.");
-    } finally {
+      setErr((e as Error).message || "Network error starting checkout.");
       setBusy(null);
     }
   }
@@ -87,9 +100,11 @@ export function ComparePaywall({
       </p>
 
       <div className="space-y-3">
-        <a
-          href={`${STRIPE_CHECKOUT_BASE}?client_reference_id=${encodeURIComponent(userId)}`}
-          className="block rounded-xl border border-[#d97757]/40 bg-[#d97757]/[0.06] hover:border-[#d97757] transition p-4"
+        <button
+          type="button"
+          onClick={() => startCheckout("subscribe")}
+          disabled={busy !== null}
+          className="block w-full text-left rounded-xl border border-[#d97757]/40 bg-[#d97757]/[0.06] hover:border-[#d97757] transition p-4 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <div className="flex items-baseline justify-between">
             <span className="font-serif text-[17px] font-medium text-white">
@@ -100,14 +115,16 @@ export function ComparePaywall({
           <p className="text-[12.5px] text-white/55 mt-1">
             Includes $25 of usage at 1× rate. Overage billed at 2×. Cancel anytime.
           </p>
-          <p className="text-[12px] text-[#d97757] mt-3 underline">Choose subscribe →</p>
-        </a>
+          <p className="text-[12px] text-[#d97757] mt-3 underline">
+            {busy === "subscribe" ? "Starting checkout…" : "Choose subscribe →"}
+          </p>
+        </button>
 
         <button
           type="button"
-          onClick={startPayg}
-          disabled={busy === "payg"}
-          className="block w-full text-left rounded-xl border border-white/10 bg-[#1f1f1f] hover:border-white/30 transition p-4 disabled:opacity-50"
+          onClick={() => startCheckout("payg")}
+          disabled={busy !== null}
+          className="block w-full text-left rounded-xl border border-white/10 bg-[#1f1f1f] hover:border-white/30 transition p-4 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <div className="flex items-baseline justify-between">
             <span className="font-serif text-[17px] font-medium text-white">
@@ -125,7 +142,7 @@ export function ComparePaywall({
       </div>
 
       {err && (
-        <p className="text-[12px] text-red-300/90 mt-4">{err}</p>
+        <p className="text-[12px] text-red-300/90 mt-4 leading-[1.5]">{err}</p>
       )}
 
       {onDismiss && (
