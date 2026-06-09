@@ -133,6 +133,13 @@ export function FileTreePane({
   const files = useMemo(() => Object.values(project), [project]);
   const tree = useMemo(() => buildTree(files), [files]);
 
+  // Hidden OS file pickers — one for files, one for folders. Click the
+  // header buttons to trigger them. webkitdirectory makes the picker
+  // accept whole directory trees and preserves relative paths under
+  // file.webkitRelativePath so we can rebuild folder structure.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const allDirs = useMemo(() => {
     const set = new Set<string>();
@@ -160,7 +167,40 @@ export function FileTreePane({
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [creating, setCreating] = useState<CreatingState | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [dragOver, setDragOver] = useState(false);
+
+  // VS Code pattern: while creating a new file/folder, the input
+  // appears INLINE inside the target folder — not at the bottom of
+  // the tree. We splice a synthetic row at the right index + depth
+  // into the flat list. The row renderer special-cases path
+  // "__creating__" by rendering <CreateInput> instead of <ExplorerRow>.
+  const CREATING_PATH = "__creating__";
+  const rowsWithCreating = useMemo<FlatRow[]>(() => {
+    if (!creating) return rows;
+    const parent = creating.parent;
+    const parentDepth = parent ? parent.split("/").length - 1 : -1;
+    const newDepth = parentDepth + 1;
+    const synthetic: FlatRow = {
+      node: { name: "", path: CREATING_PATH, isDir: false },
+      depth: newDepth,
+    };
+    if (!parent) {
+      // Root-level new file: append after all rows.
+      return [...rows, synthetic];
+    }
+    const parentIdx = rows.findIndex((r) => r.node.path === parent);
+    if (parentIdx === -1) return [...rows, synthetic];
+    // Walk past the parent's children. The parent's children are
+    // every following row at depth > parentDepth, until we hit a
+    // row at depth <= parentDepth (that's a sibling/uncle).
+    let i = parentIdx + 1;
+    while (i < rows.length && rows[i].depth > parentDepth) i++;
+    return [...rows.slice(0, i), synthetic, ...rows.slice(i)];
+  }, [rows, creating]);
+  // Drop targeting. `dropTargetPath` is the path of the folder that
+  // will receive the upload — "" means root, null means no drag in
+  // progress. VS Code's pattern: drop on a folder targets that
+  // folder; drop on a file targets its parent.
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Dismiss the context menu on any global click. (Click on a menu
@@ -291,16 +331,49 @@ export function FileTreePane({
     if (selectedPath === path) setSelectedPath(null);
   }
 
-  async function handleDropFiles(parent: string, list: FileList) {
+  /** Read a FileList and write each into the project at parent/.
+   *  Used by all three upload paths: header button, right-click menu,
+   *  and drag-drop. Honors webkitRelativePath so folder uploads
+   *  preserve their tree structure. Skips obvious binaries. */
+  async function ingestFileList(parent: string, list: FileList) {
+    let firstPath: string | null = null;
     for (const f of Array.from(list)) {
-      // Reject likely-binary by extension. Text-only is safer for v1
-      // (the editor doesn't render images anyway).
       if (isBinaryLikeName(f.name)) continue;
       const text = await f.text().catch(() => null);
       if (text === null) continue;
-      const path = parent ? `${parent}/${f.name}` : f.name;
+      // webkitRelativePath is set when the file came from a
+      // <input webkitdirectory> picker or a folder drag-drop. It
+      // includes the picked folder's name as the first segment so
+      // dropping ~/Foo gives us "Foo/bar.txt", "Foo/sub/baz.ts" etc.
+      const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+      const path = parent ? `${parent}/${rel}` : rel;
       onCreateFile?.(path, text);
+      if (!firstPath) firstPath = path;
     }
+    // Open the first uploaded file so the user immediately sees
+    // something in the editor — VS Code does the same for new files.
+    if (firstPath) {
+      setSelectedPath(firstPath);
+      onOpen(firstPath);
+    }
+  }
+
+  /** Trigger the appropriate hidden OS file picker. */
+  function triggerUpload(kind: "file" | "folder") {
+    const el = kind === "file" ? fileInputRef.current : folderInputRef.current;
+    if (!el) return;
+    // Reset value so picking the same file twice still fires onChange.
+    el.value = "";
+    el.click();
+  }
+
+  /** Resolve the effective drop target for a drag event landing on
+   *  this row. Folders accept directly; files retarget to their
+   *  parent (VS Code's FileDragAndDrop pattern). */
+  function dropTargetForNode(n: TreeNode): string {
+    if (n.isDir) return n.path;
+    const slash = n.path.lastIndexOf("/");
+    return slash === -1 ? "" : n.path.slice(0, slash);
   }
 
   return (
@@ -315,19 +388,51 @@ export function FileTreePane({
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
-          setDragOver(true);
+          // Default target = root. Row-level handlers override this
+          // when the cursor is over a specific row.
+          if (dropTargetPath === null) setDropTargetPath("");
         }
       }}
       onDragLeave={(e) => {
-        if (e.currentTarget === e.target) setDragOver(false);
+        // Only clear when leaving the whole pane — internal moves
+        // between rows would otherwise flicker the target off.
+        if (e.currentTarget === e.target) setDropTargetPath(null);
       }}
       onDrop={(e) => {
         if (!e.dataTransfer.files.length) return;
         e.preventDefault();
-        setDragOver(false);
-        handleDropFiles("", e.dataTransfer.files);
+        // Use whatever target a row handler set; default to root.
+        const target = dropTargetPath ?? "";
+        setDropTargetPath(null);
+        ingestFileList(target, e.dataTransfer.files);
       }}
     >
+      {/* Hidden OS pickers triggered by the header Upload buttons.
+          One picker per shape — webkitdirectory has to be on a
+          dedicated input or it picks files in single-file mode too. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files) ingestFileList("", e.target.files);
+        }}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        // @ts-expect-error — webkitdirectory is a non-standard but
+        // Chromium / Safari / WebKit-iOS attribute that lets a file
+        // input accept directory trees. Firefox supports it as of 50.
+        webkitdirectory=""
+        directory=""
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files) ingestFileList("", e.target.files);
+        }}
+      />
       <header
         className="flex items-center justify-between px-3 shrink-0"
         style={{
@@ -356,6 +461,12 @@ export function FileTreePane({
           <HeaderAction title="New Folder" onClick={() => beginCreate({ kind: "empty" }, "folder")}>
             <span className="codicon codicon-new-folder" style={{ fontSize: 14 }} />
           </HeaderAction>
+          <HeaderAction title="Upload Files…" onClick={() => triggerUpload("file")}>
+            <span className="codicon codicon-cloud-upload" style={{ fontSize: 14 }} />
+          </HeaderAction>
+          <HeaderAction title="Upload Folder…" onClick={() => triggerUpload("folder")}>
+            <span className="codicon codicon-folder-active" style={{ fontSize: 14 }} />
+          </HeaderAction>
           <HeaderAction title="Collapse All" onClick={collapseAll}>
             <span className="codicon codicon-collapse-all" style={{ fontSize: 14 }} />
           </HeaderAction>
@@ -376,61 +487,86 @@ export function FileTreePane({
           if (e.target === e.currentTarget) setSelectedPath(null);
         }}
       >
-        {rows.length === 0 && !creating ? (
-          <p
+        {rowsWithCreating.length === 0 ? (
+          <div
             className="px-4 py-3"
-            style={{
-              fontSize: 12,
-              color: "#7f7f7f",
-              lineHeight: 1.5,
-            }}
+            style={{ fontSize: 12, color: "#7f7f7f", lineHeight: 1.6 }}
           >
-            Drag files here, click <span className="codicon codicon-new-file" style={{ fontSize: 11 }} /> to create one, or generate code in chat.
-          </p>
+            <p>This workspace is empty.</p>
+            <ul style={{ paddingLeft: 16, marginTop: 6, listStyle: "disc" }}>
+              <li>
+                Click <span className="codicon codicon-new-file" style={{ fontSize: 11 }} /> to create a file
+              </li>
+              <li>
+                Click <span className="codicon codicon-cloud-upload" style={{ fontSize: 11 }} /> to upload from your computer
+              </li>
+              <li>Drag files from Finder anywhere onto this pane</li>
+              <li>Or generate code in the chat</li>
+            </ul>
+          </div>
         ) : (
-          rows.map(({ node, depth }) => (
-            <RowOrRename
-              key={node.path}
-              node={node}
-              depth={depth}
-              isOpen={!node.isDir && node.file?.path === openPath}
-              isSelected={selectedPath === node.path}
-              isExpanded={expanded.has(node.path)}
-              isRenaming={renamingPath === node.path}
-              onToggle={() => toggle(node.path)}
-              onClick={() => {
-                if (selectedPath === node.path && !node.isDir) {
-                  // Single-click on already-selected file = open (matches Cursor)
-                  onOpen(node.file?.path ?? node.path);
-                } else {
+          rowsWithCreating.map(({ node, depth }) => {
+            if (node.path === CREATING_PATH && creating) {
+              return (
+                <CreateInput
+                  key={CREATING_PATH}
+                  parent={creating.parent}
+                  depth={depth}
+                  kind={creating.kind}
+                  onConfirm={confirmCreate}
+                  onCancel={() => setCreating(null)}
+                />
+              );
+            }
+            const isDropTarget = dropTargetPath !== null && dropTargetForNode(node) === dropTargetPath;
+            return (
+              <RowOrRename
+                key={node.path}
+                node={node}
+                depth={depth}
+                isOpen={!node.isDir && node.file?.path === openPath}
+                isSelected={selectedPath === node.path}
+                isExpanded={expanded.has(node.path)}
+                isRenaming={renamingPath === node.path}
+                isDropTarget={isDropTarget}
+                onToggle={() => toggle(node.path)}
+                onClick={() => {
+                  if (selectedPath === node.path && !node.isDir) {
+                    onOpen(node.file?.path ?? node.path);
+                  } else {
+                    setSelectedPath(node.path);
+                    if (!node.isDir) onOpen(node.file?.path ?? node.path);
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
                   setSelectedPath(node.path);
-                  if (!node.isDir) onOpen(node.file?.path ?? node.path);
-                }
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setSelectedPath(node.path);
-                setContextMenu({
-                  x: e.clientX, y: e.clientY,
-                  target: { kind: "row", path: node.path, isDir: node.isDir },
-                });
-              }}
-              onConfirmRename={(newName) => confirmRename(node.path, newName)}
-              onCancelRename={() => setRenamingPath(null)}
-            />
-          ))
-        )}
-        {creating && (
-          <CreateInput
-            parent={creating.parent}
-            depth={creating.parent ? creating.parent.split("/").length : 0}
-            kind={creating.kind}
-            onConfirm={confirmCreate}
-            onCancel={() => setCreating(null)}
-          />
+                  setContextMenu({
+                    x: e.clientX, y: e.clientY,
+                    target: { kind: "row", path: node.path, isDir: node.isDir },
+                  });
+                }}
+                onConfirmRename={(newName) => confirmRename(node.path, newName)}
+                onCancelRename={() => setRenamingPath(null)}
+                onDragOverRow={(e) => {
+                  if (!e.dataTransfer.types.includes("Files")) return;
+                  e.preventDefault();
+                  setDropTargetPath(dropTargetForNode(node));
+                }}
+                onDropRow={(e) => {
+                  if (!e.dataTransfer.files.length) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const parent = dropTargetForNode(node);
+                  setDropTargetPath(null);
+                  ingestFileList(parent, e.dataTransfer.files);
+                }}
+              />
+            );
+          })
         )}
 
-        {dragOver && (
+        {dropTargetPath === "" && (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
@@ -447,6 +583,8 @@ export function FileTreePane({
           state={contextMenu}
           onNewFile={() => beginCreate(contextMenu.target, "file")}
           onNewFolder={() => beginCreate(contextMenu.target, "folder")}
+          onUploadFiles={() => triggerUpload("file")}
+          onUploadFolder={() => triggerUpload("folder")}
           onRename={() => {
             if (contextMenu.target.kind === "row") setRenamingPath(contextMenu.target.path);
           }}
@@ -496,15 +634,19 @@ type RowProps = {
   isSelected: boolean;
   isExpanded: boolean;
   isRenaming: boolean;
+  isDropTarget?: boolean;
   onToggle: () => void;
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onConfirmRename: (newName: string) => void;
   onCancelRename: () => void;
+  onDragOverRow?: (e: React.DragEvent) => void;
+  onDropRow?: (e: React.DragEvent) => void;
 };
 
 function ExplorerRow({
-  node, depth, isOpen, isSelected, isExpanded, onClick, onToggle, onContextMenu,
+  node, depth, isOpen, isSelected, isExpanded, isDropTarget,
+  onClick, onToggle, onContextMenu, onDragOverRow, onDropRow,
 }: RowProps) {
   const indent = depth * 8;
   const isDir = node.isDir;
@@ -519,6 +661,8 @@ function ExplorerRow({
         e.stopPropagation();
       }}
       onContextMenu={onContextMenu}
+      onDragOver={onDragOverRow}
+      onDrop={onDropRow}
       title={node.path}
       role="treeitem"
       aria-expanded={isDir ? isExpanded : undefined}
@@ -533,9 +677,12 @@ function ExplorerRow({
         paddingRight: 8,
         color: isOpen ? "#ffffff" : isSelected ? "#ffffff" : "#cccccc",
         background:
-          isOpen ? "rgba(221,130,101,0.16)"
+          isDropTarget ? "rgba(217,119,87,0.18)"
+          : isOpen ? "rgba(221,130,101,0.16)"
           : isSelected ? "rgba(255,255,255,0.06)"
           : "transparent",
+        outline: isDropTarget ? "1px dashed rgba(217,119,87,0.55)" : "none",
+        outlineOffset: -1,
         fontSize: 13,
       }}
       onMouseEnter={(e) => {
@@ -718,11 +865,13 @@ function CreateInput({ parent, depth, kind, onConfirm, onCancel }: {
 }
 
 function ContextMenuPopover({
-  state, onNewFile, onNewFolder, onRename, onDelete,
+  state, onNewFile, onNewFolder, onUploadFiles, onUploadFolder, onRename, onDelete,
 }: {
   state: ContextMenuState;
   onNewFile: () => void;
   onNewFolder: () => void;
+  onUploadFiles: () => void;
+  onUploadFolder: () => void;
   onRename: () => void;
   onDelete: () => void;
 }) {
@@ -737,7 +886,7 @@ function ContextMenuPopover({
         background: "#252526",
         border: "1px solid #454545",
         boxShadow: "0 4px 18px rgba(0,0,0,0.55)",
-        minWidth: 180,
+        minWidth: 200,
         padding: 4,
         zIndex: 200,
         fontSize: 13,
@@ -747,6 +896,9 @@ function ContextMenuPopover({
     >
       <MenuItem onClick={onNewFile}>New File</MenuItem>
       <MenuItem onClick={onNewFolder}>New Folder</MenuItem>
+      <MenuDivider />
+      <MenuItem onClick={onUploadFiles}>Upload Files…</MenuItem>
+      <MenuItem onClick={onUploadFolder}>Upload Folder…</MenuItem>
       {onRow && (
         <>
           <MenuDivider />

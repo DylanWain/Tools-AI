@@ -120,9 +120,10 @@ export function CompareChat({ availableProviders }: Props) {
   // (fileEdits write removes the entry from this set).
   const [deletedPaths, setDeletedPaths] = useState<Set<string>>(new Set());
   // Split workspace (file tree + editor + terminal) visibility.
-  // Hidden by default — toggled via the "Code" button in the header.
-  // Opens automatically when the first file streams into the project.
-  const [workspaceOpen, setWorkspaceOpen] = useState<boolean>(false);
+  // Default OPEN so users can upload/create files on a fresh chat —
+  // VS Code's Explorer is always visible even on an empty folder.
+  // Users can still hide it via the "Code" button.
+  const [workspaceOpen, setWorkspaceOpen] = useState<boolean>(true);
   // Version history modal visibility + a tick that re-derives the
   // edit log / version list whenever we mutate localStorage. (We
   // could subscribe to a storage event, but a manual tick is cheaper
