@@ -38,7 +38,7 @@ import type { ProjectFile } from "@/lib/compare/sessions";
 import { FileTreePane } from "./FileTreePane";
 import { CodeEditor } from "./CodeEditor";
 import { TerminalPane } from "./TerminalPane";
-import { SandboxPreview, type SandboxPreviewHandle } from "./SandboxPreview";
+import { SandboxPreview } from "./SandboxPreview";
 
 type Props = {
   project: Record<string, ProjectFile>;
@@ -75,31 +75,13 @@ export function SplitWorkspace({
   const [topPct, setTopPct] = useState(70);          // top row vs terminal
   const [treePct, setTreePct] = useState(34);        // tree vs editor inside top row
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // Imperative handle to SandboxPreview so the Preview-tab click can
-  // open the browser popup synchronously (preserving the user-gesture
-  // context that popup blockers check for) and hand it to the preview
-  // component in one atomic call. No "click Preview, then click
-  // Launch" two-step.
-  const previewRef = useRef<SandboxPreviewHandle | null>(null);
 
-  /** Handle a click on the Preview tab. If it's a FRESH click (we
-   *  were on the editor view), open the browser popup right now and
-   *  fire the launch — all inside the user-gesture context. If the
-   *  user is just toggling back to the preview tab on an
-   *  already-running preview, just switch views. */
+  /** Toggle the Preview tab. The iframe preview is fully
+   *  synchronous (no fetch, no popup-blocker dance), so this just
+   *  flips the view. */
   function onPreviewTabClick() {
-    if (view === "preview") return;          // no-op, already there
-    if (!canPreview) { setView("preview"); return; }  // locked → show upsell
-    // Open the popup synchronously in the click handler. The popup
-    // shows a loading shim until the SandboxPreview redirects it to
-    // the live preview URL when the sandbox is ready.
-    const popup = window.open("about:blank", "_blank");
+    if (view === "preview") return;
     setView("preview");
-    // Defer ONE tick so the SandboxPreview is in the DOM (we mount
-    // it always via display swap, so the ref should already be live,
-    // but a microtask makes it bulletproof in cases where the first
-    // render hasn't flushed).
-    queueMicrotask(() => previewRef.current?.launchNow(popup));
   }
 
   // Auto-select the first file when the project gains its first entry.
@@ -199,7 +181,7 @@ export function SplitWorkspace({
               className="absolute inset-0"
               style={{ display: view === "preview" ? "block" : "none" }}
             >
-              <SandboxPreview ref={previewRef} project={project} canPreview={canPreview} />
+              <SandboxPreview project={project} canPreview={canPreview} />
             </div>
           </div>
         </div>
