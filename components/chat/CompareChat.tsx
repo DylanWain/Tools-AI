@@ -941,6 +941,8 @@ export function CompareChat({ availableProviders }: Props) {
                   selected={selected}
                   onOpenPicker={() => setPickerOpen(true)}
                   autoFocus
+                  onOpenRulesModal={() => setRulesModalOpen(true)}
+                  onNewChat={newChat}
                 />
               }
               agents={
@@ -1015,6 +1017,8 @@ export function CompareChat({ availableProviders }: Props) {
                   onCancel={cancel}
                   selected={selected}
                   onOpenPicker={() => setPickerOpen(true)}
+                  onOpenRulesModal={() => setRulesModalOpen(true)}
+                  onNewChat={newChat}
                 />
               }
             />

@@ -19,7 +19,7 @@
  * Drag-drop or paste files anywhere on the card to attach.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MODELS } from "@/lib/compare/models";
 import type { Attachment } from "@/lib/compare/attachments";
 import { revokeAttachment } from "@/lib/compare/attachments";
@@ -29,6 +29,12 @@ import {
   PlusButton,
   useIngestFiles,
 } from "./AttachmentRail";
+import {
+  detectSlashTrigger,
+  filterSlashCommands,
+  type SlashCommand,
+} from "@/lib/compare/slashCommands";
+import { SlashCommandMenu } from "./SlashCommandMenu";
 
 type Props = {
   busy: boolean;
@@ -38,15 +44,55 @@ type Props = {
   onOpenPicker: () => void;
   autoFocus?: boolean;
   placeholder?: string;
+  /** Slash-command callbacks. PromptBar owns the menu; CompareChat
+   *  owns the actions (open modal, new chat). Wired here so adding a
+   *  new built-in command doesn't churn the parent. */
+  onOpenRulesModal?: () => void;
+  onNewChat?: () => void;
 };
 
 export function PromptBar({
   busy, onSubmit, onCancel, selected, onOpenPicker, autoFocus, placeholder,
+  onOpenRulesModal, onNewChat,
 }: Props) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [slashIndex, setSlashIndex] = useState(0);
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const ingest = useIngestFiles({ attachments, onChange: setAttachments });
+
+  // Slash-command detection + filtering. The menu is open iff the
+  // textarea starts with "/" and contains no whitespace yet —
+  // detectSlashTrigger handles the rules. Filtered list re-computes
+  // on every keystroke (cheap, only ~8 commands).
+  const slashQuery = detectSlashTrigger(text);
+  const slashCommands = useMemo<SlashCommand[]>(
+    () => (slashQuery === null ? [] : filterSlashCommands(slashQuery)),
+    [slashQuery],
+  );
+  const slashOpen = slashQuery !== null && slashCommands.length > 0;
+
+  // Reset active index whenever the query changes — otherwise the
+  // highlight can drift off the end of the filtered list.
+  useEffect(() => { setSlashIndex(0); }, [slashQuery]);
+
+  function execSlashCommand(cmd: SlashCommand) {
+    cmd.exec({
+      setText: (next: string) => {
+        setText(next);
+        // Focus + cursor at the END so the user can keep typing the
+        // body of the prompt right after a /explain style command.
+        queueMicrotask(() => {
+          const el = ref.current;
+          if (!el) return;
+          el.focus();
+          el.selectionStart = el.selectionEnd = next.length;
+        });
+      },
+      openRulesModal: () => onOpenRulesModal?.(),
+      newChat: () => onNewChat?.(),
+    });
+  }
 
   useEffect(() => {
     const el = ref.current;
@@ -72,6 +118,14 @@ export function PromptBar({
 
   return (
     <AttachmentDropTarget onFiles={ingest} disabled={busy}>
+      {slashOpen && (
+        <SlashCommandMenu
+          commands={slashCommands}
+          activeIndex={slashIndex}
+          onPick={(cmd) => execSlashCommand(cmd)}
+          onHoverIndex={setSlashIndex}
+        />
+      )}
       <div className="border border-white/10 bg-[#161616] rounded-2xl focus-within:border-white/25 transition-colors shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
         <AttachmentChips attachments={attachments} onChange={(next) => {
           // Caller may have just removed an item — revoke its blob URL.
@@ -88,6 +142,33 @@ export function PromptBar({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
+            // Slash-menu navigation takes precedence over the normal
+            // submit behavior. While the menu is open: ArrowUp/Down
+            // moves the highlight, Enter / Tab fires the active
+            // command, Esc closes the menu (by clearing the text).
+            if (slashOpen) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSlashIndex((i) => (i + 1) % slashCommands.length);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSlashIndex((i) => (i - 1 + slashCommands.length) % slashCommands.length);
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                const cmd = slashCommands[slashIndex];
+                if (cmd) execSlashCommand(cmd);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setText("");
+                return;
+              }
+            }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               handleSubmit();
