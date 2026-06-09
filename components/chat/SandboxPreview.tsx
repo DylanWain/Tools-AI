@@ -431,11 +431,12 @@ function StatusDot({ state }: { state: State }) {
 
 function labelFor(state: State): string {
   switch (state.kind) {
-    case "ready":    return "Live preview";
-    case "spawning": return "Spinning up sandbox…";
-    case "error":    return "Preview failed";
-    case "expired":  return "Preview expired (10 min limit)";
-    case "idle":     return "Preview not running";
+    case "ready":     return "Live preview";
+    case "artifacts": return "Build complete";
+    case "spawning":  return "Spinning up sandbox…";
+    case "error":     return "Preview failed";
+    case "expired":   return "Preview expired (10 min limit)";
+    case "idle":      return "Preview not running";
   }
 }
 

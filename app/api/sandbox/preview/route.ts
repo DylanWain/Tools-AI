@@ -73,7 +73,7 @@ export async function POST(req: Request) {
   }
 
   // ── Parse + validate the file map ─────────────────────────────────
-  let body: { files?: FilesMap; devCommand?: string; port?: number };
+  let body: { files?: FilesMap; devCommand?: string; buildCommand?: string; port?: number };
   try { body = await req.json(); }
   catch { return jsonError("invalid_json", 400); }
 
