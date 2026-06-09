@@ -35,11 +35,11 @@ import { extractBearer, decideBilling } from "@/lib/compare/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// Sandbox spinup + install + first-paint can take 60-90s without a
-// snapshot. Electron builds can take 3-10 MINUTES (install + native
-// rebuild + electron-builder packaging). Set to the Pro-plan ceiling
-// of 800s; Hobby plan will cap at its own 300s limit silently.
-export const maxDuration = 800;
+// Hobby-plan cap is 300s. Sandbox spinup + install + first-paint fits
+// in this for Node/static projects. Electron builds (3-10 min) will
+// time out here — those need to move to the localhost bridge so the
+// user's machine handles the long-running build, not a Vercel function.
+export const maxDuration = 300;
 
 const SANDBOX_TIMEOUT_MS = 10 * 60 * 1000;  // 10 min — billing ceiling per request
 const MAX_FILES = 200;
