@@ -113,6 +113,12 @@ export function CompareChat({ availableProviders }: Props) {
   // wins over the parsed agent output so streaming new content from
   // a future agent doesn't trample a person's typing.
   const [fileEdits, setFileEdits] = useState<Record<string, string>>({});
+  // Tombstones for files the user deleted from the file tree. These
+  // win over BOTH agent output AND fileEdits — if the path appears
+  // here, the project map skips it entirely. Rename = tombstone old +
+  // write new. Recreating the same path after deletion re-adds it
+  // (fileEdits write removes the entry from this set).
+  const [deletedPaths, setDeletedPaths] = useState<Set<string>>(new Set());
   // Split workspace (file tree + editor + terminal) visibility.
   // Hidden by default — toggled via the "Code" button in the header.
   // Opens automatically when the first file streams into the project.
@@ -355,8 +361,12 @@ export function CompareChat({ availableProviders }: Props) {
         };
       }
     }
+    // Tombstones win over everything. Files deleted from the file
+    // tree disappear regardless of whether an agent originally
+    // emitted them or the user edited them previously.
+    for (const dead of deletedPaths) delete built[dead];
     return built;
-  }, [mode, codeMode, lastSlots, runs, fileEdits]);
+  }, [mode, codeMode, lastSlots, runs, fileEdits, deletedPaths]);
 
   // Auto-open the workspace the first time an agent emits a file —
   // saves a click without forcing the panel on users who never get
@@ -438,6 +448,56 @@ export function CompareChat({ availableProviders }: Props) {
   function handleFileEdit(path: string, content: string) {
     setFileEdits((prev) => ({ ...prev, [path]: content }));
     scheduleUserEditRecord(path, content);
+  }
+
+  /** New file from the tree (or upload, or drag-drop). Same overlay
+   *  as edits; also clears the tombstone in case the user is
+   *  recreating a previously-deleted path. */
+  function handleFileCreate(path: string, content: string) {
+    setFileEdits((prev) => ({ ...prev, [path]: content }));
+    setDeletedPaths((prev) => {
+      if (!prev.has(path)) return prev;
+      const next = new Set(prev);
+      next.delete(path);
+      return next;
+    });
+  }
+
+  /** Move a file. Read the current content from the project map (so
+   *  we pick up either the agent-emitted version or the user's edits,
+   *  whichever is current), write it to the new path, tombstone the
+   *  old one. Folder renames decompose into N calls in FileTreePane. */
+  function handleFileRename(oldPath: string, newPath: string) {
+    if (oldPath === newPath) return;
+    const current = project[oldPath]?.content ?? fileEdits[oldPath] ?? "";
+    setFileEdits((prev) => {
+      const next = { ...prev, [newPath]: current };
+      delete next[oldPath];
+      return next;
+    });
+    setDeletedPaths((prev) => {
+      const next = new Set(prev);
+      next.add(oldPath);
+      next.delete(newPath);
+      return next;
+    });
+  }
+
+  /** Tombstone a path. We also remove any fileEdits entry so a future
+   *  rebuild doesn't resurrect it from the overlay. */
+  function handleFileDelete(path: string) {
+    setFileEdits((prev) => {
+      if (!(path in prev)) return prev;
+      const next = { ...prev };
+      delete next[path];
+      return next;
+    });
+    setDeletedPaths((prev) => {
+      if (prev.has(path)) return prev;
+      const next = new Set(prev);
+      next.add(path);
+      return next;
+    });
   }
 
   function handleUndo() {
@@ -753,6 +813,8 @@ export function CompareChat({ availableProviders }: Props) {
     setPipelineSteps(null);
     setPipelinePrompt("");
     setAutoLabel(null);
+    setFileEdits({});
+    setDeletedPaths(new Set());
     replaceState({}, []);
   }
 
@@ -860,6 +922,7 @@ export function CompareChat({ availableProviders }: Props) {
     newChat();
     setGoal("");
     setFileEdits({});
+    setDeletedPaths(new Set());
     // Seed with one empty agent when first switching in so the user
     // sees the composer's shape immediately.
     if (next === "agents") {
@@ -1002,6 +1065,9 @@ export function CompareChat({ availableProviders }: Props) {
               slotLabels={slotLabels}
               workspaceOpen={workspaceOpen}
               onFileEdit={handleFileEdit}
+              onFileCreate={handleFileCreate}
+              onFileRename={handleFileRename}
+              onFileDelete={handleFileDelete}
               canUndo={!!undoState.nextUndo}
               canRedo={!!undoState.nextRedo}
               undoTooltip={undoTooltip}
@@ -1044,6 +1110,9 @@ export function CompareChat({ availableProviders }: Props) {
               slotLabels={slotLabels}
               workspaceOpen={workspaceOpen}
               onFileEdit={handleFileEdit}
+              onFileCreate={handleFileCreate}
+              onFileRename={handleFileRename}
+              onFileDelete={handleFileDelete}
               canUndo={!!undoState.nextUndo}
               canRedo={!!undoState.nextRedo}
               undoTooltip={undoTooltip}
@@ -1301,6 +1370,7 @@ function ActiveCompare({
   onModeChange, turns, onPickTurn, onUnpickTurn,
   lastSlots, favorite, setFavorite, setExpandedId, getRun, compose,
   project, slotLabels, workspaceOpen, onFileEdit,
+  onFileCreate, onFileRename, onFileDelete,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory, canPreview,
 }: {
@@ -1318,6 +1388,9 @@ function ActiveCompare({
   slotLabels: Record<string, string>;
   workspaceOpen: boolean;
   onFileEdit: (path: string, content: string) => void;
+  onFileCreate: (path: string, content: string) => void;
+  onFileRename: (oldPath: string, newPath: string) => void;
+  onFileDelete: (path: string) => void;
   canUndo: boolean;
   canRedo: boolean;
   undoTooltip: string;
@@ -1421,6 +1494,9 @@ function ActiveCompare({
             project={project}
             slotLabels={slotLabels}
             onFileEdit={onFileEdit}
+            onFileCreate={onFileCreate}
+            onFileRename={onFileRename}
+            onFileDelete={onFileDelete}
             canUndo={canUndo}
             canRedo={canRedo}
             undoTooltip={undoTooltip}
@@ -1457,6 +1533,7 @@ function ActiveAgents({
   busy, onSubmit, onCancel,
   availableProviders, lastSlots, favorite, setFavorite, setExpandedId, getRun,
   project, slotLabels, workspaceOpen, onFileEdit,
+  onFileCreate, onFileRename, onFileDelete,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory, canPreview,
 }: {
@@ -1480,6 +1557,9 @@ function ActiveAgents({
   slotLabels: Record<string, string>;
   workspaceOpen: boolean;
   onFileEdit: (path: string, content: string) => void;
+  onFileCreate: (path: string, content: string) => void;
+  onFileRename: (oldPath: string, newPath: string) => void;
+  onFileDelete: (path: string) => void;
   canUndo: boolean;
   canRedo: boolean;
   undoTooltip: string;
@@ -1565,6 +1645,9 @@ function ActiveAgents({
                 project={project}
                 slotLabels={slotLabels}
                 onFileEdit={onFileEdit}
+                onFileCreate={onFileCreate}
+                onFileRename={onFileRename}
+                onFileDelete={onFileDelete}
                 canUndo={canUndo}
                 canRedo={canRedo}
                 undoTooltip={undoTooltip}

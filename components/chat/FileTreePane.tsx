@@ -1,23 +1,37 @@
 "use client";
 
 /**
- * File tree pane — direct visual port of Cursor's explorer, sourced
- * from Cursor.app/Contents/Resources/app/out/vs/workbench/
- * workbench.desktop.main.css. Specifically matches:
+ * File tree pane — direct visual port of Cursor's explorer, with full
+ * file-management parity (add, rename, delete, upload, drag-drop).
+ *
+ * Visual atoms sourced from Cursor.app/Contents/Resources/app/out/vs/
+ * workbench/workbench.desktop.main.css:
  *
  *   .explorer-item       → height:22px; line-height:22px
  *   .monaco-tl-twistie   → width:16px; font-size:10px; padding-right:6px
- *   .monaco-tl-indent    → 1px guide line at the left of each depth column
- *   .monaco-tl-row:hover → rgba(255,255,255,0.07) bg (vscode-list-hoverBackground in dark)
+ *   .monaco-tl-row:hover → rgba(255,255,255,0.07) bg
  *
- * Folder glyphs come from Cursor's codicon.ttf (chevron-right/down
- * for the twistie, folder/folder-opened for the icon column). File
- * glyphs come from VS Code's seti.woff icon theme via FileIcon. Both
- * woff/ttf files ship under /Tools-AI/public/seti/ — byte-identical
- * to the assets inside the Cursor and Veronum app bundles.
+ * Operations:
+ *   - Header bar: New File, New Folder, Collapse All (matches VS Code's
+ *     title-bar action set in the Explorer view).
+ *   - Right-click on any row OR empty space → context menu with
+ *     New File / New Folder / Rename / Delete (Cursor parity).
+ *   - F2 or single-click on selected row → inline rename.
+ *   - Drag files from Finder anywhere onto the tree → upload as
+ *     ProjectFile entries (text/code only; binaries are rejected).
+ *
+ * State the parent owns: the actual project map. We only hold UI
+ * state (which row is being renamed, which row's context menu is
+ * open, where we're creating a new file). Mutations bubble up via
+ * the on{Create,Rename,Delete,Upload} props so CompareChat can
+ * layer them into the same overlay editsByPath uses.
+ *
+ * Folders are virtual — derived from path slashes. Creating an empty
+ * folder writes a .gitkeep stub (the standard convention) so the
+ * folder shows in the tree.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProjectFile } from "@/lib/compare/sessions";
 import { FileIcon } from "./FileIcon";
 
@@ -26,6 +40,17 @@ type Props = {
   slotLabels: Record<string, string>;
   openPath: string | null;
   onOpen: (path: string) => void;
+  /** Create or overwrite a file at the given path. CompareChat
+   *  records it in the fileEdits overlay. Used for new files,
+   *  uploads, and the post-creation step of new folders (.gitkeep). */
+  onCreateFile?: (path: string, content: string) => void;
+  /** Move a file. Parent removes the old path (tombstone), writes
+   *  the new path with the same content. Folder renames are
+   *  decomposed here into N file-renames before the call. */
+  onRename?: (oldPath: string, newPath: string) => void;
+  /** Tombstone a path. Folder deletes are decomposed into N file
+   *  deletes before the call. */
+  onDelete?: (path: string) => void;
 };
 
 type TreeNode = {
@@ -34,6 +59,24 @@ type TreeNode = {
   isDir: boolean;
   children?: TreeNode[];
   file?: ProjectFile;
+};
+
+type FlatRow = { node: TreeNode; depth: number };
+
+type ContextTarget =
+  | { kind: "row"; path: string; isDir: boolean }
+  | { kind: "empty" };
+
+type ContextMenuState = {
+  x: number;
+  y: number;
+  target: ContextTarget;
+};
+
+type CreatingState = {
+  /** Folder path the new entry will live inside. "" = root. */
+  parent: string;
+  kind: "file" | "folder";
 };
 
 function buildTree(files: ProjectFile[]): TreeNode[] {
@@ -74,8 +117,6 @@ function buildTree(files: ProjectFile[]): TreeNode[] {
   return root.children ?? [];
 }
 
-type FlatRow = { node: TreeNode; depth: number };
-
 function flatten(nodes: TreeNode[], expanded: Set<string>, depth = 0, out: FlatRow[] = []): FlatRow[] {
   for (const n of nodes) {
     out.push({ node: n, depth });
@@ -86,13 +127,12 @@ function flatten(nodes: TreeNode[], expanded: Set<string>, depth = 0, out: FlatR
   return out;
 }
 
-export function FileTreePane({ project, openPath, onOpen }: Props) {
+export function FileTreePane({
+  project, openPath, onOpen, onCreateFile, onRename, onDelete,
+}: Props) {
   const files = useMemo(() => Object.values(project), [project]);
   const tree = useMemo(() => buildTree(files), [files]);
 
-  // Default: every folder open. Users can collapse; state lives only
-  // for the lifetime of this view (intentional — new agent files
-  // streaming in should be visible immediately).
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const allDirs = useMemo(() => {
     const set = new Set<string>();
@@ -115,6 +155,47 @@ export function FileTreePane({ project, openPath, onOpen }: Props) {
 
   const rows = useMemo(() => flatten(tree, expanded), [tree, expanded]);
 
+  // ── UI state (parent-agnostic) ─────────────────────────────────
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [creating, setCreating] = useState<CreatingState | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Dismiss the context menu on any global click. (Click on a menu
+  // item closes the menu via its own handler, which fires before
+  // this listener picks up the bubbled click.)
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [contextMenu]);
+
+  // F2 → rename the selected row (matches VS Code shortcut).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!selectedPath) return;
+      if (renamingPath || creating) return;
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+      if (e.key === "F2") {
+        e.preventDefault();
+        setRenamingPath(selectedPath);
+      } else if ((e.key === "Backspace" || e.key === "Delete") && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        confirmAndDelete(selectedPath);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPath, renamingPath, creating]);
+
   function toggle(path: string) {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -124,19 +205,133 @@ export function FileTreePane({ project, openPath, onOpen }: Props) {
     });
   }
 
+  function collapseAll() {
+    setCollapsed(new Set(allDirs));
+  }
+
+  /** Resolve the parent folder for a "new file" / "new folder" action
+   *  triggered from `target`. Folder targets nest inside themselves;
+   *  file targets nest beside themselves. Empty target = root. */
+  function parentFor(target: ContextTarget): string {
+    if (target.kind === "empty") return "";
+    if (target.isDir) return target.path;
+    const slash = target.path.lastIndexOf("/");
+    return slash === -1 ? "" : target.path.slice(0, slash);
+  }
+
+  function beginCreate(target: ContextTarget, kind: "file" | "folder") {
+    const parent = parentFor(target);
+    // Expand the parent folder so the new row is visible.
+    if (parent) {
+      setCollapsed((prev) => {
+        const next = new Set(prev);
+        next.delete(parent);
+        return next;
+      });
+    }
+    setCreating({ parent, kind });
+  }
+
+  function confirmCreate(name: string) {
+    if (!creating) return;
+    const clean = name.trim();
+    setCreating(null);
+    if (!clean) return;
+    if (!isValidName(clean)) return;
+    const fullPath = creating.parent ? `${creating.parent}/${clean}` : clean;
+    if (creating.kind === "file") {
+      onCreateFile?.(fullPath, "");
+      setSelectedPath(fullPath);
+      onOpen(fullPath);
+    } else {
+      // Empty folder = write a .gitkeep so the tree has something
+      // to anchor the folder node onto.
+      onCreateFile?.(`${fullPath}/.gitkeep`, "");
+    }
+  }
+
+  function confirmRename(oldPath: string, newName: string) {
+    const clean = newName.trim();
+    setRenamingPath(null);
+    if (!clean) return;
+    if (!isValidName(clean)) return;
+    const slash = oldPath.lastIndexOf("/");
+    const newPath = slash === -1 ? clean : `${oldPath.slice(0, slash + 1)}${clean}`;
+    if (newPath === oldPath) return;
+    // Folder rename: re-key every file under the prefix.
+    const isFolder = files.every((f) => f.path !== oldPath) && files.some((f) => f.path.startsWith(`${oldPath}/`));
+    if (isFolder) {
+      const prefix = `${oldPath}/`;
+      for (const f of files) {
+        if (f.path.startsWith(prefix)) {
+          onRename?.(f.path, `${newPath}/${f.path.slice(prefix.length)}`);
+        }
+      }
+    } else {
+      onRename?.(oldPath, newPath);
+    }
+    if (selectedPath === oldPath) setSelectedPath(newPath);
+  }
+
+  function confirmAndDelete(path: string) {
+    // Real apps would show a confirmation modal. For v1 we use the
+    // browser confirm — same as VS Code's default Delete behavior
+    // before they added the trash setting.
+    const isFolder = files.every((f) => f.path !== path) && files.some((f) => f.path.startsWith(`${path}/`));
+    const label = isFolder ? `folder ${path} and all files inside` : `file ${path}`;
+    if (!window.confirm(`Delete ${label}?`)) return;
+    if (isFolder) {
+      const prefix = `${path}/`;
+      for (const f of files) {
+        if (f.path.startsWith(prefix)) onDelete?.(f.path);
+      }
+    } else {
+      onDelete?.(path);
+    }
+    if (selectedPath === path) setSelectedPath(null);
+  }
+
+  async function handleDropFiles(parent: string, list: FileList) {
+    for (const f of Array.from(list)) {
+      // Reject likely-binary by extension. Text-only is safer for v1
+      // (the editor doesn't render images anyway).
+      if (isBinaryLikeName(f.name)) continue;
+      const text = await f.text().catch(() => null);
+      if (text === null) continue;
+      const path = parent ? `${parent}/${f.name}` : f.name;
+      onCreateFile?.(path, text);
+    }
+  }
+
   return (
     <div
+      ref={containerRef}
       className="h-full min-h-0 flex flex-col"
       style={{
         background: "#000",
-        color: "#cccccc",                       // vscode-foreground (dark theme)
+        color: "#cccccc",
         fontFamily: "var(--font-sans)",
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragOver(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.files.length) return;
+        e.preventDefault();
+        setDragOver(false);
+        handleDropFiles("", e.dataTransfer.files);
       }}
     >
       <header
         className="flex items-center justify-between px-3 shrink-0"
         style={{
-          height: 35,                            // VS Code panel title height
+          height: 35,
           borderBottom: "1px solid #1a1918",
           textTransform: "uppercase",
           letterSpacing: 1,
@@ -146,7 +341,7 @@ export function FileTreePane({ project, openPath, onOpen }: Props) {
           style={{
             fontSize: 11,
             fontWeight: 700,
-            color: "#cccccc",                    // vs-dark sideBarTitle.foreground
+            color: "#cccccc",
           }}
         >
           Explorer
@@ -154,10 +349,34 @@ export function FileTreePane({ project, openPath, onOpen }: Props) {
             {files.length} file{files.length === 1 ? "" : "s"}
           </span>
         </div>
+        <div className="flex items-center gap-0.5">
+          <HeaderAction title="New File" onClick={() => beginCreate({ kind: "empty" }, "file")}>
+            <span className="codicon codicon-new-file" style={{ fontSize: 14 }} />
+          </HeaderAction>
+          <HeaderAction title="New Folder" onClick={() => beginCreate({ kind: "empty" }, "folder")}>
+            <span className="codicon codicon-new-folder" style={{ fontSize: 14 }} />
+          </HeaderAction>
+          <HeaderAction title="Collapse All" onClick={collapseAll}>
+            <span className="codicon codicon-collapse-all" style={{ fontSize: 14 }} />
+          </HeaderAction>
+        </div>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-auto py-1">
-        {rows.length === 0 ? (
+      <div
+        className="flex-1 min-h-0 overflow-auto py-1 relative"
+        onContextMenu={(e) => {
+          // Right-click in the empty area below the rows.
+          if (e.target === e.currentTarget) {
+            e.preventDefault();
+            setContextMenu({ x: e.clientX, y: e.clientY, target: { kind: "empty" } });
+          }
+        }}
+        onClick={(e) => {
+          // Click in empty area clears selection (matches VS Code).
+          if (e.target === e.currentTarget) setSelectedPath(null);
+        }}
+      >
+        {rows.length === 0 && !creating ? (
           <p
             className="px-4 py-3"
             style={{
@@ -166,70 +385,166 @@ export function FileTreePane({ project, openPath, onOpen }: Props) {
               lineHeight: 1.5,
             }}
           >
-            Files appear here as agents emit{" "}
-            <code style={{ color: "#cccccc", fontFamily: "var(--font-mono)" }}>
-              ```lang:path
-            </code>{" "}
-            blocks.
+            Drag files here, click <span className="codicon codicon-new-file" style={{ fontSize: 11 }} /> to create one, or generate code in chat.
           </p>
         ) : (
           rows.map(({ node, depth }) => (
-            <ExplorerRow
+            <RowOrRename
               key={node.path}
               node={node}
               depth={depth}
               isOpen={!node.isDir && node.file?.path === openPath}
+              isSelected={selectedPath === node.path}
               isExpanded={expanded.has(node.path)}
+              isRenaming={renamingPath === node.path}
               onToggle={() => toggle(node.path)}
-              onOpen={() => node.file && onOpen(node.file.path)}
+              onClick={() => {
+                if (selectedPath === node.path && !node.isDir) {
+                  // Single-click on already-selected file = open (matches Cursor)
+                  onOpen(node.file?.path ?? node.path);
+                } else {
+                  setSelectedPath(node.path);
+                  if (!node.isDir) onOpen(node.file?.path ?? node.path);
+                }
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setSelectedPath(node.path);
+                setContextMenu({
+                  x: e.clientX, y: e.clientY,
+                  target: { kind: "row", path: node.path, isDir: node.isDir },
+                });
+              }}
+              onConfirmRename={(newName) => confirmRename(node.path, newName)}
+              onCancelRename={() => setRenamingPath(null)}
             />
           ))
         )}
+        {creating && (
+          <CreateInput
+            parent={creating.parent}
+            depth={creating.parent ? creating.parent.split("/").length : 0}
+            kind={creating.kind}
+            onConfirm={confirmCreate}
+            onCancel={() => setCreating(null)}
+          />
+        )}
+
+        {dragOver && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              border: "2px dashed rgba(217,119,87,0.45)",
+              background: "rgba(217,119,87,0.04)",
+            }}
+          />
+        )}
       </div>
+
+      {contextMenu && (
+        <ContextMenuPopover
+          state={contextMenu}
+          onNewFile={() => beginCreate(contextMenu.target, "file")}
+          onNewFolder={() => beginCreate(contextMenu.target, "folder")}
+          onRename={() => {
+            if (contextMenu.target.kind === "row") setRenamingPath(contextMenu.target.path);
+          }}
+          onDelete={() => {
+            if (contextMenu.target.kind === "row") confirmAndDelete(contextMenu.target.path);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function ExplorerRow({
-  node, depth, isOpen, isExpanded, onToggle, onOpen,
-}: {
+// ─── small components ────────────────────────────────────────────
+
+function HeaderAction({ title, onClick, children }: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="w-6 h-6 flex items-center justify-center rounded transition-colors"
+      style={{ color: "#cccccc" }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function RowOrRename(props: RowProps) {
+  if (props.isRenaming) {
+    return <RenameRow {...props} />;
+  }
+  return <ExplorerRow {...props} />;
+}
+
+type RowProps = {
   node: TreeNode;
   depth: number;
   isOpen: boolean;
+  isSelected: boolean;
   isExpanded: boolean;
+  isRenaming: boolean;
   onToggle: () => void;
-  onOpen: () => void;
-}) {
-  // Cursor/VS Code indent: 8px per depth column.
+  onClick: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onConfirmRename: (newName: string) => void;
+  onCancelRename: () => void;
+};
+
+function ExplorerRow({
+  node, depth, isOpen, isSelected, isExpanded, onClick, onToggle, onContextMenu,
+}: RowProps) {
   const indent = depth * 8;
   const isDir = node.isDir;
-
   return (
     <div
-      onClick={isDir ? onToggle : onOpen}
+      onClick={(e) => {
+        if (isDir) {
+          onToggle();
+        } else {
+          onClick();
+        }
+        e.stopPropagation();
+      }}
+      onContextMenu={onContextMenu}
       title={node.path}
       role="treeitem"
       aria-expanded={isDir ? isExpanded : undefined}
+      aria-selected={isSelected}
       className="cursor-pointer select-none whitespace-nowrap"
       style={{
         display: "flex",
         alignItems: "center",
-        height: 22,                                                  // .explorer-item
+        height: 22,
         lineHeight: "22px",
         paddingLeft: 4 + indent,
         paddingRight: 8,
-        color: isOpen ? "#ffffff" : "#cccccc",
-        background: isOpen ? "rgba(221,130,101,0.16)" : "transparent",
+        color: isOpen ? "#ffffff" : isSelected ? "#ffffff" : "#cccccc",
+        background:
+          isOpen ? "rgba(221,130,101,0.16)"
+          : isSelected ? "rgba(255,255,255,0.06)"
+          : "transparent",
         fontSize: 13,
       }}
       onMouseEnter={(e) => {
-        if (!isOpen) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; // list.hoverBackground
+        if (!isOpen && !isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.07)";
       }}
       onMouseLeave={(e) => {
-        if (!isOpen) e.currentTarget.style.background = "transparent";
+        if (!isOpen && !isSelected) e.currentTarget.style.background = "transparent";
       }}
     >
-      {/* Twistie column — 16px wide, codicon chevron for folders, blank for files */}
       <span
         aria-hidden
         className={isDir ? `codicon ${isExpanded ? "codicon-chevron-down" : "codicon-chevron-right"}` : ""}
@@ -244,7 +559,6 @@ function ExplorerRow({
         }}
       />
 
-      {/* Icon column — 22px wide, codicon folder for dirs, seti for files */}
       {isDir ? (
         <span
           aria-hidden
@@ -256,7 +570,7 @@ function ExplorerRow({
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
-            color: "#c09553",                    // vs-dark folder icon color (warm tan)
+            color: "#c09553",
             marginRight: 6,
           }}
         />
@@ -275,12 +589,216 @@ function ExplorerRow({
         </span>
       )}
 
-      <span
-        className="truncate min-w-0"
-        style={{ fontFamily: "var(--font-sans)" }}
-      >
+      <span className="truncate min-w-0" style={{ fontFamily: "var(--font-sans)" }}>
         {node.name}
       </span>
     </div>
   );
+}
+
+function RenameRow({ node, depth, onConfirmRename, onCancelRename }: RowProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    // Select just the basename (without extension) — same default as
+    // Finder / VS Code. Lets users rename "foo.tsx" to "bar.tsx" in
+    // two keystrokes instead of having to mouse-pick the dot.
+    const dot = node.name.lastIndexOf(".");
+    el.setSelectionRange(0, dot > 0 ? dot : node.name.length);
+  }, [node.name]);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        height: 22,
+        paddingLeft: 4 + depth * 8 + 16 + 22 + 6, // align under file glyph
+        paddingRight: 8,
+        background: "rgba(255,255,255,0.04)",
+      }}
+    >
+      <input
+        ref={inputRef}
+        defaultValue={node.name}
+        onBlur={(e) => onConfirmRename(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onConfirmRename(e.currentTarget.value);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onCancelRename();
+          }
+        }}
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
+        style={{
+          background: "#1e1e1e",
+          color: "#f0eee6",
+          fontFamily: "var(--font-sans)",
+          fontSize: 13,
+          padding: "0 4px",
+          border: "1px solid #d97757",
+          borderRadius: 2,
+          outline: "none",
+          width: "100%",
+        }}
+      />
+    </div>
+  );
+}
+
+function CreateInput({ parent, depth, kind, onConfirm, onCancel }: {
+  parent: string;
+  depth: number;
+  kind: "file" | "folder";
+  onConfirm: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  void parent;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        height: 22,
+        paddingLeft: 4 + depth * 8,
+        paddingRight: 8,
+        background: "rgba(255,255,255,0.04)",
+      }}
+    >
+      <span style={{ width: 16 }} />
+      <span
+        aria-hidden
+        className={`codicon ${kind === "folder" ? "codicon-folder" : "codicon-new-file"}`}
+        style={{
+          width: 22, fontSize: 16,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+          color: kind === "folder" ? "#c09553" : "#cccccc",
+          marginRight: 6,
+        }}
+      />
+      <input
+        ref={inputRef}
+        placeholder={kind === "folder" ? "folder name" : "filename.ext"}
+        onBlur={(e) => onConfirm(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onConfirm(e.currentTarget.value);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
+        style={{
+          background: "#1e1e1e",
+          color: "#f0eee6",
+          fontFamily: "var(--font-sans)",
+          fontSize: 13,
+          padding: "0 4px",
+          border: "1px solid #d97757",
+          borderRadius: 2,
+          outline: "none",
+          flex: 1,
+        }}
+      />
+    </div>
+  );
+}
+
+function ContextMenuPopover({
+  state, onNewFile, onNewFolder, onRename, onDelete,
+}: {
+  state: ContextMenuState;
+  onNewFile: () => void;
+  onNewFolder: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const onRow = state.target.kind === "row";
+  return (
+    <div
+      role="menu"
+      style={{
+        position: "fixed",
+        top: state.y,
+        left: state.x,
+        background: "#252526",
+        border: "1px solid #454545",
+        boxShadow: "0 4px 18px rgba(0,0,0,0.55)",
+        minWidth: 180,
+        padding: 4,
+        zIndex: 200,
+        fontSize: 13,
+        color: "#cccccc",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <MenuItem onClick={onNewFile}>New File</MenuItem>
+      <MenuItem onClick={onNewFolder}>New Folder</MenuItem>
+      {onRow && (
+        <>
+          <MenuDivider />
+          <MenuItem onClick={onRename} shortcut="F2">Rename</MenuItem>
+          <MenuItem onClick={onDelete} shortcut="⌘⌫" destructive>Delete</MenuItem>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({ onClick, children, shortcut, destructive }: {
+  onClick: () => void;
+  children: React.ReactNode;
+  shortcut?: string;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="w-full text-left flex items-center justify-between"
+      style={{
+        padding: "4px 10px",
+        background: "transparent",
+        color: destructive ? "#ff8a96" : "#cccccc",
+        borderRadius: 2,
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "#04395e"; e.currentTarget.style.color = "#ffffff"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = destructive ? "#ff8a96" : "#cccccc"; }}
+    >
+      <span>{children}</span>
+      {shortcut && <span style={{ marginLeft: 24, fontSize: 11, color: "#888888", fontFamily: "var(--font-mono)" }}>{shortcut}</span>}
+    </button>
+  );
+}
+
+function MenuDivider() {
+  return <div style={{ height: 1, background: "#454545", margin: "4px 0" }} />;
+}
+
+// ─── helpers ────────────────────────────────────────────────────
+
+function isValidName(name: string): boolean {
+  if (!name) return false;
+  if (name.includes("/")) return false;
+  if (name === "." || name === "..") return false;
+  // Block leading dot? VS Code allows .gitignore etc, so we do too.
+  return true;
+}
+
+function isBinaryLikeName(name: string): boolean {
+  return /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|mp3|mp4|mov|wav|woff|woff2|ttf|eot|exe|dll|so|dylib)$/i.test(name);
 }

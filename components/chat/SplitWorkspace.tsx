@@ -45,6 +45,12 @@ type Props = {
   slotLabels: Record<string, string>;
   /** Persists user edits back into the parent project map. */
   onFileEdit: (path: string, content: string) => void;
+  /** File-tree mutations (Cursor-parity). New file / upload / dropped
+   *  blob writes go through `onFileCreate`. Rename and delete are
+   *  separate because they mutate the path-key, not just content. */
+  onFileCreate?: (path: string, content: string) => void;
+  onFileRename?: (oldPath: string, newPath: string) => void;
+  onFileDelete?: (path: string) => void;
   /** Undo/redo + Save buttons in the editor header. CompareChat
    *  owns the edit log + version state and just hands the actions
    *  down so SplitWorkspace stays a layout component. */
@@ -63,6 +69,7 @@ type Props = {
 
 export function SplitWorkspace({
   project, slotLabels, onFileEdit,
+  onFileCreate, onFileRename, onFileDelete,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory,
   canPreview = false,
@@ -118,6 +125,15 @@ export function SplitWorkspace({
             slotLabels={slotLabels}
             openPath={openPath}
             onOpen={setOpenPath}
+            onCreateFile={onFileCreate}
+            onRename={(oldPath, newPath) => {
+              onFileRename?.(oldPath, newPath);
+              if (openPath === oldPath) setOpenPath(newPath);
+            }}
+            onDelete={(path) => {
+              onFileDelete?.(path);
+              if (openPath === path) setOpenPath(null);
+            }}
           />
         </div>
 
