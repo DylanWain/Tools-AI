@@ -44,6 +44,10 @@ export type RunSlot = {
    *  this to inject peer-awareness + master goal context. Falls back
    *  to the default helpful-assistant system prompt when absent. */
   systemPrompt?: string;
+  /** User-defined project rules (THETOOLSWEBSITE.md equivalent). Loaded
+   *  from localStorage by CompareChat and stamped on every slot in a
+   *  send so every model follows the same project conventions. */
+  projectContext?: string;
   /** Multi-agent workflow only: distinguishes worker slots from the
    *  appended synthesizer slot in the response grid. */
   role?: "worker" | "synthesizer";
@@ -502,6 +506,7 @@ async function runOne(
         prompt: slot.prompt,
         modelId: slot.modelId,
         ...(slot.systemPrompt ? { systemPrompt: slot.systemPrompt } : {}),
+        ...(slot.projectContext ? { projectContext: slot.projectContext } : {}),
         ...(slot.attachments && slot.attachments.length
           ? { attachments: slot.attachments }
           : {}),

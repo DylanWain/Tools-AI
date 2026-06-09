@@ -72,6 +72,8 @@ import { ModelPickerModal } from "./ModelPickerModal";
 import { SessionSidebar } from "./SessionSidebar";
 import { ProjectView } from "./ProjectView";
 import { VersionHistoryModal } from "./VersionHistoryModal";
+import { ProjectRulesModal } from "./ProjectRulesModal";
+import { loadProjectRules, hasProjectRules } from "@/lib/compare/projectRules";
 import { CompareAuthGate } from "./CompareAuthGate";
 import { ComparePaywall } from "./ComparePaywall";
 import { AutoResearchComposer } from "./AutoResearchComposer";
@@ -303,6 +305,15 @@ export function CompareChat({ availableProviders }: Props) {
   const [currentId, setCurrentId] = useState<string | null>(null);
 
   useEffect(() => { setSessions(listSessions()); }, []);
+
+  // Project rules — the user's CLAUDE.md-equivalent text. Persisted in
+  // localStorage by lib/compare/projectRules; loaded fresh on each Send
+  // so a save in the modal takes effect immediately. `rulesActive`
+  // mirrors whether any rules are saved so the header pill can render
+  // the active state without re-reading localStorage on every paint.
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [rulesActive, setRulesActive] = useState(false);
+  useEffect(() => { setRulesActive(hasProjectRules()); }, []);
 
   const busy = Object.values(runs).some((r) => r.status === "streaming");
   const hasContent = lastSlots.length > 0 || turns.length > 0;
@@ -687,8 +698,13 @@ export function CompareChat({ availableProviders }: Props) {
     // dashboard group the N parallel-fanout events into a single
     // logical user Send. `mode` is the label used on the chart.
     const turnIndex = frozenTurnsBefore.length;
+    // Read project rules fresh per Send so an edit in the modal takes
+    // effect on the very next send without a remount. Empty string =>
+    // no projectContext field on the slot (server skips the append).
+    const rules = loadProjectRules();
     const slots: RunSlot[] = [...selected].map((modelId) => ({
       id: modelId, modelId, prompt,
+      ...(rules ? { projectContext: rules } : {}),
       attachments: wire.length ? wire : undefined,
       prevTurns: history.length ? history : undefined,
       sessionId: sessId,
@@ -908,6 +924,8 @@ export function CompareChat({ availableProviders }: Props) {
           showWorkspaceToggle={hasContent}
           workspaceOpen={workspaceOpen}
           onToggleWorkspace={() => setWorkspaceOpen((v) => !v)}
+          rulesActive={rulesActive}
+          onOpenRules={() => setRulesModalOpen(true)}
         />
         <main className="flex-1 flex flex-col">
           {!hasContent ? (
@@ -1097,16 +1115,26 @@ export function CompareChat({ availableProviders }: Props) {
         bridgeStatus={bridgeStatus}
         bridgeSyncing={bridgeSyncing}
       />
+
+      {rulesModalOpen && (
+        <ProjectRulesModal
+          onClose={() => setRulesModalOpen(false)}
+          onSaved={() => setRulesActive(hasProjectRules())}
+        />
+      )}
     </div>
   );
 }
 
 function ChatHeader({
   showWorkspaceToggle, workspaceOpen, onToggleWorkspace,
+  rulesActive, onOpenRules,
 }: {
   showWorkspaceToggle: boolean;
   workspaceOpen: boolean;
   onToggleWorkspace: () => void;
+  rulesActive: boolean;
+  onOpenRules: () => void;
 }) {
   return (
     <header className="sticky top-0 z-30 backdrop-blur-md bg-black/85">
@@ -1128,6 +1156,23 @@ function ChatHeader({
             Code
           </button>
         )}
+        <button
+          type="button"
+          onClick={onOpenRules}
+          title={rulesActive
+            ? "Edit project rules (active on every send)"
+            : "Set project rules — the CLAUDE.md for every model in the grid"}
+          aria-pressed={rulesActive}
+          className={[
+            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] transition-colors",
+            rulesActive
+              ? "bg-[#d97757]/10 text-[#d97757] border border-[#d97757]/40 hover:bg-[#d97757]/15"
+              : "text-white/60 hover:text-white hover:bg-white/[0.06] border border-transparent",
+          ].join(" ")}
+        >
+          <RulesIcon />
+          Rules{rulesActive ? " · on" : ""}
+        </button>
         <Link href="/welcome" className="px-3 py-1.5 rounded-full text-[13px] text-white/60 hover:text-white hover:bg-white/[0.06] transition">
           Desktop app
         </Link>
@@ -1136,6 +1181,17 @@ function ChatHeader({
         </Link>
       </div>
     </header>
+  );
+}
+
+function RulesIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3.5 2.5h6l3 3v8H3.5z" />
+      <path d="M9.5 2.5v3h3" />
+      <path d="M5.5 8.5h5" />
+      <path d="M5.5 11h3.5" />
+    </svg>
   );
 }
 

@@ -54,15 +54,21 @@ const DEFAULT_SYSTEM_PROMPT = [
  *  `prevTurns` is the conversation history BEFORE the current prompt —
  *  user messages + previously-chosen compare card replies, in order.
  *  When empty (or undefined), this collapses to the single-turn shape
- *  the route used before the pick-as-main feature shipped. */
+ *  the route used before the pick-as-main feature shipped.
+ *  `projectContext` is the user's project rules (their THETOOLSWEBSITE.md
+ *  equivalent) — appended to whichever system prompt is in play so the
+ *  house voice and user-defined conventions both apply. */
 export async function* streamCompletion(
   m: CompareModel,
   prompt: string,
   systemPrompt?: string,
   attachments?: WireAttachment[],
   prevTurns?: ChatMessage[],
+  projectContext?: string,
 ): AsyncGenerator<Chunk> {
-  const sys = systemPrompt && systemPrompt.trim() ? systemPrompt : DEFAULT_SYSTEM_PROMPT;
+  const baseSys = systemPrompt && systemPrompt.trim() ? systemPrompt : DEFAULT_SYSTEM_PROMPT;
+  const ctx = projectContext?.trim();
+  const sys = ctx ? `${baseSys}\n\n# Project context (from this user's project rules)\n${ctx}` : baseSys;
   const atts = attachments ?? [];
   const history = prevTurns ?? [];
   // Always prepend any plain-text attachments to the user prompt — every

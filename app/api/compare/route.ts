@@ -54,6 +54,10 @@ export async function POST(req: Request) {
     prompt?: string;
     modelId?: string;
     systemPrompt?: string;
+    /** User-defined project rules (THETOOLSWEBSITE.md equivalent).
+     *  Appended to the system prompt so house voice + user conventions
+     *  both apply. Optional; client reads from localStorage. */
+    projectContext?: string;
     attachments?: WireAttachment[];
     prevTurns?: ChatMessage[];
     // Analytics-only fields. The client passes its current compare-
@@ -71,6 +75,13 @@ export async function POST(req: Request) {
   const prompt = String(body.prompt ?? "").trim();
   const modelId = String(body.modelId ?? "").trim();
   const systemPrompt = typeof body.systemPrompt === "string" ? body.systemPrompt : undefined;
+  // Project context cap: 8× the prompt cap. Long enough for a real
+  // CLAUDE.md-style doc, short enough to not blow up the upstream
+  // payload across every model on every send.
+  const rawProjectContext = typeof body.projectContext === "string" ? body.projectContext : undefined;
+  const projectContext = rawProjectContext && rawProjectContext.trim()
+    ? rawProjectContext.slice(0, MAX_PROMPT_CHARS * 8)
+    : undefined;
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
   const prevTurns = sanitizeHistory(body.prevTurns);
   const sessionId = typeof body.sessionId === "string" ? body.sessionId.slice(0, 128) : null;
@@ -157,6 +168,7 @@ export async function POST(req: Request) {
   // stream runs, then bill the sum after the stream closes.
   const inputCharCount =
     (systemPrompt?.length ?? 0) +
+    (projectContext?.length ?? 0) +
     prompt.length +
     prevTurns.reduce((n, t) => n + t.content.length, 0) +
     attachments.reduce((n, a) => n + (a.text?.length ?? 0), 0);
@@ -181,7 +193,7 @@ export async function POST(req: Request) {
       let sawError = false;
       let crashMsg: string | null = null;
       try {
-        for await (const chunk of streamCompletion(model, prompt, systemPrompt, attachments, prevTurns)) {
+        for await (const chunk of streamCompletion(model, prompt, systemPrompt, attachments, prevTurns, projectContext)) {
           if (chunk.text) outputChars += chunk.text.length;
           send(chunk);
           if (chunk.error) {
