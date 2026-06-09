@@ -30,13 +30,16 @@
  *                                 boot. Without it, ~30s cold start.
  */
 import { Sandbox } from "@vercel/sandbox";
+import { put as blobPut } from "@vercel/blob";
 import { extractBearer, decideBilling } from "@/lib/compare/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Sandbox spinup + install + first-paint can take 60-90s without a
-// snapshot. Give the route plenty of headroom.
-export const maxDuration = 300;
+// snapshot. Electron builds can take 3-10 MINUTES (install + native
+// rebuild + electron-builder packaging). Set to the Pro-plan ceiling
+// of 800s; Hobby plan will cap at its own 300s limit silently.
+export const maxDuration = 800;
 
 const SANDBOX_TIMEOUT_MS = 10 * 60 * 1000;  // 10 min — billing ceiling per request
 const MAX_FILES = 200;
@@ -103,13 +106,19 @@ export async function POST(req: Request) {
   }
 
   // ── Detect project type ───────────────────────────────────────────
-  // Two paths:
-  //   1. Node project — has package.json with a dev/start/serve script.
-  //      We install deps and run the script. Slow first boot (~60-90s).
-  //   2. Static project — no package.json (or package.json without a
-  //      runnable script) but has at least one HTML file. We skip
-  //      install entirely and serve the files from a tiny built-in
-  //      Node static server. Boot is ~5-10s instead of 90s.
+  // Three paths, checked in priority order:
+  //   1. ELECTRON project — has `electron` in (dev)Dependencies. We
+  //      can't run the GUI in a headless Linux sandbox, so we BUILD
+  //      it into downloadable artifacts (.AppImage / .deb / .zip) and
+  //      upload to Vercel Blob. Slow (~3-10 min) but produces real
+  //      desktop binaries the user runs locally. Linux artifacts only;
+  //      .dmg / .exe need their respective host OSes which the sandbox
+  //      doesn't provide.
+  //   2. Node project — package.json with dev/start/serve script.
+  //      We install deps + run the script. ~60-90s first boot.
+  //   3. Static project — no package.json (or no runnable script) but
+  //      has at least one HTML file. We skip install entirely and
+  //      serve via a built-in Node static server. ~5-10s boot.
   const pkgFile = files["package.json"];
   let pkg: Record<string, unknown> | null = null;
   if (pkgFile) {
@@ -117,31 +126,66 @@ export async function POST(req: Request) {
     catch { return jsonError("bad_package_json", 400, "package.json doesn't parse as JSON"); }
   }
   const scripts = (pkg?.scripts as Record<string, string>) || {};
-  const nodeScript =
+  const deps = {
+    ...((pkg?.dependencies as Record<string, string> | undefined) ?? {}),
+    ...((pkg?.devDependencies as Record<string, string> | undefined) ?? {}),
+  };
+  // Electron detection — primary signal is `electron` package itself.
+  // electron-builder / electron-forge presence also counts as a signal
+  // when someone has a multi-package monorepo.
+  const isElectron = !!deps.electron || !!deps["electron-builder"] || !!deps["@electron-forge/cli"];
+  // For Electron we look for build/dist/package/make scripts in this
+  // order. Most common: "dist" (electron-builder convention) and
+  // "make" (electron-forge convention).
+  const electronBuildScript = !isElectron ? null : (
+    body.buildCommand ||
+    (scripts.dist ? "dist" :
+     scripts.make ? "make" :
+     scripts.package ? "package" :
+     scripts.build ? "build" : null)
+  );
+  const nodeScript = isElectron ? null : (
     body.devCommand ||
-    (scripts.dev ? "dev" : scripts.start ? "start" : scripts.serve ? "serve" : null);
+    (scripts.dev ? "dev" : scripts.start ? "start" : scripts.serve ? "serve" : null)
+  );
 
-  // If there's no runnable Node script, treat this as a static project
-  // IF it has any HTML file. Otherwise we genuinely can't preview it.
+  // If there's no runnable Node script AND it's not Electron, treat
+  // as static IF there's an HTML file. Otherwise nothing to preview.
   const hasHtml = entries.some(([p]) => p.toLowerCase().endsWith(".html"));
-  const isStatic = !nodeScript && hasHtml;
-  if (!nodeScript && !hasHtml) {
+  const isStatic = !isElectron && !nodeScript && hasHtml;
+
+  if (isElectron && !electronBuildScript) {
+    return jsonError(
+      "no_electron_build_script",
+      400,
+      "Electron project needs a build script in package.json. Add one like \"dist\": \"electron-builder --linux\" or \"make\": \"electron-forge make --platform=linux\".",
+    );
+  }
+  if (!isElectron && !nodeScript && !hasHtml) {
     return jsonError(
       "no_runnable_project",
       400,
-      "Project has no package.json with a dev script AND no HTML files — nothing to preview. Ask one of the agents to add either a package.json with a 'dev' script, or an HTML file.",
+      "Project has no package.json with a dev script AND no HTML files — nothing to preview.",
     );
   }
 
+  // Only matters for the dev-server path (Node mode). Static uses 3000.
+  // Electron doesn't expose a port — we return file URLs instead.
   const port = isStatic
     ? 3000
-    : (Number(body.port) || detectDefaultPort(pkg ?? {}, scripts[nodeScript ?? ""] || ""));
+    : isElectron
+      ? 0
+      : (Number(body.port) || detectDefaultPort(pkg ?? {}, scripts[nodeScript ?? ""] || ""));
 
   const userId = decision.userId;
   const startedAt = Date.now();
   console.log(`[sandbox] user=${userId} files=${entries.length} bytes=${totalBytes} port=${port}`);
 
   // ── Spawn the sandbox ─────────────────────────────────────────────
+  // Electron build path runs for ~3-10 min, MUCH longer than the
+  // dev-server preview's 10-min budget. Stretch the sandbox timeout
+  // accordingly (Vercel Sandbox caps at 45 min on Pro plans).
+  const sandboxTimeoutMs = isElectron ? 30 * 60 * 1000 : SANDBOX_TIMEOUT_MS;
   let sandbox: InstanceType<typeof Sandbox>;
   try {
     sandbox = await Sandbox.create({
@@ -150,10 +194,10 @@ export async function POST(req: Request) {
       // VERCEL_OIDC_TOKEN fallback.
       ...sandboxCredentials(),
       runtime: "node24",
-      timeout: SANDBOX_TIMEOUT_MS,
+      timeout: sandboxTimeoutMs,
       // Open the dev port so the public URL serves traffic to the
-      // dev server inside the sandbox.
-      ports: [port],
+      // dev server. Electron builds have no port — skip the array.
+      ...(isElectron ? {} : { ports: [port] }),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "sandbox_spawn_failed";
@@ -173,6 +217,113 @@ export async function POST(req: Request) {
     const msg = e instanceof Error ? e.message : "write_failed";
     await sandbox.stop().catch(() => {});
     return jsonError("write_failed", 502, msg);
+  }
+
+  // ── ELECTRON BUILD PATH ─────────────────────────────────────────────
+  // Run install + build + harvest artifacts + upload each to Vercel
+  // Blob. Linux artifacts only (.AppImage / .deb / .rpm / .zip / .snap)
+  // — .dmg needs macOS host, .exe needs Windows (or wine, fragile).
+  // We return artifact URLs the client renders as download buttons.
+  if (isElectron && electronBuildScript) {
+    try {
+      const useBun = !!files["bun.lock"] || !!files["bun.lockb"];
+      const installer = useBun ? "bun" : "npm";
+      const runner = useBun ? "bun" : "npm";
+
+      // Install — Electron itself is ~150MB download, this is the slow part.
+      const installResult = await sandbox.runCommand(installer, ["install"]);
+      if (installResult.exitCode !== 0) {
+        const err = (await installResult.stderr()).slice(-2500);
+        await sandbox.stop().catch(() => {});
+        return jsonError("install_failed", 502, err || `${installer} install exited ${installResult.exitCode}`);
+      }
+
+      // Build — runs electron-builder / electron-forge per the detected script.
+      const buildResult = await sandbox.runCommand(runner, ["run", electronBuildScript]);
+      if (buildResult.exitCode !== 0) {
+        const err = (await buildResult.stderr()).slice(-3500);
+        await sandbox.stop().catch(() => {});
+        return jsonError("build_failed", 502, err || `${runner} run ${electronBuildScript} exited ${buildResult.exitCode}`);
+      }
+
+      // Harvest artifacts. electron-builder writes to dist/, forge to
+      // out/, some configs use release/. Cap output to a sane list so
+      // we don't try to upload 100 stray files if the build went weird.
+      const findResult = await sandbox.runCommand("sh", [
+        "-c",
+        "find dist out release -maxdepth 3 -type f " +
+        "\\( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' " +
+        " -o -name '*.snap'    -o -name '*.zip' -o -name '*.dmg' " +
+        " -o -name '*.exe'     -o -name '*.tar.gz' \\) 2>/dev/null | head -20",
+      ]);
+      const paths = (await findResult.stdout()).trim().split("\n").filter((p) => p.length > 0);
+
+      if (paths.length === 0) {
+        await sandbox.stop().catch(() => {});
+        return jsonError(
+          "no_artifacts",
+          502,
+          "Build succeeded but no .AppImage/.deb/.dmg/.exe/.zip artifacts found in dist/, out/, or release/. Check the build script's output directory.",
+        );
+      }
+
+      // For each artifact: base64-pull from sandbox → upload to Blob.
+      // Note: large artifacts (>50MB) on base64 are slow but workable
+      // for the typical Electron app size (~80-200MB). For Phase 2
+      // we'd swap to a streaming sandbox.readFile() if available.
+      type Artifact = { name: string; url: string; sizeBytes: number; platform: string };
+      const artifacts: Artifact[] = [];
+      for (const path of paths) {
+        const b64Result = await sandbox.runCommand("base64", ["-w", "0", path]);
+        if (b64Result.exitCode !== 0) {
+          console.warn(`[electron-build] base64 failed for ${path}`);
+          continue;
+        }
+        const data = Buffer.from((await b64Result.stdout()).trim(), "base64");
+        const filename = path.split("/").pop() || "artifact.bin";
+        const ext = filename.split(".").pop() ?? "";
+        const platform =
+          ext === "dmg" ? "macOS" :
+          ext === "exe" ? "Windows" :
+          (ext === "AppImage" || ext === "deb" || ext === "rpm" || ext === "snap") ? "Linux" :
+          "Cross-platform";
+        try {
+          const blob = await blobPut(
+            // Path on Blob — per-user namespace + timestamp prevents
+            // accidental overwrites between concurrent builds.
+            `electron-builds/${userId}/${Date.now()}-${filename}`,
+            data,
+            { access: "public", addRandomSuffix: false },
+          );
+          artifacts.push({
+            name: filename,
+            url: blob.url,
+            sizeBytes: data.length,
+            platform,
+          });
+        } catch (e) {
+          console.error(`[electron-build] blob upload failed for ${filename}: ${(e as Error).message}`);
+        }
+      }
+
+      await sandbox.stop().catch(() => {});
+      const durationMs = Date.now() - startedAt;
+      console.log(
+        `[electron-build] user=${userId} script=${electronBuildScript} artifacts=${artifacts.length} in ${durationMs}ms`,
+      );
+      return Response.json({
+        mode: "electron-build",
+        buildScript: electronBuildScript,
+        installer,
+        artifacts,
+        durationMs,
+      });
+    } catch (e) {
+      await sandbox.stop().catch(() => {});
+      const msg = e instanceof Error ? e.message : "electron_build_crashed";
+      console.error(`[electron-build] crashed for ${userId}: ${msg}`);
+      return jsonError("electron_build_crashed", 502, msg);
+    }
   }
 
   // ── Install (Node only) + spawn server ─────────────────────────────

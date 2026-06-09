@@ -20,10 +20,18 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { getBrowserSupabase } from "@/lib/supabase";
 import type { ProjectFile } from "@/lib/compare/sessions";
 
+type Artifact = {
+  name: string;
+  url: string;
+  sizeBytes: number;
+  platform: string;  // 'macOS' | 'Windows' | 'Linux' | 'Cross-platform'
+};
+
 type State =
   | { kind: "idle" }
   | { kind: "spawning"; startedAt: number }
   | { kind: "ready"; previewUrl: string; expiresAt: number }
+  | { kind: "artifacts"; artifacts: Artifact[]; buildScript: string; durationMs: number }
   | { kind: "error"; message: string; detail?: string }
   | { kind: "expired" };
 
@@ -142,11 +150,32 @@ export const SandboxPreview = forwardRef<SandboxPreviewHandle, Props>(function S
         body: JSON.stringify({ files }),
       });
       const body = (await res.json().catch(() => ({}))) as {
+        mode?: "electron-build" | "node" | "static";
         previewUrl?: string;
         expiresAt?: string;
+        artifacts?: Artifact[];
+        buildScript?: string;
+        durationMs?: number;
         error?: string;
         detail?: string;
       };
+
+      // Electron build path — no live URL, just downloadable artifacts.
+      // Close the popup since it'd just sit on the loading screen forever.
+      if (res.ok && body.mode === "electron-build" && Array.isArray(body.artifacts)) {
+        if (popupRef.current && !popupRef.current.closed) {
+          try { popupRef.current.close(); } catch { /* noop */ }
+        }
+        popupRef.current = null;
+        setState({
+          kind: "artifacts",
+          artifacts: body.artifacts,
+          buildScript: body.buildScript ?? "build",
+          durationMs: body.durationMs ?? 0,
+        });
+        return;
+      }
+
       if (!res.ok || !body.previewUrl) {
         popupRef.current?.close();
         popupRef.current = null;
@@ -157,7 +186,7 @@ export const SandboxPreview = forwardRef<SandboxPreviewHandle, Props>(function S
         });
         return;
       }
-      // Sandbox is up. Redirect the pre-opened tab to the live URL.
+      // Sandbox is up — live dev server. Redirect the pre-opened tab.
       if (popupRef.current && !popupRef.current.closed) {
         popupRef.current.location.href = body.previewUrl;
       }
@@ -204,6 +233,7 @@ export const SandboxPreview = forwardRef<SandboxPreviewHandle, Props>(function S
       />
       <div className="flex-1 min-h-0 relative">
         {state.kind === "ready" && <ReadyOverlay state={state} />}
+        {state.kind === "artifacts" && <ArtifactsOverlay state={state} onReset={reset} />}
         {state.kind === "spawning" && <SpawningOverlay startedAt={state.startedAt} />}
         {state.kind === "idle" && <IdleOverlay canPreview={canPreview} onLaunch={launchSelfOpen} />}
         {state.kind === "error" && <ErrorOverlay state={state} onRetry={reset} />}
@@ -212,6 +242,89 @@ export const SandboxPreview = forwardRef<SandboxPreviewHandle, Props>(function S
     </div>
   );
 });
+
+/** Build-complete state for Electron projects. Renders one download
+ *  card per artifact, grouped by platform. No popup tab here — Electron
+ *  apps run natively on the user's machine after they download. */
+function ArtifactsOverlay({
+  state, onReset,
+}: {
+  state: Extract<State, { kind: "artifacts" }>;
+  onReset: () => void;
+}) {
+  // Group artifacts by platform so the user can scan by their OS.
+  const byPlatform: Record<string, Artifact[]> = {};
+  for (const a of state.artifacts) {
+    if (!byPlatform[a.platform]) byPlatform[a.platform] = [];
+    byPlatform[a.platform].push(a);
+  }
+  const totalSize = state.artifacts.reduce((s, a) => s + a.sizeBytes, 0);
+
+  return (
+    <div className="absolute inset-0 overflow-y-auto p-6">
+      <div className="max-w-[560px] mx-auto">
+        <div className="inline-flex items-center gap-2 mb-3 text-[#7eb472]">
+          <span aria-hidden className="w-2 h-2 rounded-full bg-[#7eb472] inline-block" />
+          <span className="text-[12.5px] font-mono uppercase tracking-wider">Build complete</span>
+        </div>
+        <h2 className="text-white text-[18px] font-medium mb-1.5">Your Electron app is ready</h2>
+        <p className="text-white/55 text-[13px] leading-[1.55] mb-1">
+          Built {state.artifacts.length} artifact{state.artifacts.length === 1 ? "" : "s"} ({formatBytes(totalSize)}) in {Math.round(state.durationMs / 1000)}s via <code className="text-white/80 bg-white/[0.06] px-1 py-0.5 rounded text-[11.5px]">npm run {state.buildScript}</code>
+        </p>
+        <p className="text-white/35 text-[11.5px] leading-[1.55] mb-5">
+          Download for your OS, double-click to install. Linux artifacts run as-is. macOS / Windows builds require the matching host OS (the sandbox is Linux-only) so they'll only appear if your build config produced them.
+        </p>
+
+        <div className="space-y-4">
+          {Object.entries(byPlatform).map(([platform, list]) => (
+            <section key={platform}>
+              <div className="text-[10.5px] uppercase tracking-wider text-white/40 font-mono mb-2">
+                {platform}
+              </div>
+              <ul className="space-y-1.5">
+                {list.map((a) => (
+                  <li key={a.url}>
+                    <a
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={a.name}
+                      className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-white/10 bg-[#161616] hover:border-white/30 transition-colors group"
+                    >
+                      <span className="text-[#d97757] text-[14px]" aria-hidden>↓</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13.5px] text-white/95 font-medium truncate">{a.name}</div>
+                        <div className="text-[11px] text-white/45 font-mono">{formatBytes(a.sizeBytes)}</div>
+                      </div>
+                      <span className="text-[11.5px] text-white/45 group-hover:text-white/85 transition-colors">
+                        Download →
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={onReset}
+          className="mt-6 text-[12px] text-white/45 hover:text-white/85 transition-colors"
+        >
+          Build again →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
 
 /** Live-and-running state. Preview opens in a new tab (auto via the
  *  pre-opened popup; manual click fallback if the popup blocker won.) */
@@ -364,18 +477,24 @@ function IdleOverlay({ canPreview, onLaunch }: { canPreview: boolean; onLaunch: 
 
 function SpawningOverlay({ startedAt }: { startedAt: number }) {
   const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+  // After 90s we're almost certainly in an Electron-build flow — switch
+  // the copy to reflect that so the user isn't confused why a static
+  // preview is taking minutes.
+  const longBuild = elapsed > 90;
   return (
     <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-      <div className="max-w-[420px]">
-        <div className="text-white/95 text-[15px] font-medium mb-3">Spinning up sandbox…</div>
+      <div className="max-w-[440px]">
+        <div className="text-white/95 text-[15px] font-medium mb-3">
+          {longBuild ? "Building Electron app…" : "Spinning up sandbox…"}
+        </div>
         <div className="text-[11px] text-white/45 font-mono mb-3">
-          {elapsed}s elapsed · 5-10s for static HTML, 60-90s for npm projects
+          {elapsed}s elapsed · ~10s static HTML · ~60-90s npm projects · ~3-10 min Electron builds
         </div>
         <ul className="text-[12px] text-white/55 leading-[1.7] list-none">
           <li>· allocating Linux microVM</li>
           <li>· writing your project files</li>
           <li>· installing dependencies (skipped for static HTML)</li>
-          <li>· starting server</li>
+          <li>{longBuild ? "· packaging desktop binaries (the slow part)" : "· starting server"}</li>
         </ul>
       </div>
     </div>
