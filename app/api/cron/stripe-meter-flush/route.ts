@@ -86,11 +86,17 @@ type UserRow = {
   period_billed_to_stripe_cents: number;
   stripe_customer_id: string | null;
   current_period_start: string | null;
+  /** Per-user override of the chad-tier included cap. NULL = use
+   *  FLAT_INCLUDED_CENTS (the env default). Set per-row for custom
+   *  plans like a $15 sub with $15 included (1500). */
+  included_cents: number | null;
 };
 
 // Compute the raw cents to report to Stripe for this period.
 // - PAYG users: report everything (delta from consumed - already reported)
-// - Flat ('chad') users: report only the portion past the $25 included
+// - Flat ('chad') users: report only the portion past their included
+//   cap. Per-user override `included_cents` wins; otherwise falls back
+//   to the env default ($25 / 2500).
 function billableCents(u: UserRow): number {
   const consumed = u.period_consumed_cents || 0;
   const alreadyReported = u.period_billed_to_stripe_cents || 0;
@@ -98,7 +104,8 @@ function billableCents(u: UserRow): number {
     return Math.max(consumed - alreadyReported, 0);
   }
   if (u.tier === "chad") {
-    const overage = Math.max(consumed - FLAT_INCLUDED_CENTS, 0);
+    const cap = u.included_cents ?? FLAT_INCLUDED_CENTS;
+    const overage = Math.max(consumed - cap, 0);
     return Math.max(overage - alreadyReported, 0);
   }
   return 0;
@@ -135,7 +142,7 @@ export async function GET(req: NextRequest) {
   const { data: candidates, error } = await sb
     .from("users")
     .select(
-      "id, email, tier, period_consumed_cents, period_billed_to_stripe_cents, stripe_customer_id, current_period_start",
+      "id, email, tier, period_consumed_cents, period_billed_to_stripe_cents, stripe_customer_id, current_period_start, included_cents",
     )
     .in("tier", ["chad", "payg"])
     .not("stripe_customer_id", "is", null)
