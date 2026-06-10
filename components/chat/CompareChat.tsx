@@ -74,6 +74,11 @@ import { ProjectView } from "./ProjectView";
 import { VersionHistoryModal } from "./VersionHistoryModal";
 import { ProjectRulesModal } from "./ProjectRulesModal";
 import { loadProjectRules, hasProjectRules } from "@/lib/compare/projectRules";
+import {
+  INSPECTION_SYSTEM_PROMPT,
+  buildInspectionPrompt,
+  estimateInspectionSize,
+} from "@/lib/compare/inspection";
 import { CompareAuthGate } from "./CompareAuthGate";
 import { ComparePaywall } from "./ComparePaywall";
 import { AutoResearchComposer } from "./AutoResearchComposer";
@@ -775,6 +780,78 @@ export function CompareChat({ availableProviders }: Props) {
     await start(slots);
   }
 
+  /** "Inspect" button — fires a deep code review across every
+   *  selected model in parallel. Reuses submitCompare's freezing +
+   *  history wiring so the inspection lands in the chat like any
+   *  other turn (pick-as-main + follow-ups work for free). Differs
+   *  in two ways: the prompt body is auto-generated (all project
+   *  files inlined), and the systemPrompt is overridden with the
+   *  inspection-specific rules so the model produces structured,
+   *  cited findings instead of bland prose. */
+  async function submitInspection() {
+    if (busy) return;
+    if (selected.size === 0) return;
+    const size = estimateInspectionSize(project);
+    if (size.files === 0) {
+      // Easier to use window.alert than build a toast for v1 — same
+      // posture as the file-tree delete confirm.
+      window.alert("Nothing to inspect — generate or upload some code first.");
+      return;
+    }
+    if (size.willTruncate) {
+      const ok = window.confirm(
+        `This project has ${size.files} files (${(size.chars / 1024).toFixed(0)}k chars). It exceeds the per-request cap, so some files will be omitted from each model's view. Inspect anyway?`,
+      );
+      if (!ok) return;
+    }
+
+    // Freeze prior turn first — same pattern as submitCompare.
+    const frozenTurnsBefore: FrozenTurn[] =
+      lastSlots.length > 0 && lastSlots.some((s) => s.role !== "synthesizer")
+        ? [
+            ...turns,
+            freezeTurn({
+              id: newSessionId(),
+              createdAt: Date.now(),
+              userPrompt: lastSlots[0]?.prompt ?? "",
+              userAttachments: lastSlots[0]?.attachments,
+              liveSlots: lastSlots,
+              liveRuns: runs,
+              pickedSlotId: favorite,
+            }),
+          ]
+        : turns;
+    setTurns(frozenTurnsBefore);
+
+    const sessId = currentId ?? newSessionId();
+    if (!currentId) setCurrentId(sessId);
+    setFavorite(null);
+    setExpandedId(null);
+    setPaywallDismissed(false);
+
+    const history = buildHistory(frozenTurnsBefore);
+    const turnIndex = frozenTurnsBefore.length;
+    const inspectionPrompt = buildInspectionPrompt(project);
+    const projectRules = loadProjectRules();
+    // Layer house voice → project rules → inspection on top of each
+    // other. Inspection rules are the most specific so they go last.
+    const layeredSystem = projectRules
+      ? `${INSPECTION_SYSTEM_PROMPT}\n\n# This user's project conventions\n${projectRules}`
+      : INSPECTION_SYSTEM_PROMPT;
+
+    const slots: RunSlot[] = [...selected].map((modelId) => ({
+      id: modelId,
+      modelId,
+      prompt: inspectionPrompt,
+      systemPrompt: layeredSystem,
+      prevTurns: history.length ? history : undefined,
+      sessionId: sessId,
+      turnIndex,
+      mode: "compare",
+    }));
+    await start(slots);
+  }
+
   async function submitAgents() {
     setFavorite(null);
     setExpandedId(null);
@@ -1069,6 +1146,7 @@ export function CompareChat({ availableProviders }: Props) {
               onFileCreate={handleFileCreate}
               onFileRename={handleFileRename}
               onFileDelete={handleFileDelete}
+              onInspect={submitInspection}
               canUndo={!!undoState.nextUndo}
               canRedo={!!undoState.nextRedo}
               undoTooltip={undoTooltip}
@@ -1114,6 +1192,7 @@ export function CompareChat({ availableProviders }: Props) {
               onFileCreate={handleFileCreate}
               onFileRename={handleFileRename}
               onFileDelete={handleFileDelete}
+              onInspect={submitInspection}
               canUndo={!!undoState.nextUndo}
               canRedo={!!undoState.nextRedo}
               undoTooltip={undoTooltip}
@@ -1371,7 +1450,7 @@ function ActiveCompare({
   onModeChange, turns, onPickTurn, onUnpickTurn,
   lastSlots, favorite, setFavorite, setExpandedId, getRun, compose,
   project, slotLabels, workspaceOpen, onFileEdit,
-  onFileCreate, onFileRename, onFileDelete,
+  onFileCreate, onFileRename, onFileDelete, onInspect,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory, canPreview,
 }: {
@@ -1392,6 +1471,7 @@ function ActiveCompare({
   onFileCreate: (path: string, content: string) => void;
   onFileRename: (oldPath: string, newPath: string) => void;
   onFileDelete: (path: string) => void;
+  onInspect: () => void;
   canUndo: boolean;
   canRedo: boolean;
   undoTooltip: string;
@@ -1498,6 +1578,7 @@ function ActiveCompare({
             onFileCreate={onFileCreate}
             onFileRename={onFileRename}
             onFileDelete={onFileDelete}
+            onInspect={onInspect}
             canUndo={canUndo}
             canRedo={canRedo}
             undoTooltip={undoTooltip}
@@ -1534,7 +1615,7 @@ function ActiveAgents({
   busy, onSubmit, onCancel,
   availableProviders, lastSlots, favorite, setFavorite, setExpandedId, getRun,
   project, slotLabels, workspaceOpen, onFileEdit,
-  onFileCreate, onFileRename, onFileDelete,
+  onFileCreate, onFileRename, onFileDelete, onInspect,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory, canPreview,
 }: {
@@ -1561,6 +1642,7 @@ function ActiveAgents({
   onFileCreate: (path: string, content: string) => void;
   onFileRename: (oldPath: string, newPath: string) => void;
   onFileDelete: (path: string) => void;
+  onInspect: () => void;
   canUndo: boolean;
   canRedo: boolean;
   undoTooltip: string;

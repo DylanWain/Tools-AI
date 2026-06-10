@@ -51,6 +51,9 @@ type Props = {
   onFileCreate?: (path: string, content: string) => void;
   onFileRename?: (oldPath: string, newPath: string) => void;
   onFileDelete?: (path: string) => void;
+  /** "Inspect" — fires a deep code review across every selected
+   *  model in parallel. Implemented in CompareChat.submitInspection. */
+  onInspect?: () => void;
   /** Undo/redo + Save buttons in the editor header. CompareChat
    *  owns the edit log + version state and just hands the actions
    *  down so SplitWorkspace stays a layout component. */
@@ -69,7 +72,7 @@ type Props = {
 
 export function SplitWorkspace({
   project, slotLabels, onFileEdit,
-  onFileCreate, onFileRename, onFileDelete,
+  onFileCreate, onFileRename, onFileDelete, onInspect,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory,
   canPreview = false,
@@ -147,10 +150,11 @@ export function SplitWorkspace({
         />
 
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-          {/* View tabs — Editor vs Preview. The preview tab is locked
-              for free users with a tooltip pointing to the upgrade.
-              Clicking Preview also fires the sandbox launch in one
-              atomic gesture (no second "Launch" button to click). */}
+          {/* View tabs — Editor vs Preview, plus the Inspect action.
+              Preview is locked for free users; Inspect fires a
+              cross-model code review across every selected model in
+              one click. Result lands in the chat as a new turn so the
+              regular pick-as-main + follow-up flow Just Works. */}
           <div className="flex items-center gap-0 bg-[#1a1918] border-b border-white/[0.06] shrink-0 text-[12px]">
             <ViewTab
               active={view === "editor"}
@@ -164,6 +168,18 @@ export function SplitWorkspace({
               locked={!canPreview}
               tooltip={canPreview ? undefined : "Subscribe ($25/mo) or pay-as-you-go to unlock live preview — runs your code in an ephemeral sandbox"}
             />
+            <div className="flex-1" />
+            {onInspect && (
+              <button
+                type="button"
+                onClick={onInspect}
+                title="Have every selected model do a deep code review with file:line citations. Result appears in the chat."
+                className="inline-flex items-center gap-1.5 px-3 py-1 mr-1.5 rounded-md text-[12px] font-medium bg-[#d97757] hover:bg-[#c66645] text-white transition shadow-[0_2px_8px_rgba(217,119,87,0.25)]"
+              >
+                <InspectIcon />
+                Inspect code
+              </button>
+            )}
           </div>
           {/*
             Both panels stay mounted; we just swap which is visible
@@ -223,6 +239,17 @@ export function SplitWorkspace({
 /** Tab strip button. Active tab is highlighted; locked tab is greyed
  *  out with a tooltip explaining the gate. Used by the Editor/Preview
  *  toggle above the right-side editor pane. */
+function InspectIcon() {
+  // Magnifying glass + tick — the "review and verify" glyph.
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="7" cy="7" r="4.5" />
+      <line x1="11" y1="11" x2="14" y2="14" />
+      <path d="M5.2 7l1.3 1.3 2.3-2.6" />
+    </svg>
+  );
+}
+
 function ViewTab({
   active, onClick, label, locked, tooltip,
 }: {
