@@ -2,17 +2,17 @@ import { ArrowRight } from "./ArrowRight";
 import { DownloadLink } from "./DownloadLink";
 
 /**
- * Pricing — two-tier model matching the actual Stripe products + free trial:
+ * Pricing — three paid paths matching the actual Stripe products + free trial:
  *
  *   Free trial:  $0.10 of usage, no card needed
  *   Subscribe:   $25 / month, includes $25 of usage at 1x, 2x after
  *   Pay-as-you-go: no flat fee, billed 3x per use, card on file
+ *   Wallet:      prepay from $5, same rate as PAYG, spending stops at $0
  *
  * The Subscribe CTA goes straight to the Stripe Payment Link (existing
- * product). The PAYG flow needs the user to be signed in (so we know
- * their user_id for the metered subscription), so we send them to
- * /chat — once they hit the paywall there, both plan options are
- * presented.
+ * product). PAYG and Wallet both need the user signed in (user_id for
+ * the metered subscription / the wallet ledger), so we send them to
+ * /chat — the in-app paywall presents all three plans.
  *
  * Both Mac downloads point at the stable /latest/download URL on
  * GitHub Releases. Each new DMG release uploads a renamed asset to
@@ -39,10 +39,13 @@ export function Pricing() {
             style={{ fontSize: "var(--paragraph-m)" }}
           >
             Try Veronum for free — every account starts with 10&cent; of
-            usage, no card needed. After that, pick a plan: $25 a month
-            (covers $25 of usage at the base rate, 2&times; after) or
-            pay-as-you-go at 3&times; per use with no monthly fee.
-            Cancel anytime through Stripe.
+            usage, no card needed. After that, pick what fits: $25 a month
+            (covers $25 of usage at the base rate, 2&times; after),
+            pay-as-you-go at 3&times; per use with no monthly fee, or a
+            prepaid wallet — add $5 or more up front, spend it down at the
+            pay-as-you-go rate, and spending stops the moment it hits $0.
+            No invoices, no surprises, balance never expires. Cancel
+            anytime through Stripe.
           </p>
           <div className="flex flex-wrap gap-3">
             <a
@@ -58,7 +61,7 @@ export function Pricing() {
               href="/chat"
               className="inline-flex items-center border border-ink/30 text-ink px-5 py-3 rounded-full text-[14.5px] font-medium hover:bg-ink/[0.04] transition"
             >
-              Try free (10&cent;) or pay-as-you-go
+              Try free (10&cent;), pay-as-you-go, or fund a wallet
             </a>
           </div>
           <p className="mt-4 text-[14px] text-ink-faded">
