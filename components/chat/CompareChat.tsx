@@ -173,38 +173,60 @@ export function CompareChat({ availableProviders }: Props) {
   ]);
   const LOCAL_SKIP_DIRS = /(^|\/)(node_modules|\.next|\.turbo|dist|build|out|\.git|vendor|target|\.cache|\.vscode|\.idea|coverage|__pycache__|\.pytest_cache|\.venv)(\/|$)/;
 
-  /** Read text files from a picked folder on disk. Uses File.text()
-   *  so everything stays in the browser — no upload to our server.
-   *  Same caps as the GitHub ingest route: 250 files / 1.5 MB total
-   *  / 100 KB per file. Strips the picked-folder name from the path
-   *  so `my-repo/app/page.tsx` becomes `app/page.tsx` and matches
-   *  what the GitHub ingest produces. */
-  const loadLocalFolder = async (
-    files: FileList,
-  ): Promise<{ repo: string; count: number; dropped: number } | null> => {
-    setImportError(null);
-    setImportingGitHub(true);
-    try {
-      const MAX_FILE_BYTES = 100 * 1024;
-      const MAX_TOTAL_BYTES = 1_500 * 1024;
-      const MAX_FILE_COUNT = 250;
+  // Shared caps + the inner processor so both entry points
+  // (FileList from webkitdirectory + FileSystemDirectoryHandle from
+  // showDirectoryPicker) reuse the exact same allowlist, sort, cap,
+  // and merge behaviour.
+  const MAX_FILE_BYTES = 100 * 1024;
+  const MAX_TOTAL_BYTES = 1_500 * 1024;
+  const MAX_FILE_COUNT = 250;
+  type Candidate = { file: File; rel: string };
 
-      type Candidate = { file: File; rel: string };
-      const candidates: Candidate[] = [];
-      for (const f of Array.from(files)) {
-        const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
-        if (LOCAL_SKIP_DIRS.test(rel)) continue;
+  /** Walk a FileSystemDirectoryHandle recursively, producing the same
+   *  Candidate[] shape the FileList path builds. showDirectoryPicker
+   *  is what gives Chrome's native "New Folder" dialog (matches the
+   *  Electron dialog Claude uses). Safari/Firefox fall through to the
+   *  webkitdirectory input which lacks the New Folder button. */
+  async function walkDirectoryHandle(
+    dir: FileSystemDirectoryHandle,
+    prefix: string,
+  ): Promise<Candidate[]> {
+    const out: Candidate[] = [];
+    // Async iterator exists at runtime on all browsers that ship
+    // showDirectoryPicker; TS DOM lib doesn't yet model `.values()`.
+    const iter = (dir as FileSystemDirectoryHandle & {
+      values(): AsyncIterableIterator<FileSystemHandle>;
+    }).values();
+    for await (const entry of iter) {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.kind === "directory") {
+        if (LOCAL_SKIP_DIRS.test("/" + rel + "/")) continue;
+        out.push(...(await walkDirectoryHandle(entry as FileSystemDirectoryHandle, rel)));
+      } else if (entry.kind === "file") {
         const ext = (rel.split(".").pop() || "").toLowerCase();
         if (!LOCAL_ALLOWED_EXTENSIONS.has(ext)) continue;
-        if (f.size > MAX_FILE_BYTES) continue;
-        candidates.push({ file: f, rel });
+        const file = await (entry as FileSystemFileHandle).getFile();
+        if (file.size > MAX_FILE_BYTES) continue;
+        out.push({ file, rel });
       }
+    }
+    return out;
+  }
+
+  /** Read text files from a picked folder. Shared processor body —
+   *  the path-stripping ensures `my-repo/app/page.tsx` becomes
+   *  `app/page.tsx`, matching what the GitHub ingest produces. */
+  const processCandidates = async (
+    candidates: Candidate[],
+    knownRootName: string | null,
+  ): Promise<{ repo: string; count: number; dropped: number } | null> => {
+    try {
       candidates.sort((a, b) => a.rel.localeCompare(b.rel));
 
       const next: Record<string, string> = {};
       let totalBytes = 0;
       let dropped = 0;
-      let rootName: string | null = null;
+      let rootName: string | null = knownRootName;
       for (const c of candidates) {
         if (Object.keys(next).length >= MAX_FILE_COUNT) { dropped++; continue; }
         if (totalBytes + c.file.size > MAX_TOTAL_BYTES) { dropped++; continue; }
@@ -248,6 +270,44 @@ export function CompareChat({ availableProviders }: Props) {
       return null;
     } finally {
       setImportingGitHub(false);
+    }
+  };
+
+  /** FileList entry point — used by the <input webkitdirectory> fallback
+   *  on Safari/Firefox where showDirectoryPicker isn't available. */
+  const loadLocalFolder = async (
+    files: FileList,
+  ): Promise<{ repo: string; count: number; dropped: number } | null> => {
+    setImportError(null);
+    setImportingGitHub(true);
+    const candidates: Candidate[] = [];
+    for (const f of Array.from(files)) {
+      const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+      if (LOCAL_SKIP_DIRS.test(rel)) continue;
+      const ext = (rel.split(".").pop() || "").toLowerCase();
+      if (!LOCAL_ALLOWED_EXTENSIONS.has(ext)) continue;
+      if (f.size > MAX_FILE_BYTES) continue;
+      candidates.push({ file: f, rel });
+    }
+    return processCandidates(candidates, null);
+  };
+
+  /** DirectoryHandle entry point — the path that gives Chrome/Edge the
+   *  native "New Folder" dialog matching Claude's UX. The handle's
+   *  `.name` is the folder the user picked, used as the display name
+   *  and stripped from the per-file paths inside processCandidates. */
+  const loadLocalFolderFromHandle = async (
+    handle: FileSystemDirectoryHandle,
+  ): Promise<{ repo: string; count: number; dropped: number } | null> => {
+    setImportError(null);
+    setImportingGitHub(true);
+    try {
+      const candidates = await walkDirectoryHandle(handle, handle.name);
+      return processCandidates(candidates, handle.name);
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "Failed to read folder");
+      setImportingGitHub(false);
+      return null;
     }
   };
 
@@ -1304,12 +1364,11 @@ export function CompareChat({ availableProviders }: Props) {
               onModeChange={setModeAndReset}
               autoResearchLocked={!isSubscribed}
               workspaceChips={
-                <WorkspaceChips
+                <FolderChip
                   currentName={importedRepo?.repo ?? null}
-                  recents={recentProjects}
                   busy={importingGitHub}
-                  onLoadFolder={loadLocalFolder}
-                  onLoadGitHub={loadGitHubRepo}
+                  onPickHandle={loadLocalFolderFromHandle}
+                  onPickFiles={loadLocalFolder}
                 />
               }
               compare={
@@ -1802,359 +1861,79 @@ function GitHubIconSmall() {
   );
 }
 
+
 /**
- * WorkspaceChips — folder + GitHub pills above the composer.
+ * FolderChip — single button above the composer. Click it and you get
+ * the native OS folder picker — with the "New Folder" button when the
+ * browser supports showDirectoryPicker (Chrome / Edge / Brave / Opera),
+ * or the upload-style dialog as a fallback (Safari / Firefox).
  *
- * Folder chip: dropdown ALWAYS shows two explicit actions —
- *   "Create new folder"  → opens the OS picker; user creates one in the
- *                         "New Folder" button of the native dialog
- *   "Open existing folder" → same picker, user navigates to a folder
- * Plus a "Recent" list when localStorage has any folder history.
- *
- * GitHub chip: real OAuth via Supabase. Signed-out shows
- * "Sign in with GitHub" + URL paste fallback. Signed-in fetches
- * the user's repos through /api/github/repos and lists them in
- * the dropdown — click loads through /api/github/ingest with the
- * provider token attached (private repos + 5,000/hr rate limit).
+ * Same behaviour as Claude.app's folder button: one click → OS picker
+ * with both choose-existing and create-new as native dialog actions,
+ * no app-side dropdown.
  */
-type GhRepoSummary = {
-  full_name: string;
-  name: string;
-  owner: string;
-  private: boolean;
-  default_branch: string;
-  updated_at: string;
-  description: string | null;
-};
-
-const GH_TOKEN_KEY = "veronum.github_provider_token";
-
-function WorkspaceChips({
-  currentName, recents, busy, onLoadFolder, onLoadGitHub,
+function FolderChip({
+  currentName, busy, onPickHandle, onPickFiles,
 }: {
   currentName: string | null;
-  recents: ReadonlyArray<RecentProject>;
   busy: boolean;
-  onLoadFolder: (files: FileList) => Promise<{ repo: string; count: number; dropped: number } | null> | void;
-  onLoadGitHub: (url: string, accessToken?: string | null) => Promise<{ repo: string; count: number; dropped: number } | null>;
+  onPickHandle: (handle: FileSystemDirectoryHandle) => Promise<{ repo: string; count: number; dropped: number } | null>;
+  onPickFiles: (files: FileList) => Promise<{ repo: string; count: number; dropped: number } | null>;
 }) {
-  const folderInputRef = useRef<HTMLInputElement | null>(null);
-  const [folderOpen, setFolderOpen] = useState(false);
-  const [githubOpen, setGithubOpen] = useState(false);
-  const [urlInput, setUrlInput] = useState("");
-  const folderRef = useRef<HTMLDivElement | null>(null);
-  const githubRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // GitHub OAuth session state. Provider_token comes from
-  // supabase.auth.signInWithOAuth({provider:'github'}); Supabase doesn't
-  // refresh provider tokens, so we cache it in sessionStorage so the UX
-  // doesn't ask the user to re-auth on every navigation within the same
-  // tab. SessionStorage clears on tab close — safer than localStorage
-  // for a sensitive scope ('repo'). If the cached token is rejected by
-  // GitHub later we clear it and prompt re-auth.
-  const [ghToken, setGhToken] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try { return sessionStorage.getItem(GH_TOKEN_KEY); } catch { return null; }
-  });
-  const [ghRepos, setGhRepos] = useState<GhRepoSummary[] | null>(null);
-  const [loadingRepos, setLoadingRepos] = useState(false);
-  const [ghError, setGhError] = useState<string | null>(null);
-
-  // webkitdirectory is a non-standard React prop; set via attribute on
-  // the underlying input element so TypeScript doesn't complain.
   useEffect(() => {
-    if (folderInputRef.current) {
-      folderInputRef.current.setAttribute("webkitdirectory", "");
-      folderInputRef.current.setAttribute("directory", "");
+    if (inputRef.current) {
+      inputRef.current.setAttribute("webkitdirectory", "");
+      inputRef.current.setAttribute("directory", "");
     }
   }, []);
 
-  // On mount: try to rehydrate the GitHub token from the current
-  // Supabase session (covers the immediate post-OAuth redirect case
-  // where sessionStorage hasn't been populated yet). Also subscribe to
-  // auth changes so we capture the token the moment SIGN_IN fires.
-  useEffect(() => {
-    let cancelled = false;
-    const supabase = getBrowserSupabase();
-    void supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      const tok = data.session?.provider_token;
-      if (tok && data.session?.user?.app_metadata?.provider === "github") {
-        try { sessionStorage.setItem(GH_TOKEN_KEY, tok); } catch { /* noop */ }
-        setGhToken(tok);
-      }
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.provider_token &&
-          session.user?.app_metadata?.provider === "github") {
-        try { sessionStorage.setItem(GH_TOKEN_KEY, session.provider_token); } catch { /* noop */ }
-        setGhToken(session.provider_token);
-      }
-      if (event === "SIGNED_OUT") {
-        try { sessionStorage.removeItem(GH_TOKEN_KEY); } catch { /* noop */ }
-        setGhToken(null);
-        setGhRepos(null);
-      }
-    });
-    return () => { cancelled = true; sub.subscription.unsubscribe(); };
-  }, []);
-
-  // Fetch the user's repos once we have a token AND the dropdown is open
-  // for the first time. Lazy so we don't burn an API call until needed.
-  useEffect(() => {
-    if (!ghToken || !githubOpen || ghRepos !== null || loadingRepos) return;
-    let cancelled = false;
-    setLoadingRepos(true);
-    setGhError(null);
-    void (async () => {
+  const handleClick = async () => {
+    if (busy) return;
+    const fsa = (window as Window & {
+      showDirectoryPicker?: (opts?: { mode?: "read" | "readwrite" }) => Promise<FileSystemDirectoryHandle>;
+    }).showDirectoryPicker;
+    if (typeof fsa === "function") {
       try {
-        const r = await fetch("/api/github/repos", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ accessToken: ghToken, perPage: 100 }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (cancelled) return;
-        if (!r.ok) {
-          // 401/403 → token's bad, clear and prompt re-auth.
-          if (r.status === 401 || r.status === 403) {
-            try { sessionStorage.removeItem(GH_TOKEN_KEY); } catch { /* noop */ }
-            setGhToken(null);
-          }
-          setGhError(j.detail || j.error || `HTTP ${r.status}`);
-        } else {
-          setGhRepos(Array.isArray(j.repos) ? j.repos : []);
-        }
+        const handle = await fsa({ mode: "read" });
+        if (handle) await onPickHandle(handle);
       } catch (e) {
-        if (!cancelled) setGhError(e instanceof Error ? e.message : "Network error");
-      } finally {
-        if (!cancelled) setLoadingRepos(false);
+        const name = e instanceof Error ? e.name : "";
+        if (name !== "AbortError") {
+          console.warn("[FolderChip] showDirectoryPicker failed:", e);
+        }
       }
-    })();
-    return () => { cancelled = true; };
-  }, [ghToken, githubOpen, ghRepos, loadingRepos]);
-
-  // Close dropdowns on outside click.
-  useEffect(() => {
-    if (!folderOpen && !githubOpen) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (folderRef.current && !folderRef.current.contains(t)) setFolderOpen(false);
-      if (githubRef.current && !githubRef.current.contains(t)) setGithubOpen(false);
-    };
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, [folderOpen, githubOpen]);
-
-  const folderRecents = recents.filter((r) => r.kind === "folder");
-
-  const triggerFolderPicker = () => {
-    setFolderOpen(false);
-    folderInputRef.current?.click();
-  };
-
-  const submitGithubUrl = async () => {
-    if (!urlInput.trim() || busy) return;
-    await onLoadGitHub(urlInput.trim(), ghToken);
-    setUrlInput("");
-    setGithubOpen(false);
-  };
-
-  const startGithubOAuth = async () => {
-    setGhError(null);
-    const supabase = getBrowserSupabase();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: {
-        scopes: "repo read:user",
-        redirectTo: typeof window !== "undefined" ? window.location.href : undefined,
-      },
-    });
-    if (error) {
-      setGhError(
-        error.message.includes("provider") || error.message.includes("disabled")
-          ? "GitHub sign-in isn't enabled on this Supabase project yet. Enable it: Supabase dashboard → Authentication → Providers → GitHub → paste your OAuth App's client_id and client_secret."
-          : error.message,
-      );
+      return;
     }
-    // Successful OAuth navigates away (full-page redirect); state will
-    // hydrate after the user lands back on this page.
+    inputRef.current?.click();
   };
 
-  const handleRepoClick = async (repo: GhRepoSummary) => {
-    setGithubOpen(false);
-    await onLoadGitHub(repo.full_name, ghToken);
-  };
-
-  const folderChipLabel = currentName
-    ? currentName.length > 22 ? `${currentName.slice(0, 20)}…` : currentName
+  const label = currentName
+    ? currentName.length > 26 ? `${currentName.slice(0, 24)}…` : currentName
     : "Folder";
 
   return (
-    <div className="flex items-center justify-center gap-2 mb-3">
-      {/* Folder chip — always shows dropdown with explicit New + Open
-       *  items so the affordance is visible. Both actions trigger the
-       *  SAME OS picker; on macOS the dialog has a built-in 'New Folder'
-       *  button so create-new flows through the OS UI rather than a
-       *  separate code path. */}
-      <div className="relative" ref={folderRef}>
-        <button
-          type="button"
-          onClick={() => setFolderOpen((v) => !v)}
-          disabled={busy}
-          title="Attach a folder from your computer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] bg-[#1f1f1f] border border-white/10 text-white/80 hover:bg-[#262626] hover:border-white/25 transition-colors disabled:opacity-50"
-        >
-          <FolderIcon />
-          {folderChipLabel}
-          <CaretDownIcon />
-        </button>
-        {folderOpen ? (
-          <div className="absolute bottom-full left-0 mb-2 z-30 min-w-[280px] rounded-xl border border-white/10 bg-[#1f1f1f] shadow-[0_20px_60px_rgba(0,0,0,0.5)] py-1.5">
-            <button
-              type="button"
-              onClick={triggerFolderPicker}
-              disabled={busy}
-              className="w-full text-left px-3 py-1.5 text-[12.5px] text-white/85 hover:bg-white/[0.06] transition-colors flex items-baseline gap-2"
-            >
-              <span>Create new folder…</span>
-              <span className="text-[10.5px] text-white/40 ml-auto pl-2">click 'New Folder' in dialog</span>
-            </button>
-            <button
-              type="button"
-              onClick={triggerFolderPicker}
-              disabled={busy}
-              className="w-full text-left px-3 py-1.5 text-[12.5px] text-white/85 hover:bg-white/[0.06] transition-colors"
-            >
-              Open existing folder…
-            </button>
-            {folderRecents.length > 0 ? (
-              <>
-                <div className="my-1 border-t border-white/10" />
-                <div className="px-3 py-1 text-[11px] uppercase tracking-wider text-white/35 font-mono">Recent</div>
-                {folderRecents.map((r) => (
-                  <div
-                    key={`${r.kind}:${r.name}`}
-                    className="px-3 py-1.5 text-[12.5px] text-white/55"
-                    title={`${r.name} — re-pick to load (browsers don't keep folder access between visits)`}
-                  >
-                    {r.name}
-                  </div>
-                ))}
-              </>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      {/* GitHub chip — real OAuth via Supabase. Signed-out shows the
-       *  sign-in CTA; signed-in shows the user's repos fetched via
-       *  /api/github/repos using the provider_token. URL paste stays
-       *  available as a fallback in both states. */}
-      <div className="relative" ref={githubRef}>
-        <button
-          type="button"
-          onClick={() => setGithubOpen((v) => !v)}
-          disabled={busy}
-          title={ghToken ? "Your GitHub repos" : "Sign in with GitHub to see your repos"}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] bg-[#1f1f1f] border border-white/10 text-white/80 hover:bg-[#262626] hover:border-white/25 transition-colors disabled:opacity-50"
-        >
-          <GitHubIconSmall />
-          {ghToken ? "GitHub" : "Connect GitHub"}
-          <CaretDownIcon />
-        </button>
-        {githubOpen ? (
-          <div className="absolute bottom-full left-0 mb-2 z-30 min-w-[340px] max-h-[460px] overflow-hidden rounded-xl border border-white/10 bg-[#1f1f1f] shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex flex-col">
-            {!ghToken ? (
-              <div className="px-3 py-3">
-                <button
-                  type="button"
-                  onClick={startGithubOAuth}
-                  disabled={busy}
-                  className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium bg-white text-black hover:bg-white/90 transition-colors disabled:opacity-50"
-                >
-                  <GitHubIconSmall />
-                  Sign in with GitHub
-                </button>
-                <p className="text-[11px] text-white/45 mt-2 leading-[1.4]">
-                  Authorizes via your Supabase login. The OAuth scope
-                  <code className="font-mono mx-1">repo</code> lets Veronum read your
-                  private repos so models see the actual code.
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto py-1.5">
-                <div className="px-3 py-1 text-[11px] uppercase tracking-wider text-white/35 font-mono">Your repos</div>
-                {loadingRepos ? (
-                  <div className="px-3 py-2 text-[12.5px] text-white/45">Loading…</div>
-                ) : ghRepos === null ? (
-                  <div className="px-3 py-2 text-[12.5px] text-white/45">Open this menu to fetch repos.</div>
-                ) : ghRepos.length === 0 ? (
-                  <div className="px-3 py-2 text-[12.5px] text-white/45">No repos found on your GitHub account.</div>
-                ) : (
-                  ghRepos.map((r) => (
-                    <button
-                      key={r.full_name}
-                      type="button"
-                      onClick={() => handleRepoClick(r)}
-                      disabled={busy}
-                      className="w-full text-left px-3 py-1.5 text-[12.5px] text-white/85 hover:bg-white/[0.06] transition-colors disabled:opacity-50"
-                      title={r.description || r.full_name}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono truncate">{r.full_name}</span>
-                        {r.private ? (
-                          <span className="text-[10px] text-white/40 uppercase tracking-wider font-mono">priv</span>
-                        ) : null}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-            <div className="border-t border-white/10 px-3 py-2">
-              <div className="text-[11px] text-white/40 mb-1">
-                Or paste any public repo URL
-              </div>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") submitGithubUrl(); }}
-                  placeholder="github.com/owner/repo"
-                  disabled={busy}
-                  className="flex-1 bg-black/40 border border-white/10 focus:border-white/30 rounded-md px-2 py-1 text-[12px] text-white/95 placeholder:text-white/30 outline-none transition-colors font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={submitGithubUrl}
-                  disabled={busy || !urlInput.trim()}
-                  className="px-2.5 py-1 rounded-md text-[12px] font-medium bg-[#d97757] text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#c5663f] transition-colors"
-                >
-                  {busy ? "…" : "Load"}
-                </button>
-              </div>
-            </div>
-            {ghError ? (
-              <div className="border-t border-white/10 px-3 py-2 text-[11.5px] text-red-300/85 font-mono leading-[1.4]">
-                {ghError}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
+    <div className="flex items-center justify-center mb-3">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={busy}
+        title={currentName ? "Change project folder" : "Pick a folder or create a new one"}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] bg-[#1f1f1f] border border-white/10 text-white/80 hover:bg-[#262626] hover:border-white/25 transition-colors disabled:opacity-50"
+      >
+        <FolderIcon />
+        {label}
+      </button>
       <input
-        ref={folderInputRef}
+        ref={inputRef}
         type="file"
         multiple
         style={{ display: "none" }}
         onChange={(e) => {
           if (e.target.files && e.target.files.length > 0) {
-            onLoadFolder(e.target.files);
+            onPickFiles(e.target.files);
           }
-          // Reset so picking the same folder again still triggers onChange.
           e.target.value = "";
         }}
       />
