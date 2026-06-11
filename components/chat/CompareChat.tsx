@@ -1050,7 +1050,14 @@ export function CompareChat({ availableProviders }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex">
+    // h-screen + overflow-hidden pins the page to the viewport so the
+    // sidebar (a flex-row child) stays put while the chat scrolls
+    // INSIDE <main> below — instead of the whole document scrolling and
+    // dragging the sidebar with it. ChatHeader's `sticky top-0` and the
+    // composers' `sticky bottom-0` keep working because their nearest
+    // scrolling ancestor is now <main>, exactly the contract sticky
+    // wants.
+    <div className="h-screen bg-black text-white flex overflow-hidden">
       <SessionSidebar
         sessions={sessions}
         currentId={currentId}
@@ -1068,7 +1075,11 @@ export function CompareChat({ availableProviders }: Props) {
           rulesActive={rulesActive}
           onOpenRules={() => setRulesModalOpen(true)}
         />
-        <main className="flex-1 flex flex-col">
+        {/* min-h-0 lets <main> shrink below its content size inside the
+         *  flex column (without it the flex parent grows tall and we're
+         *  back to body scroll). overflow-y-auto makes <main> the
+         *  scrolling container. */}
+        <main className="flex-1 min-h-0 overflow-y-auto flex flex-col">
           {!hasContent ? (
             <EmptyState
               mode={mode}
