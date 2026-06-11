@@ -154,13 +154,39 @@ export async function POST(req: Request) {
 
   const requestedRef = typeof body.ref === "string" && body.ref.trim()
     ? body.ref.trim() : null;
-  const ref = requestedRef ?? (await resolveDefaultBranch(owner, repo)) ?? "main";
+  // Branch resolution order:
+  //   1. Caller-supplied `ref` wins outright.
+  //   2. Repo's actual `default_branch` (one extra API call).
+  //   3. Fallback: try "main", then "master" — covers ~all repos
+  //      including older ones where the rename never happened.
+  // Without this fallback any repo whose default_branch lookup is rate
+  // limited by GitHub's 60/hr unauthenticated cap silently 404s on the
+  // trees API.
+  const resolvedDefault = requestedRef ? null : await resolveDefaultBranch(owner, repo);
+  const refsToTry: string[] = [];
+  if (requestedRef) refsToTry.push(requestedRef);
+  else if (resolvedDefault) refsToTry.push(resolvedDefault);
+  else refsToTry.push("main", "master");
 
-  const tree = await listFiles(owner, repo, ref);
+  let tree: { path: string; size: number }[] | null = null;
+  let ref = refsToTry[0];
+  for (const candidate of refsToTry) {
+    const result = await listFiles(owner, repo, candidate);
+    if (result) {
+      tree = result;
+      ref = candidate;
+      break;
+    }
+  }
+
   if (!tree) {
     return Response.json({
       error: "fetch_failed",
-      detail: `Could not list files for ${owner}/${repo}@${ref}. Check the URL is a public repo and the branch exists.`,
+      detail:
+        `Could not list files for ${owner}/${repo}. ` +
+        `Tried branch(es): ${refsToTry.join(", ")}. ` +
+        `Check the URL is a public repo, and that the branch exists. ` +
+        `GitHub's API may be rate-limiting us (60 requests/hour unauthenticated) — try again in a few minutes.`,
     }, { status: 502 });
   }
 
