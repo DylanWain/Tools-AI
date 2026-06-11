@@ -126,7 +126,11 @@ export function CompareChat({ availableProviders }: Props) {
   // become part of `project` for prompt-side context injection in the
   // /api/compare route. User edits still win because fileEdits is the
   // overlay layer above the agent-output build.
-  const [showStartPicker, setShowStartPicker] = useState(true);
+  // Opens only when the user clicks the workspace chip in the header.
+  // No auto-show on session start — chat works fine without a project,
+  // matching how Cursor's File→Open Folder and Claude.ai's session
+  // chip behave (non-blocking, user-initiated).
+  const [showStartPicker, setShowStartPicker] = useState(false);
   const [importingGitHub, setImportingGitHub] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importedRepo, setImportedRepo] = useState<{
@@ -1064,7 +1068,8 @@ export function CompareChat({ availableProviders }: Props) {
     setDeletedPaths(new Set());
     setImportedRepo(null);
     setImportError(null);
-    setShowStartPicker(true);
+    // Don't auto-open the picker — let the user click the workspace
+    // chip in the header when they want to attach a project.
     replaceState({}, []);
   }
 
@@ -1247,6 +1252,7 @@ export function CompareChat({ availableProviders }: Props) {
           rulesActive={rulesActive}
           onOpenRules={() => setRulesModalOpen(true)}
           currentProjectName={importedRepo?.repo ?? null}
+          onOpenProjectPicker={() => setShowStartPicker(true)}
         />
         {/* min-h-0 lets <main> shrink below its content size inside the
          *  flex column (without it the flex parent grows tall and we're
@@ -1460,10 +1466,11 @@ export function CompareChat({ availableProviders }: Props) {
         />
       )}
 
-      {showStartPicker && (
+      {showStartPicker ? (
         <SessionStartPicker
           busy={importingGitHub}
           error={importError}
+          onClose={() => setShowStartPicker(false)}
           onPickNew={() => setShowStartPicker(false)}
           onPickFolder={async (files) => {
             const r = await loadLocalFolder(files);
@@ -1474,7 +1481,7 @@ export function CompareChat({ availableProviders }: Props) {
             if (r) setShowStartPicker(false);
           }}
         />
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1495,10 +1502,14 @@ export function CompareChat({ availableProviders }: Props) {
  * fresh session starts with a fresh project context.
  */
 function SessionStartPicker({
-  busy, error, onPickNew, onPickFolder, onPickGitHub,
+  busy, error, onClose, onPickNew, onPickFolder, onPickGitHub,
 }: {
   busy: boolean;
   error: string | null;
+  /** Dismiss without picking. Called on X-button click, backdrop click,
+   *  and Escape. Leaves any existing project attachment alone — this
+   *  picker is for ATTACHING a new project, not unattaching one. */
+  onClose: () => void;
   onPickNew: () => void;
   onPickFolder: (files: FileList) => Promise<void> | void;
   onPickGitHub: (url: string) => Promise<void> | void;
@@ -1519,8 +1530,27 @@ function SessionStartPicker({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center px-6">
-      <div className="w-full max-w-[560px] rounded-2xl border border-white/10 bg-[#161616] p-8 shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
+    <div
+      className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center px-6"
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+      onKeyDown={(e) => { if (e.key === "Escape" && !busy) onClose(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Attach project"
+      tabIndex={-1}
+    >
+      <div className="w-full max-w-[560px] rounded-2xl border border-white/10 bg-[#161616] p-8 shadow-[0_30px_80px_rgba(0,0,0,0.55)] relative">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={busy}
+          aria-label="Close"
+          className="absolute top-3 right-3 w-7 h-7 inline-flex items-center justify-center text-white/40 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors disabled:opacity-50"
+        >
+          <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+            <path d="M3 3l6 6M9 3l-6 6" />
+          </svg>
+        </button>
         <h2 className="text-white font-serif text-[24px] leading-[1.2] mb-2">
           What are you working on?
         </h2>
@@ -1638,27 +1668,42 @@ function SessionStartPicker({
 function ChatHeader({
   showWorkspaceToggle, workspaceOpen, onToggleWorkspace,
   rulesActive, onOpenRules,
-  currentProjectName,
+  currentProjectName, onOpenProjectPicker,
 }: {
   showWorkspaceToggle: boolean;
   workspaceOpen: boolean;
   onToggleWorkspace: () => void;
   rulesActive: boolean;
   onOpenRules: () => void;
-  /** Name of the currently-loaded project (folder or repo). Shown as
-   *  a small pill in the header so the user knows what's loaded. Null
-   *  when no project picked yet (covered by the start picker). */
+  /** Currently-attached project (folder name or owner/repo). Null when
+   *  no project has been picked — the chip then offers to attach one. */
   currentProjectName: string | null;
+  /** Opens the SessionStartPicker so the user can attach (or change)
+   *  the project context. The picker itself is dismissible — closing
+   *  with no pick leaves the current state alone. */
+  onOpenProjectPicker: () => void;
 }) {
   return (
     <header className="sticky top-0 z-30 backdrop-blur-md bg-black/85">
       <div className="px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-end gap-1">
-        {currentProjectName && (
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] text-white/65 bg-white/[0.05] border border-white/10 font-mono mr-2">
-            <FolderIcon />
-            {currentProjectName}
-          </span>
-        )}
+        {/* Workspace chip — Cursor's File→Open-Folder + Claude.ai's
+         *  session-type chip pattern. Click opens the project picker;
+         *  no project is the empty state, not a blocking gate. */}
+        <button
+          type="button"
+          onClick={onOpenProjectPicker}
+          title={currentProjectName ? "Change project" : "Attach a project so models can see your code"}
+          className={[
+            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-mono mr-2",
+            "border transition-colors",
+            currentProjectName
+              ? "text-white/75 bg-white/[0.05] border-white/10 hover:bg-white/[0.10] hover:border-white/25"
+              : "text-white/55 bg-transparent border-white/10 border-dashed hover:text-white/85 hover:border-white/30",
+          ].join(" ")}
+        >
+          <FolderIcon />
+          {currentProjectName ?? "Attach project"}
+        </button>
         {showWorkspaceToggle && (
           <button
             type="button"
