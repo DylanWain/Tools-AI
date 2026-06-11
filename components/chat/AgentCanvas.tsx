@@ -24,13 +24,13 @@
  * Code mode is the default and only mode for multi-agent — no toggle.
  */
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { MODELS, type ProviderId } from "@/lib/compare/models";
 import type { AgentSlot } from "@/lib/compare/sessions";
 import type { Attachment } from "@/lib/compare/attachments";
 import { revokeAttachment } from "@/lib/compare/attachments";
 import { detectClaimOverlap } from "@/lib/compare/projectFiles";
-import { AgentCard } from "./AgentCard";
+import { AgentCard, type AgentDecision } from "./AgentCard";
 import {
   AttachmentChips,
   AttachmentDropTarget,
@@ -73,6 +73,38 @@ export function AgentCanvas({
     [availableProviders],
   );
   const ingest = useIngestFiles({ attachments, onChange: onAttachmentsChange });
+
+  // Per-slot accept/skip — keyed by `agent-${idx}` to match getRun's id.
+  // Local to this multi-agent flow: each new send resets via the
+  // `lastSlots` change effect below (covered by clearing on send).
+  // The decision flips between accepted ↔ skipped on re-click so users
+  // can correct a misclick without a separate "undo" affordance.
+  const [decisions, setDecisions] = useState<Map<string, AgentDecision>>(
+    () => new Map(),
+  );
+  const setDecision = useCallback((slotId: string, next: AgentDecision) => {
+    setDecisions((prev) => {
+      const m = new Map(prev);
+      m.set(slotId, next);
+      return m;
+    });
+  }, []);
+  const onAccept = useCallback(
+    (slotId: string) =>
+      setDecision(
+        slotId,
+        decisions.get(slotId) === "accepted" ? "pending" : "accepted",
+      ),
+    [decisions, setDecision],
+  );
+  const onSkip = useCallback(
+    (slotId: string) =>
+      setDecision(
+        slotId,
+        decisions.get(slotId) === "skipped" ? "pending" : "skipped",
+      ),
+    [decisions, setDecision],
+  );
 
   function updateAgent(idx: number, patch: Partial<AgentSlot>) {
     onChange(agents.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
@@ -223,6 +255,9 @@ export function AgentCanvas({
               onChange={(patch) => updateAgent(idx, patch)}
               onRemove={() => removeAgent(idx)}
               canRemove={agents.length > 1}
+              decision={decisions.get(slotId) ?? "pending"}
+              onAccept={() => onAccept(slotId)}
+              onSkip={() => onSkip(slotId)}
             />
           );
         })}

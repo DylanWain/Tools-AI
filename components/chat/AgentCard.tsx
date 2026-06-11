@@ -27,6 +27,12 @@ import type { CompareModel } from "@/lib/compare/models";
 import type { AgentSlot } from "@/lib/compare/sessions";
 import type { RunState } from "./useCompareStream";
 
+/** Per-card decision the user makes about the agent's response.
+ *  Cursor-style accept/skip — `undo`/`redo` (at the editor level) already
+ *  exists, so we don't need accept-to-disk semantics here. This is a
+ *  chat-level triage: keep this output, or move on. */
+export type AgentDecision = "pending" | "accepted" | "skipped";
+
 type Props = {
   index: number;
   agent: AgentSlot;
@@ -41,12 +47,18 @@ type Props = {
   onChange: (patch: Partial<AgentSlot>) => void;
   onRemove: () => void;
   canRemove: boolean;
+  /** Decision state for the streamed response. Buttons surface only
+   *  when `run.status === "done"` AND decision is still "pending". */
+  decision?: AgentDecision;
+  onAccept?: () => void;
+  onSkip?: () => void;
 };
 
 export function AgentCard({
   index, agent, models, overlapPaths,
   run, isFavorite, onToggleFavorite, onExpand,
   onChange, onRemove, canRemove,
+  decision = "pending", onAccept, onSkip,
 }: Props) {
   const taskRef = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => {
@@ -210,7 +222,12 @@ export function AgentCard({
           {isError ? (
             <div className="text-red-300/90 text-[12.5px]">⚠ {run.error || "Failed"}</div>
           ) : run.text ? (
-            <div className="text-white/90 text-[13.5px] leading-[1.55] whitespace-pre-wrap max-h-[360px] overflow-y-auto font-sans">
+            <div
+              className={[
+                "text-[13.5px] leading-[1.55] whitespace-pre-wrap max-h-[360px] overflow-y-auto font-sans",
+                decision === "skipped" ? "text-white/40 line-through" : "text-white/90",
+              ].join(" ")}
+            >
               {run.text}
               {isStreaming && <Caret />}
             </div>
@@ -219,9 +236,80 @@ export function AgentCard({
           ) : (
             <span className="text-white/25 text-[13px]">No output</span>
           )}
+
+          {/* Accept / Skip — Cursor's idiom in Veronum's clay accent.
+           *  Renders only once the model is done; while streaming the
+           *  user is still watching the answer take shape. Once the
+           *  user picks, the buttons are replaced with a small pill
+           *  echoing the decision so the action is reversible by
+           *  intent (click the pill to undo). */}
+          {!isStreaming && !isError && run.text && (
+            <div className="mt-3 flex items-center gap-2">
+              {decision === "pending" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onAccept?.(); }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium text-[#d97757] border border-[#d97757]/40 bg-[#d97757]/[0.08] hover:bg-[#d97757]/[0.16] hover:border-[#d97757] transition-colors"
+                    aria-label={`Accept agent ${index + 1} response`}
+                  >
+                    <CheckIcon />
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onSkip?.(); }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium text-white/65 border border-white/15 bg-transparent hover:bg-white/[0.06] hover:text-white/90 hover:border-white/30 transition-colors"
+                    aria-label={`Skip agent ${index + 1} response`}
+                  >
+                    <CloseIcon />
+                    Skip
+                  </button>
+                </>
+              ) : decision === "accepted" ? (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onSkip?.(); /* allow flipping */ }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-[#d97757] border border-[#d97757]/40 bg-[#d97757]/[0.08]"
+                  title="Click to undo accept"
+                >
+                  <CheckIcon />
+                  Accepted
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onAccept?.(); /* allow flipping */ }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-white/55 border border-white/15"
+                  title="Click to accept instead"
+                >
+                  <CloseIcon />
+                  Skipped
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </article>
+  );
+}
+
+/** Compact 11×11 check — Cursor's accept indicator. */
+function CheckIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2.5 6.5l2.5 2.5L9.5 3.5" />
+    </svg>
+  );
+}
+
+/** Compact 11×11 X — Cursor's reject indicator. */
+function CloseIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+      <path d="M3 3l6 6M9 3l-6 6" />
+    </svg>
   );
 }
 
