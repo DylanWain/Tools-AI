@@ -581,7 +581,15 @@ export function CompareChat({ availableProviders }: Props) {
   useEffect(() => { setRulesActive(hasProjectRules()); }, []);
 
   const busy = Object.values(runs).some((r) => r.status === "streaming");
-  const hasContent = lastSlots.length > 0 || turns.length > 0;
+  // hasContent gates the header Code toggle + the active vs empty
+  // state of <main>. fileEdits is populated the moment a folder loads
+  // (processCandidates merges into it), so checking it here brings the
+  // Code toggle into the header right after pick — and the auto-open
+  // effect on `projectHasFiles` further down expands the workspace pane.
+  // (Can't reference `project` directly: it's a useMemo declared later
+  // in this function body, after hasContent's call site.)
+  const hasContent =
+    lastSlots.length > 0 || turns.length > 0 || Object.keys(fileEdits).length > 0;
   const expandedSlot = expandedId ? lastSlots.find((s) => s.id === expandedId) : null;
   const expandedModel = expandedSlot ? MODELS.find((m) => m.id === expandedSlot.modelId) : null;
 
