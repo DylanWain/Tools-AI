@@ -382,6 +382,10 @@ export function CompareChat({ availableProviders }: Props) {
   // VS Code's Explorer is always visible even on an empty folder.
   // Users can still hide it via the "Code" button.
   const [workspaceOpen, setWorkspaceOpen] = useState<boolean>(true);
+  // The outer <main> element's scroll container. Passed through to
+  // ActiveCompare / ActiveAgents so the scroll-to-bottom chevron can
+  // listen to scroll events and call scrollTo on this exact ref.
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
   // Version history modal visibility + a tick that re-derives the
   // edit log / version list whenever we mutate localStorage. (We
   // could subscribe to a storage event, but a manual tick is cheaper
@@ -1365,7 +1369,7 @@ export function CompareChat({ availableProviders }: Props) {
          *  flex column (without it the flex parent grows tall and we're
          *  back to body scroll). overflow-y-auto makes <main> the
          *  scrolling container. */}
-        <main className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+        <main ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
           {!hasContent ? (
             <EmptyState
               mode={mode}
@@ -1460,6 +1464,7 @@ export function CompareChat({ availableProviders }: Props) {
               onRedo={handleRedo}
               onOpenVersionHistory={() => setVersionModalOpen(true)}
               canPreview={isSubscribed === true}
+              outerScrollRef={mainScrollRef}
               compose={
                 <PromptBar
                   busy={busy}
@@ -2079,6 +2084,7 @@ function ActiveCompare({
   onFileCreate, onFileRename, onFileDelete, onInspect,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory, canPreview,
+  outerScrollRef,
 }: {
   onModeChange: (m: Mode) => void;
   turns: FrozenTurn[];
@@ -2106,9 +2112,14 @@ function ActiveCompare({
   onRedo: () => void;
   onOpenVersionHistory: () => void;
   canPreview: boolean;
+  outerScrollRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const [chatPct, setChatPct] = useState(56);
   const rowRef = useRef<HTMLDivElement | null>(null);
+  // Inner scroll container ref — only attached when the workspace is open
+  // (the layout has its OWN scrolling chat column, separate from <main>).
+  // When closed, scroll happens on outerScrollRef from the parent.
+  const innerScrollRef = useRef<HTMLDivElement | null>(null);
 
   const chatBody = (
     <div className="max-w-[1400px] mx-auto flex flex-col gap-5">
@@ -2166,7 +2177,8 @@ function ActiveCompare({
       <>
         <div className="flex-1 px-4 sm:px-6 lg:px-10 pt-6 pb-40">{chatBody}</div>
         <div className="sticky bottom-0 px-4 sm:px-6 lg:px-10 pb-6 pt-12 bg-gradient-to-t from-black from-50% to-transparent pointer-events-none">
-          <div className="max-w-[1100px] mx-auto pointer-events-auto">
+          <div className="max-w-[1100px] mx-auto pointer-events-auto relative">
+            <ScrollToBottomButton scrollRef={outerScrollRef} />
             {compose}
           </div>
         </div>
@@ -2178,12 +2190,16 @@ function ActiveCompare({
     <div className="flex-1 px-4 sm:px-6 lg:px-8 pt-4 pb-6 min-h-0 flex flex-col">
       <div ref={rowRef} className="flex-1 min-h-0 flex gap-0">
         <div
+          ref={innerScrollRef}
           className="min-w-0 flex flex-col gap-4 overflow-y-auto pr-3 relative"
           style={{ flexBasis: `${chatPct}%`, flexGrow: 0, flexShrink: 0 }}
         >
           <div className="flex-1">{chatBody}</div>
           <div className="sticky bottom-0 pt-8 pb-2 bg-gradient-to-t from-black from-60% to-transparent pointer-events-none">
-            <div className="pointer-events-auto">{compose}</div>
+            <div className="pointer-events-auto relative">
+              <ScrollToBottomButton scrollRef={innerScrollRef} />
+              {compose}
+            </div>
           </div>
         </div>
 
@@ -2541,6 +2557,89 @@ function ActiveAutoResearch({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Floating chevron button that appears just above the composer when the
+ * scroll container is NOT pinned to the bottom — click it and the chat
+ * smooth-scrolls to the latest message. Modeled on Claude's pattern
+ * (absolute, -top-[32px] above the composer, fades in/out via opacity).
+ *
+ * Two contracts:
+ *   - The button positions absolutely; its nearest positioned parent
+ *     must be the sticky composer wrapper (already `position: sticky`).
+ *   - `scrollRef` must point to the scroll container whose scrollTop /
+ *     scrollHeight we watch. We attach a scroll listener on mount.
+ *
+ * Threshold: 80px from the bottom. Below that we treat the view as
+ * "at bottom" and hide the button. Matches Claude's feel — small enough
+ * that the button doesn't linger on tiny scroll jitters, large enough
+ * that a typical streaming chunk doesn't yank the button on/off.
+ */
+function ScrollToBottomButton({
+  scrollRef,
+}: {
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const compute = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShow(distanceFromBottom > 80);
+    };
+    compute();
+    el.addEventListener("scroll", compute, { passive: true });
+    // ResizeObserver catches the case where new content arrives but the
+    // user didn't scroll — without it the button would never appear
+    // during streaming because scroll events aren't fired.
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", compute);
+      ro.disconnect();
+    };
+  }, [scrollRef]);
+
+  function handleClick() {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label="Scroll to bottom"
+      aria-hidden={!show}
+      tabIndex={show ? 0 : -1}
+      className={
+        "absolute left-1/2 -translate-x-1/2 -top-[32px] z-[1] " +
+        "inline-flex items-center justify-center h-[24px] w-[24px] " +
+        "rounded-full bg-[#1f1f1f] border border-white/10 text-white/70 " +
+        "hover:bg-[#262626] hover:border-white/25 hover:text-white/95 " +
+        "transition-opacity duration-150 outline-none " +
+        (show ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")
+      }
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M4 6l4 4 4-4" />
+      </svg>
+    </button>
   );
 }
 
