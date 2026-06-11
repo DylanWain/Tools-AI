@@ -126,11 +126,31 @@ export function CompareChat({ availableProviders }: Props) {
   // become part of `project` for prompt-side context injection in the
   // /api/compare route. User edits still win because fileEdits is the
   // overlay layer above the agent-output build.
-  // Opens only when the user clicks the workspace chip in the header.
-  // No auto-show on session start — chat works fine without a project,
-  // matching how Cursor's File→Open Folder and Claude.ai's session
-  // chip behave (non-blocking, user-initiated).
-  const [showStartPicker, setShowStartPicker] = useState(false);
+  // Recent projects (folders + GitHub repos) for the workspace chips
+  // in EmptyState. Persisted to localStorage so they survive reloads.
+  // Mirrors Claude.app's "Recent" header pattern in the folder
+  // dropdown (c5610fbe3-rsWnjbnF.js:654657) — clicking a recent
+  // re-loads it through the same handlers as the picker actions.
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem("veronum.recent_projects");
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.slice(0, 8) : [];
+    } catch { return []; }
+  });
+  const pushRecent = useCallback((next: RecentProject) => {
+    setRecentProjects((prev) => {
+      const filtered = prev.filter((r) =>
+        r.kind !== next.kind || r.name !== next.name,
+      );
+      const merged = [next, ...filtered].slice(0, 8);
+      try { localStorage.setItem("veronum.recent_projects", JSON.stringify(merged)); }
+      catch { /* quota — non-fatal */ }
+      return merged;
+    });
+  }, []);
   const [importingGitHub, setImportingGitHub] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importedRepo, setImportedRepo] = useState<{
@@ -212,6 +232,16 @@ export function CompareChat({ availableProviders }: Props) {
         dropped,
       };
       setImportedRepo(summary);
+      pushRecent({
+        kind: summary.repo.includes("/") && !summary.repo.startsWith("/")
+          ? "github"
+          : "folder",
+        name: summary.repo,
+        url: summary.repo.includes("/") && !summary.repo.startsWith("/")
+          ? summary.repo
+          : undefined,
+        lastUsed: Date.now(),
+      });
       return summary;
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Failed to read folder");
@@ -260,6 +290,16 @@ export function CompareChat({ availableProviders }: Props) {
         dropped: j.droppedCount ?? 0,
       };
       setImportedRepo(summary);
+      pushRecent({
+        kind: summary.repo.includes("/") && !summary.repo.startsWith("/")
+          ? "github"
+          : "folder",
+        name: summary.repo,
+        url: summary.repo.includes("/") && !summary.repo.startsWith("/")
+          ? summary.repo
+          : undefined,
+        lastUsed: Date.now(),
+      });
       return summary;
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Network error");
@@ -1068,8 +1108,6 @@ export function CompareChat({ availableProviders }: Props) {
     setDeletedPaths(new Set());
     setImportedRepo(null);
     setImportError(null);
-    // Don't auto-open the picker — let the user click the workspace
-    // chip in the header when they want to attach a project.
     replaceState({}, []);
   }
 
@@ -1252,7 +1290,6 @@ export function CompareChat({ availableProviders }: Props) {
           rulesActive={rulesActive}
           onOpenRules={() => setRulesModalOpen(true)}
           currentProjectName={importedRepo?.repo ?? null}
-          onOpenProjectPicker={() => setShowStartPicker(true)}
         />
         {/* min-h-0 lets <main> shrink below its content size inside the
          *  flex column (without it the flex parent grows tall and we're
@@ -1264,6 +1301,15 @@ export function CompareChat({ availableProviders }: Props) {
               mode={mode}
               onModeChange={setModeAndReset}
               autoResearchLocked={!isSubscribed}
+              workspaceChips={
+                <WorkspaceChips
+                  currentName={importedRepo?.repo ?? null}
+                  recents={recentProjects}
+                  busy={importingGitHub}
+                  onLoadFolder={loadLocalFolder}
+                  onLoadGitHub={loadGitHubRepo}
+                />
+              }
               compare={
                 <PromptBar
                   busy={busy}
@@ -1466,25 +1512,22 @@ export function CompareChat({ availableProviders }: Props) {
         />
       )}
 
-      {showStartPicker ? (
-        <SessionStartPicker
-          busy={importingGitHub}
-          error={importError}
-          onClose={() => setShowStartPicker(false)}
-          onPickNew={() => setShowStartPicker(false)}
-          onPickFolder={async (files) => {
-            const r = await loadLocalFolder(files);
-            if (r) setShowStartPicker(false);
-          }}
-          onPickGitHub={async (url) => {
-            const r = await loadGitHubRepo(url);
-            if (r) setShowStartPicker(false);
-          }}
-        />
-      ) : null}
     </div>
   );
 }
+
+/** Recent project entry persisted in localStorage and surfaced in the
+ *  workspace-chip dropdown. `name` is what's displayed and used as the
+ *  dedup key; `url` is filled when kind === 'github' so we can re-ingest
+ *  with one click. Folders can't be re-ingested without the user
+ *  re-picking (browser file APIs don't keep handles across reloads),
+ *  so the folder recents only show the historical name for tooltip. */
+type RecentProject = {
+  kind: "folder" | "github";
+  name: string;
+  url?: string;
+  lastUsed: number;
+};
 
 /**
  * SessionStartPicker — surfaces at the top of every new session so the
@@ -1668,42 +1711,34 @@ function SessionStartPicker({
 function ChatHeader({
   showWorkspaceToggle, workspaceOpen, onToggleWorkspace,
   rulesActive, onOpenRules,
-  currentProjectName, onOpenProjectPicker,
+  currentProjectName,
 }: {
   showWorkspaceToggle: boolean;
   workspaceOpen: boolean;
   onToggleWorkspace: () => void;
   rulesActive: boolean;
   onOpenRules: () => void;
-  /** Currently-attached project (folder name or owner/repo). Null when
-   *  no project has been picked — the chip then offers to attach one. */
+  /** Currently-attached project (folder name or owner/repo). Shown as
+   *  a static status pill so the user always knows what's in context.
+   *  Picking / changing happens via the WorkspaceChips in EmptyState. */
   currentProjectName: string | null;
-  /** Opens the SessionStartPicker so the user can attach (or change)
-   *  the project context. The picker itself is dismissible — closing
-   *  with no pick leaves the current state alone. */
-  onOpenProjectPicker: () => void;
 }) {
   return (
     <header className="sticky top-0 z-30 backdrop-blur-md bg-black/85">
       <div className="px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-end gap-1">
-        {/* Workspace chip — Cursor's File→Open-Folder + Claude.ai's
-         *  session-type chip pattern. Click opens the project picker;
-         *  no project is the empty state, not a blocking gate. */}
-        <button
-          type="button"
-          onClick={onOpenProjectPicker}
-          title={currentProjectName ? "Change project" : "Attach a project so models can see your code"}
-          className={[
-            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-mono mr-2",
-            "border transition-colors",
-            currentProjectName
-              ? "text-white/75 bg-white/[0.05] border-white/10 hover:bg-white/[0.10] hover:border-white/25"
-              : "text-white/55 bg-transparent border-white/10 border-dashed hover:text-white/85 hover:border-white/30",
-          ].join(" ")}
-        >
-          <FolderIcon />
-          {currentProjectName ?? "Attach project"}
-        </button>
+        {/* Project status pill — shown only when something's attached
+         *  so the user always knows what's in context. Pick / change a
+         *  project via the WorkspaceChips in the empty state at session
+         *  start (sidebar → New session brings you back to it). */}
+        {currentProjectName ? (
+          <span
+            title={`Project: ${currentProjectName}`}
+            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-mono mr-2 text-white/75 bg-white/[0.05] border border-white/10"
+          >
+            <FolderIcon />
+            {currentProjectName}
+          </span>
+        ) : null}
         {showWorkspaceToggle && (
           <button
             type="button"
@@ -1753,6 +1788,215 @@ function FolderIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M1.5 4.5h4l1.5 1.5h7.5v8H1.5z" />
+    </svg>
+  );
+}
+
+function GitHubIconSmall() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+    </svg>
+  );
+}
+
+/**
+ * WorkspaceChips — folder + GitHub pills above the composer, mirroring
+ * Claude.app's chip dropdown pattern from c5610fbe3-rsWnjbnF.js:654657.
+ * Each chip:
+ *   • Empty:        bare button → triggers the picker directly
+ *   • With recents: dropdown — "Recent" header + items + separator +
+ *                   "Open folder…" / "Connect…" footer action
+ *
+ * Folder uses webkitdirectory (broad support, pick existing) — when
+ * available we'd prefer showDirectoryPicker for the OS-native New
+ * Folder button, but that's Chromium-only and we don't gate on it for
+ * now. GitHub falls back to URL paste because OAuth isn't wired yet.
+ */
+function WorkspaceChips({
+  currentName, recents, busy, onLoadFolder, onLoadGitHub,
+}: {
+  currentName: string | null;
+  recents: ReadonlyArray<RecentProject>;
+  busy: boolean;
+  onLoadFolder: (files: FileList) => Promise<{ repo: string; count: number; dropped: number } | null> | void;
+  onLoadGitHub: (url: string) => Promise<{ repo: string; count: number; dropped: number } | null>;
+}) {
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [githubOpen, setGithubOpen] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const folderRef = useRef<HTMLDivElement | null>(null);
+  const githubRef = useRef<HTMLDivElement | null>(null);
+
+  // webkitdirectory is a non-standard React prop; set via attribute on
+  // the underlying input element so TypeScript doesn't complain.
+  useEffect(() => {
+    if (folderInputRef.current) {
+      folderInputRef.current.setAttribute("webkitdirectory", "");
+      folderInputRef.current.setAttribute("directory", "");
+    }
+  }, []);
+
+  // Close dropdowns on outside click.
+  useEffect(() => {
+    if (!folderOpen && !githubOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (folderRef.current && !folderRef.current.contains(t)) setFolderOpen(false);
+      if (githubRef.current && !githubRef.current.contains(t)) setGithubOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [folderOpen, githubOpen]);
+
+  const folderRecents = recents.filter((r) => r.kind === "folder");
+  const githubRecents = recents.filter((r) => r.kind === "github");
+
+  const triggerFolderPicker = () => {
+    setFolderOpen(false);
+    folderInputRef.current?.click();
+  };
+
+  const submitGithubUrl = async () => {
+    if (!urlInput.trim() || busy) return;
+    await onLoadGitHub(urlInput.trim());
+    setUrlInput("");
+    setGithubOpen(false);
+  };
+
+  const folderChipLabel = currentName
+    ? currentName.length > 22 ? `${currentName.slice(0, 20)}…` : currentName
+    : "Folder";
+
+  return (
+    <div className="flex items-center justify-center gap-2 mb-3">
+      {/* Folder chip + dropdown */}
+      <div className="relative" ref={folderRef}>
+        <button
+          type="button"
+          onClick={() => folderRecents.length > 0 ? setFolderOpen((v) => !v) : triggerFolderPicker()}
+          disabled={busy}
+          title="Attach a folder from your computer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] bg-[#1f1f1f] border border-white/10 text-white/80 hover:bg-[#262626] hover:border-white/25 transition-colors disabled:opacity-50"
+        >
+          <FolderIcon />
+          {folderChipLabel}
+          {folderRecents.length > 0 ? <CaretDownIcon /> : null}
+        </button>
+        {folderOpen && folderRecents.length > 0 ? (
+          <div className="absolute bottom-full left-0 mb-2 z-30 min-w-[240px] rounded-xl border border-white/10 bg-[#1f1f1f] shadow-[0_20px_60px_rgba(0,0,0,0.5)] py-1.5">
+            <div className="px-3 py-1 text-[11px] uppercase tracking-wider text-white/35 font-mono">Recent</div>
+            {folderRecents.map((r) => (
+              <div
+                key={`${r.kind}:${r.name}`}
+                className="px-3 py-1.5 text-[12.5px] text-white/65"
+                title={r.name}
+              >
+                {r.name}
+              </div>
+            ))}
+            <div className="my-1 border-t border-white/10" />
+            <button
+              type="button"
+              onClick={triggerFolderPicker}
+              disabled={busy}
+              className="w-full text-left px-3 py-1.5 text-[12.5px] text-white/85 hover:bg-white/[0.06] transition-colors"
+            >
+              Open folder…
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {/* GitHub chip + dropdown */}
+      <div className="relative" ref={githubRef}>
+        <button
+          type="button"
+          onClick={() => setGithubOpen((v) => !v)}
+          disabled={busy}
+          title="Attach a GitHub repo"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] bg-[#1f1f1f] border border-white/10 text-white/80 hover:bg-[#262626] hover:border-white/25 transition-colors disabled:opacity-50"
+        >
+          <GitHubIconSmall />
+          GitHub
+          <CaretDownIcon />
+        </button>
+        {githubOpen ? (
+          <div className="absolute bottom-full left-0 mb-2 z-30 min-w-[300px] rounded-xl border border-white/10 bg-[#1f1f1f] shadow-[0_20px_60px_rgba(0,0,0,0.5)] py-1.5">
+            {githubRecents.length > 0 ? (
+              <>
+                <div className="px-3 py-1 text-[11px] uppercase tracking-wider text-white/35 font-mono">Recent</div>
+                {githubRecents.map((r) => (
+                  <button
+                    key={`${r.kind}:${r.name}`}
+                    type="button"
+                    onClick={() => {
+                      if (r.url) onLoadGitHub(r.url);
+                      setGithubOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-[12.5px] text-white/85 hover:bg-white/[0.06] transition-colors font-mono"
+                    title={r.name}
+                  >
+                    {r.name}
+                  </button>
+                ))}
+                <div className="my-1 border-t border-white/10" />
+              </>
+            ) : null}
+            <div className="px-3 py-2">
+              <div className="text-[11px] text-white/40 mb-1.5">
+                Paste a public repo URL
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitGithubUrl(); }}
+                  placeholder="github.com/owner/repo"
+                  disabled={busy}
+                  autoFocus
+                  className="flex-1 bg-black/40 border border-white/10 focus:border-white/30 rounded-md px-2 py-1 text-[12px] text-white/95 placeholder:text-white/30 outline-none transition-colors font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={submitGithubUrl}
+                  disabled={busy || !urlInput.trim()}
+                  className="px-2.5 py-1 rounded-md text-[12px] font-medium bg-[#d97757] text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#c5663f] transition-colors"
+                >
+                  {busy ? "…" : "Load"}
+                </button>
+              </div>
+              <div className="text-[10.5px] text-white/35 mt-2 leading-[1.4]">
+                Sign in with GitHub for private repos and your repo list — coming soon.
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        style={{ display: "none" }}
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            onLoadFolder(e.target.files);
+          }
+          // Reset so picking the same folder again still triggers onChange.
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+function CaretDownIcon() {
+  return (
+    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 4.5l3 3 3-3" />
     </svg>
   );
 }
@@ -1826,6 +2070,7 @@ function ModeToggle({
 
 function EmptyState({
   mode, onModeChange, compare, agents, autoResearch, autoResearchLocked,
+  workspaceChips,
 }: {
   mode: Mode;
   onModeChange: (m: Mode) => void;
@@ -1833,6 +2078,10 @@ function EmptyState({
   agents: React.ReactNode;
   autoResearch: React.ReactNode;
   autoResearchLocked?: boolean;
+  /** Folder + GitHub chips that let the user attach a project context
+   *  before sending. Rendered above the mode-specific compose section
+   *  so it's the first thing the user sees and reaches for. */
+  workspaceChips?: React.ReactNode;
 }) {
   const headline =
     mode === "compare"       ? "What do you want compared?" :
@@ -1852,6 +2101,7 @@ function EmptyState({
         <div className="flex justify-center mb-4">
           <ModeToggle mode={mode} onChange={onModeChange} autoResearchLocked={autoResearchLocked} />
         </div>
+        {workspaceChips}
         {mode === "compare"
           ? compare
           : mode === "agents"
