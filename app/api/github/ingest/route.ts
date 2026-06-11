@@ -94,9 +94,26 @@ function isAllowedFile(path: string): boolean {
   return ALLOWED_EXTENSIONS.has(ext);
 }
 
-async function resolveDefaultBranch(owner: string, repo: string): Promise<string | null> {
+/** Build the GitHub API header bag. Authenticated requests get 5,000/hr
+ *  rate limit (vs 60/hr anon) AND access to private repos the user
+ *  belongs to. The token is the GitHub OAuth provider_token from the
+ *  Supabase session — we never store it server-side. */
+function ghHeaders(token: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    accept: "application/vnd.github+json",
+    "x-github-api-version": "2022-11-28",
+  };
+  if (token) headers.authorization = `Bearer ${token}`;
+  return headers;
+}
+
+async function resolveDefaultBranch(
+  owner: string,
+  repo: string,
+  token: string | null,
+): Promise<string | null> {
   const r = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-    headers: { accept: "application/vnd.github+json" },
+    headers: ghHeaders(token),
   });
   if (!r.ok) return null;
   const j = (await r.json().catch(() => null)) as { default_branch?: string } | null;
@@ -107,9 +124,10 @@ async function listFiles(
   owner: string,
   repo: string,
   ref: string,
+  token: string | null,
 ): Promise<{ path: string; size: number }[] | null> {
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`;
-  const r = await fetch(url, { headers: { accept: "application/vnd.github+json" } });
+  const r = await fetch(url, { headers: ghHeaders(token) });
   if (!r.ok) return null;
   const j = (await r.json().catch(() => null)) as
     | { tree?: { path: string; type: string; size?: number }[]; truncated?: boolean }
@@ -125,7 +143,19 @@ async function fetchRawText(
   repo: string,
   ref: string,
   path: string,
+  token: string | null,
 ): Promise<string | null> {
+  // Without a token: raw.githubusercontent.com is fine (no auth needed
+  // for public files, and it doesn't count against the API rate limit).
+  // With a token: we use the contents API so we can read private repos.
+  if (token) {
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
+    const r = await fetch(url, {
+      headers: { ...ghHeaders(token), accept: "application/vnd.github.raw" },
+    });
+    if (!r.ok) return null;
+    return await r.text();
+  }
   const url = `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(ref)}/${path
     .split("/")
     .map(encodeURIComponent)
@@ -136,13 +166,18 @@ async function fetchRawText(
 }
 
 export async function POST(req: Request) {
-  let body: { url?: string; ref?: string };
+  let body: { url?: string; ref?: string; accessToken?: string };
   try { body = await req.json(); } catch {
     return Response.json({ error: "invalid_json" }, { status: 400 });
   }
 
   try {
   const url = typeof body.url === "string" ? body.url : "";
+  // Optional Supabase provider_token. When provided, all GitHub API
+  // calls authenticate (5000/hr limit, private-repo access). Never
+  // logged; never persisted.
+  const accessToken = typeof body.accessToken === "string" && body.accessToken
+    ? body.accessToken : null;
   const parsed = parseRepoUrl(url);
   if (!parsed) {
     return Response.json({
@@ -162,7 +197,7 @@ export async function POST(req: Request) {
   // Without this fallback any repo whose default_branch lookup is rate
   // limited by GitHub's 60/hr unauthenticated cap silently 404s on the
   // trees API.
-  const resolvedDefault = requestedRef ? null : await resolveDefaultBranch(owner, repo);
+  const resolvedDefault = requestedRef ? null : await resolveDefaultBranch(owner, repo, accessToken);
   const refsToTry: string[] = [];
   if (requestedRef) refsToTry.push(requestedRef);
   else if (resolvedDefault) refsToTry.push(resolvedDefault);
@@ -171,7 +206,7 @@ export async function POST(req: Request) {
   let tree: { path: string; size: number }[] | null = null;
   let ref = refsToTry[0];
   for (const candidate of refsToTry) {
-    const result = await listFiles(owner, repo, candidate);
+    const result = await listFiles(owner, repo, candidate, accessToken);
     if (result) {
       tree = result;
       ref = candidate;
@@ -202,7 +237,7 @@ export async function POST(req: Request) {
   for (const entry of candidates) {
     if (files.length >= MAX_FILE_COUNT) { droppedCount++; continue; }
     if (totalBytes + entry.size > MAX_TOTAL_BYTES) { droppedCount++; continue; }
-    const content = await fetchRawText(owner, repo, ref, entry.path);
+    const content = await fetchRawText(owner, repo, ref, entry.path, accessToken);
     if (content === null) { droppedCount++; continue; }
     if (content.length > MAX_FILE_BYTES) { droppedCount++; continue; }
     files.push({ path: entry.path, content });
