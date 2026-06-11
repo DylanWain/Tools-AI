@@ -118,6 +118,70 @@ export function CompareChat({ availableProviders }: Props) {
   // wins over the parsed agent output so streaming new content from
   // a future agent doesn't trample a person's typing.
   const [fileEdits, setFileEdits] = useState<Record<string, string>>({});
+
+  // GitHub repo ingest state. Pasting a repo URL into the header button
+  // calls /api/github/ingest, which fetches the public repo tree via the
+  // GitHub API + raw.githubusercontent.com. Returned files merge into
+  // fileEdits so they appear in FileTreePane immediately AND become
+  // part of `project` for the prompt-side context injection in the
+  // /api/compare route. User-typed edits still win because fileEdits
+  // is the overlay layer above the agent-output build.
+  const [importingGitHub, setImportingGitHub] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importedRepo, setImportedRepo] = useState<{
+    repo: string;
+    count: number;
+    dropped: number;
+  } | null>(null);
+
+  /** Fetch a public GitHub repo and merge its text files into the
+   *  workspace. Returns the success summary so the caller can flash
+   *  it in the UI; returns null on failure (caller reads importError). */
+  const loadGitHubRepo = async (
+    url: string,
+  ): Promise<{ repo: string; count: number; dropped: number } | null> => {
+    if (!url.trim()) return null;
+    setImportError(null);
+    setImportingGitHub(true);
+    try {
+      const r = await fetch("/api/github/ingest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const j = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        detail?: string;
+        repo?: string;
+        files?: Array<{ path: string; content: string }>;
+        droppedCount?: number;
+      };
+      if (!r.ok || !Array.isArray(j.files)) {
+        setImportError(j.detail || j.error || `HTTP ${r.status}`);
+        return null;
+      }
+      // Build a fresh-copy overlay update so React reliably re-renders
+      // FileTreePane. We don't tombstone existing imports — successive
+      // loads from different repos merge; users can delete files they
+      // don't want via FileTreePane's existing context menu.
+      const next: Record<string, string> = {};
+      for (const f of j.files) next[f.path] = f.content;
+      setFileEdits((prev) => ({ ...prev, ...next }));
+      const summary = {
+        repo: j.repo || "repo",
+        count: j.files.length,
+        dropped: j.droppedCount ?? 0,
+      };
+      setImportedRepo(summary);
+      return summary;
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "Network error");
+      return null;
+    } finally {
+      setImportingGitHub(false);
+    }
+  };
+
   // Tombstones for files the user deleted from the file tree. These
   // win over BOTH agent output AND fileEdits — if the path appears
   // here, the project map skips it entirely. Rename = tombstone old +
@@ -373,6 +437,25 @@ export function CompareChat({ availableProviders }: Props) {
     for (const dead of deletedPaths) delete built[dead];
     return built;
   }, [mode, codeMode, lastSlots, runs, fileEdits, deletedPaths]);
+
+  // Workspace snapshot for the prompt — same map the file tree renders,
+  // serialised down to the {path, content} pairs /api/compare wants.
+  // Capped at ~60KB total to keep the upstream payload sane; the server
+  // caps again. Files are taken in path-sort order until the budget
+  // is hit, so the same project produces a deterministic snapshot.
+  const projectFilesPayload = useMemo<ReadonlyArray<{ path: string; content: string }>>(() => {
+    const CAP_BYTES = 60 * 1024;
+    const sorted = Object.values(project).sort((a, b) => a.path.localeCompare(b.path));
+    const out: Array<{ path: string; content: string }> = [];
+    let used = 0;
+    for (const f of sorted) {
+      const size = (f.content?.length ?? 0) + f.path.length + 12; // ~ fence overhead
+      if (used + size > CAP_BYTES) break;
+      out.push({ path: f.path, content: f.content ?? "" });
+      used += size;
+    }
+    return out;
+  }, [project]);
 
   // Auto-open the workspace the first time an agent emits a file —
   // saves a click without forcing the panel on users who never get
@@ -772,6 +855,7 @@ export function CompareChat({ availableProviders }: Props) {
       id: modelId, modelId, prompt,
       ...(rules ? { projectContext: rules } : {}),
       attachments: wire.length ? wire : undefined,
+      projectFiles: projectFilesPayload.length ? projectFilesPayload : undefined,
       prevTurns: history.length ? history : undefined,
       sessionId: sessId,
       turnIndex,
@@ -844,6 +928,7 @@ export function CompareChat({ availableProviders }: Props) {
       modelId,
       prompt: inspectionPrompt,
       systemPrompt: layeredSystem,
+      projectFiles: projectFilesPayload.length ? projectFilesPayload : undefined,
       prevTurns: history.length ? history : undefined,
       sessionId: sessId,
       turnIndex,
@@ -879,6 +964,7 @@ export function CompareChat({ availableProviders }: Props) {
       }),
       codeMode,
       synthesize: false,
+      projectFiles: projectFilesPayload.length ? projectFilesPayload : undefined,
     });
   }
 
@@ -1074,6 +1160,10 @@ export function CompareChat({ availableProviders }: Props) {
           onToggleWorkspace={() => setWorkspaceOpen((v) => !v)}
           rulesActive={rulesActive}
           onOpenRules={() => setRulesModalOpen(true)}
+          onLoadGitHub={loadGitHubRepo}
+          importingGitHub={importingGitHub}
+          importError={importError}
+          importedRepo={importedRepo}
         />
         {/* min-h-0 lets <main> shrink below its content size inside the
          *  flex column (without it the flex parent grows tall and we're
@@ -1293,16 +1383,54 @@ export function CompareChat({ availableProviders }: Props) {
 function ChatHeader({
   showWorkspaceToggle, workspaceOpen, onToggleWorkspace,
   rulesActive, onOpenRules,
+  onLoadGitHub, importingGitHub, importError, importedRepo,
 }: {
   showWorkspaceToggle: boolean;
   workspaceOpen: boolean;
   onToggleWorkspace: () => void;
   rulesActive: boolean;
   onOpenRules: () => void;
+  /** Pass-through to CompareChat's `loadGitHubRepo`. Returns a success
+   *  summary or null. We toggle the inline import bar based on the
+   *  user's click on the header button. */
+  onLoadGitHub: (url: string) => Promise<{ repo: string; count: number; dropped: number } | null>;
+  importingGitHub: boolean;
+  importError: string | null;
+  importedRepo: { repo: string; count: number; dropped: number } | null;
 }) {
+  const [importOpen, setImportOpen] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+
+  const submit = async () => {
+    if (!urlInput.trim() || importingGitHub) return;
+    const r = await onLoadGitHub(urlInput.trim());
+    if (r) {
+      setUrlInput("");
+      // Leave the bar open for a beat so the user sees the success
+      // count, then auto-close. Timeout matches the existing pattern
+      // in PlanPickerModal's success flashes (~1.6s).
+      window.setTimeout(() => setImportOpen(false), 1600);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 backdrop-blur-md bg-black/85">
       <div className="px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-end gap-1">
+        <button
+          type="button"
+          onClick={() => setImportOpen((v) => !v)}
+          title="Load a public GitHub repo so the models can see your code"
+          aria-expanded={importOpen}
+          className={[
+            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] transition-colors mr-1",
+            importOpen
+              ? "bg-white/[0.08] text-white border border-white/15"
+              : "text-white/60 hover:text-white hover:bg-white/[0.06] border border-transparent",
+          ].join(" ")}
+        >
+          <GitHubIcon />
+          Load repo
+        </button>
         {showWorkspaceToggle && (
           <button
             type="button"
@@ -1344,7 +1472,63 @@ function ChatHeader({
           Admin
         </Link>
       </div>
+      {importOpen && (
+        // Inline import bar — appears below the header chrome when the
+        // user clicks "Load repo". Captures any public GitHub URL, pastes
+        // raw owner/repo too. Error + success summary feedback inline so
+        // we don't need a toast system.
+        <div className="px-4 sm:px-6 lg:px-8 pb-3 border-b border-white/10">
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="text"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              placeholder="github.com/owner/repo  or  owner/repo"
+              autoFocus
+              disabled={importingGitHub}
+              className="flex-1 min-w-[260px] bg-black/40 border border-white/10 focus:border-white/30 rounded-md px-3 py-1.5 text-[13px] text-white/95 placeholder:text-white/30 outline-none transition-colors font-mono"
+            />
+            <button
+              type="button"
+              onClick={submit}
+              disabled={importingGitHub || !urlInput.trim()}
+              className="px-3 py-1.5 rounded-full text-[13px] font-medium bg-[#d97757] text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#c5663f] transition-colors"
+            >
+              {importingGitHub ? "Loading…" : "Load"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportOpen(false)}
+              disabled={importingGitHub}
+              className="px-3 py-1.5 rounded-full text-[13px] text-white/55 hover:text-white/90 hover:bg-white/[0.06] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {importError && (
+            <p className="mt-2 text-[12px] text-red-300/90 font-mono">
+              {importError}
+            </p>
+          )}
+          {importedRepo && !importError && (
+            <p className="mt-2 text-[12px] text-white/55">
+              Loaded <span className="text-white/90 font-mono">{importedRepo.repo}</span>
+              {" "}— {importedRepo.count} files
+              {importedRepo.dropped > 0 ? ` (${importedRepo.dropped} skipped: too large or binary)` : ""}
+            </p>
+          )}
+        </div>
+      )}
     </header>
+  );
+}
+
+function GitHubIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+    </svg>
   );
 }
 

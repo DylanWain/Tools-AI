@@ -58,6 +58,12 @@ export async function POST(req: Request) {
      *  Appended to the system prompt so house voice + user conventions
      *  both apply. Optional; client reads from localStorage. */
     projectContext?: string;
+    /** Workspace snapshot — every text file the user has loaded into the
+     *  workspace, serialised as {path, content} pairs. We bundle them
+     *  into fenced blocks and prepend to projectContext so the model
+     *  actually sees the code, not just the chat history. Capped server-
+     *  side (PROJECT_FILES_CAP_BYTES) and client-side. */
+    projectFiles?: Array<{ path: string; content: string }>;
     attachments?: WireAttachment[];
     prevTurns?: ChatMessage[];
     // Analytics-only fields. The client passes its current compare-
@@ -79,9 +85,35 @@ export async function POST(req: Request) {
   // CLAUDE.md-style doc, short enough to not blow up the upstream
   // payload across every model on every send.
   const rawProjectContext = typeof body.projectContext === "string" ? body.projectContext : undefined;
-  const projectContext = rawProjectContext && rawProjectContext.trim()
-    ? rawProjectContext.slice(0, MAX_PROMPT_CHARS * 8)
-    : undefined;
+  // Workspace snapshot. Format as one labeled section per file so the
+  // model can tell where the bundle starts/ends and which path each
+  // block belongs to. Skip empty entries. The total payload is capped
+  // before being merged with the project-rules string.
+  const PROJECT_FILES_CAP_BYTES = MAX_PROMPT_CHARS * 6;
+  const fileBundle = (() => {
+    const files = Array.isArray(body.projectFiles) ? body.projectFiles : [];
+    if (files.length === 0) return "";
+    const parts: string[] = [];
+    let used = 0;
+    parts.push("## Current workspace files\n\nThese files are loaded into the user's workspace. Treat them as the source of truth for existing code; reference paths exactly when you propose edits.\n\n");
+    used += parts[0].length;
+    for (const f of files) {
+      if (!f || typeof f.path !== "string" || typeof f.content !== "string") continue;
+      const lang = (f.path.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9+\-]/g, "");
+      const block = "```" + lang + ":" + f.path + "\n" + f.content + "\n```\n\n";
+      if (used + block.length > PROJECT_FILES_CAP_BYTES) break;
+      parts.push(block);
+      used += block.length;
+    }
+    return parts.join("");
+  })();
+  const mergedContext = (() => {
+    const rules = rawProjectContext && rawProjectContext.trim() ? rawProjectContext.trim() : "";
+    if (!fileBundle && !rules) return undefined;
+    const combined = fileBundle ? `${fileBundle}${rules ? "\n\n" + rules : ""}` : rules;
+    return combined.slice(0, MAX_PROMPT_CHARS * 8);
+  })();
+  const projectContext = mergedContext;
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
   const prevTurns = sanitizeHistory(body.prevTurns);
   const sessionId = typeof body.sessionId === "string" ? body.sessionId.slice(0, 128) : null;

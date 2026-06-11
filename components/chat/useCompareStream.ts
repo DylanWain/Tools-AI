@@ -54,6 +54,13 @@ export type RunSlot = {
   /** User-supplied files / images for this slot. Each provider builds
    *  its own multimodal payload from these on the server side. */
   attachments?: WireAttachment[];
+  /** Snapshot of the workspace's text files at send-time. /api/compare
+   *  serialises these into the prompt as fenced blocks so the model
+   *  has actual code context — not just chat history. Built once per
+   *  Send from CompareChat's `project` map; same array shared across
+   *  every fan-out slot to avoid N copies in memory. Capped at total
+   *  ~60KB client-side; server caps again at MAX_PROMPT_CHARS * 8. */
+  projectFiles?: ReadonlyArray<{ path: string; content: string }>;
   /** Multi-turn history BEFORE the current prompt. In compare mode the
    *  caller builds this per slot — for each prior assistant turn that
    *  had a "picked" winner card, only that winner's text is included.
@@ -144,6 +151,12 @@ export function useCompareStream() {
      *  output strictly via ```lang:path code blocks, AND each agent is
      *  told which files every peer owns so it stays out of their lane. */
     codeMode?: boolean;
+    /** Workspace snapshot. Every worker (and the synthesizer) receives
+     *  the same set so each model can see the actual project code, not
+     *  just the chat history. CompareChat builds this once from the
+     *  `project` memo at send-time and passes it through; see the
+     *  /api/compare route for how it's serialised into the prompt. */
+    projectFiles?: ReadonlyArray<{ path: string; content: string }>;
   }) => {
     if (input.workers.length === 0 || !input.goal.trim()) return;
     abortRef.current?.abort();
@@ -189,6 +202,7 @@ export function useCompareStream() {
         prompt: w.task,
         role: "worker",
         attachments: w.attachments,
+        projectFiles: input.projectFiles,
         sessionId: input.sessionId,
         turnIndex: 0,
         mode: "agents",
@@ -509,6 +523,9 @@ async function runOne(
         ...(slot.projectContext ? { projectContext: slot.projectContext } : {}),
         ...(slot.attachments && slot.attachments.length
           ? { attachments: slot.attachments }
+          : {}),
+        ...(slot.projectFiles && slot.projectFiles.length
+          ? { projectFiles: slot.projectFiles }
           : {}),
         ...(slot.prevTurns && slot.prevTurns.length
           ? { prevTurns: slot.prevTurns }
