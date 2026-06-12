@@ -35,6 +35,11 @@ type DesktopApi = {
     relPath: string,
     content: string,
   ): Promise<{ ok: true } | { ok: false; error: string }>;
+  runCommand(
+    rootId: string,
+    command: string,
+    opts?: { timeoutMs?: number },
+  ): Promise<{ ok: boolean; code: number; stdout: string; stderr: string }>;
   platform(): Promise<{
     isDesktop: true;
     platform: string;
@@ -42,6 +47,13 @@ type DesktopApi = {
     version: string;
   }>;
   onAuthCallback(handler: (url: string) => void): () => void;
+};
+
+export type RunCommandResult = {
+  ok: boolean;
+  code: number;
+  stdout: string;
+  stderr: string;
 };
 
 /** True when the app is running inside the Veronum Desktop wrapper.
@@ -103,4 +115,18 @@ export function onDesktopAuthCallback(handler: (url: string) => void): () => voi
   const a = api();
   if (!a) return () => {};
   return a.onAuthCallback(handler);
+}
+
+/** Runs a shell command inside a granted root — the Bash tool. Used
+ *  by the agent loop for git push, test runs, grep, etc. Returns a
+ *  not-desktop sentinel when called outside the wrapper so callers
+ *  can surface "Bash needs the desktop app" rather than crashing. */
+export async function desktopRunCommand(
+  rootId: string,
+  command: string,
+  opts?: { timeoutMs?: number },
+): Promise<RunCommandResult> {
+  const a = api();
+  if (!a) return { ok: false, code: -1, stdout: "", stderr: "not_desktop" };
+  return a.runCommand(rootId, command, opts);
 }
