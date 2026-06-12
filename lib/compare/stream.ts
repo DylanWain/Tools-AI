@@ -83,6 +83,7 @@ export async function* streamCompletion(
     case "perplexity": yield* streamPerplexity(m, fullPrompt, sys, atts, history); break;
     case "gemini":     yield* streamGemini(m, fullPrompt, sys, atts, history); break;
     case "xai":        yield* streamXAI(m, fullPrompt, sys, atts, history); break;
+    case "deepseek":   yield* streamDeepSeek(m, fullPrompt, sys, atts, history); break;
   }
 }
 
@@ -318,6 +319,33 @@ async function* streamXAI(m: CompareModel, prompt: string, sys: string, atts: Wi
     }),
   });
   if (!r.ok) { yield { error: `xai ${r.status}: ${(await r.text()).slice(0, 200)}` }; return; }
+  yield* parseSSE(r, (json) => json.choices?.[0]?.delta?.content);
+}
+
+// ──────────────────────────────────────────────────────────────
+// DeepSeek — OpenAI-compatible Chat Completions API at
+// https://api.deepseek.com/v1. Same SSE frame shape as OpenAI,
+// so we reuse parseSSE with the same delta.content extractor.
+// V4 family doesn't accept image inputs yet; we drop any.
+// ──────────────────────────────────────────────────────────────
+async function* streamDeepSeek(m: CompareModel, prompt: string, sys: string, _atts: WireAttachment[], history: ChatMessage[]): AsyncGenerator<Chunk> {
+  const key = providerKey("deepseek");
+  if (!key) { yield { error: "DEEPSEEK_API_KEY (or DEEPSEEK_KEY) not set on server" }; return; }
+  const messages: unknown[] = [
+    { role: "system", content: sys },
+    ...history.map((h) => ({ role: h.role, content: h.content })),
+    { role: "user", content: prompt },
+  ];
+  const r = await fetch("https://api.deepseek.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: m.model,
+      stream: true,
+      messages,
+    }),
+  });
+  if (!r.ok) { yield { error: `deepseek ${r.status}: ${(await r.text()).slice(0, 200)}` }; return; }
   yield* parseSSE(r, (json) => json.choices?.[0]?.delta?.content);
 }
 

@@ -39,6 +39,11 @@ const FALLBACK: ModelPrice = { centsPerMTokIn: 100, centsPerMTokOut: 500 };
  *  in models.ts doesn't break the price lookup here. */
 const PRICES: Record<string, ModelPrice> = {
   // OpenAI — https://openai.com/api/pricing
+  // 5.x prices estimated against the 4.x → 5.x ladder; verify before billing.
+  "gpt-5.5":       { centsPerMTokIn: 500,  centsPerMTokOut: 2500 },
+  "gpt-5.4":       { centsPerMTokIn: 250,  centsPerMTokOut: 1000 },
+  "gpt-5.4-mini":  { centsPerMTokIn: 50,   centsPerMTokOut: 200 },
+  "gpt-5.4-nano":  { centsPerMTokIn: 15,   centsPerMTokOut: 60 },
   "gpt-4o":        { centsPerMTokIn: 250,  centsPerMTokOut: 1000 },
   "gpt-4o-mini":   { centsPerMTokIn: 15,   centsPerMTokOut: 60 },
   "gpt-4-turbo":   { centsPerMTokIn: 1000, centsPerMTokOut: 3000 },
@@ -47,6 +52,10 @@ const PRICES: Record<string, ModelPrice> = {
   "o3-mini":       { centsPerMTokIn: 110,  centsPerMTokOut: 440 },
 
   // Anthropic — https://docs.anthropic.com/en/docs/about-claude/pricing
+  // 4.6/4.8/Fable 5 prices confirmed against the public pricing table.
+  "claude-fable-5":      { centsPerMTokIn: 1000, centsPerMTokOut: 5000 },
+  "claude-opus-4-8":     { centsPerMTokIn: 500,  centsPerMTokOut: 2500 },
+  "claude-sonnet-4-6":   { centsPerMTokIn: 300,  centsPerMTokOut: 1500 },
   "claude-sonnet-4-5":   { centsPerMTokIn: 300,  centsPerMTokOut: 1500 },
   "claude-opus-4-1":     { centsPerMTokIn: 1500, centsPerMTokOut: 7500 },
   "claude-haiku-4-5":    { centsPerMTokIn: 100,  centsPerMTokOut: 500 },
@@ -58,12 +67,21 @@ const PRICES: Record<string, ModelPrice> = {
   "perplexity-sonar-reasoning": { centsPerMTokIn: 100, centsPerMTokOut: 500 },
 
   // Gemini — https://ai.google.dev/pricing
-  "gemini-flash":   { centsPerMTokIn: 30,  centsPerMTokOut: 250 },
-  "gemini-pro":     { centsPerMTokIn: 125, centsPerMTokOut: 1000 },
+  // Gemini 3 prices estimated against the 2.5 baseline; verify before billing.
+  "gemini-3-5-flash": { centsPerMTokIn: 50,  centsPerMTokOut: 400 },
+  "gemini-3-1-pro":   { centsPerMTokIn: 200, centsPerMTokOut: 1500 },
+  "gemini-flash":     { centsPerMTokIn: 30,  centsPerMTokOut: 250 },
+  "gemini-pro":       { centsPerMTokIn: 125, centsPerMTokOut: 1000 },
 
   // xAI — https://docs.x.ai/docs/models
-  "grok-3":         { centsPerMTokIn: 300, centsPerMTokOut: 1500 },
+  "grok-4-3":       { centsPerMTokIn: 500, centsPerMTokOut: 1500 },
   "grok-4":         { centsPerMTokIn: 500, centsPerMTokOut: 1500 },
+  "grok-3":         { centsPerMTokIn: 300, centsPerMTokOut: 1500 },
+
+  // DeepSeek — https://api-docs.deepseek.com/quick_start/pricing
+  // Historically the cheapest frontier provider; estimate conservatively.
+  "deepseek-v4-flash": { centsPerMTokIn: 30,  centsPerMTokOut: 100 },
+  "deepseek-v4-pro":   { centsPerMTokIn: 50,  centsPerMTokOut: 200 },
 };
 
 /** Look up the price for a model id. Returns the conservative fallback

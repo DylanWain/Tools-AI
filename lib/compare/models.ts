@@ -10,7 +10,7 @@
  * client picker auto-updates from this list.
  */
 
-export type ProviderId = "openai" | "anthropic" | "perplexity" | "gemini" | "xai";
+export type ProviderId = "openai" | "anthropic" | "perplexity" | "gemini" | "xai" | "deepseek";
 
 export type CompareModel = {
   id: string;            // stable client id ('gpt-4o', 'claude-sonnet', ...)
@@ -33,12 +33,44 @@ export type CompareModel = {
 export const MODELS: CompareModel[] = [
   // ── OpenAI ────────────────────────────────────────────────
   {
+    id: "gpt-5.5",
+    label: "GPT-5.5",
+    provider: "openai",
+    model: "gpt-5.5",
+    accentHex: "#10a37f",
+    blurb: "OpenAI's current frontier — deep reasoning + coding.",
+  },
+  {
+    id: "gpt-5.4",
+    label: "GPT-5.4",
+    provider: "openai",
+    model: "gpt-5.4",
+    accentHex: "#13b388",
+    blurb: "Affordable frontier — strong coding, professional work.",
+  },
+  {
+    id: "gpt-5.4-mini",
+    label: "GPT-5.4 mini",
+    provider: "openai",
+    model: "gpt-5.4-mini",
+    accentHex: "#34d399",
+    blurb: "Mini frontier — coding + computer use at lower cost.",
+  },
+  {
+    id: "gpt-5.4-nano",
+    label: "GPT-5.4 nano",
+    provider: "openai",
+    model: "gpt-5.4-nano",
+    accentHex: "#6ee7b7",
+    blurb: "Cheapest 5.4 — lowest latency, lowest cost.",
+  },
+  {
     id: "gpt-4o",
     label: "GPT-4o",
     provider: "openai",
     model: "gpt-4o",
     accentHex: "#10a37f",
-    blurb: "OpenAI flagship — fast, multi-modal.",
+    blurb: "Previous-gen flagship — fast, multi-modal.",
     defaultSelected: true,
   },
   {
@@ -84,12 +116,36 @@ export const MODELS: CompareModel[] = [
   },
   // ── Anthropic ─────────────────────────────────────────────
   {
+    id: "claude-fable-5",
+    label: "Claude Fable 5",
+    provider: "anthropic",
+    model: "claude-fable-5",
+    accentHex: "#7d2e10",
+    blurb: "Anthropic's most capable model — adaptive thinking, 1M ctx.",
+  },
+  {
+    id: "claude-opus-4-8",
+    label: "Claude Opus 4.8",
+    provider: "anthropic",
+    model: "claude-opus-4-8",
+    accentHex: "#a04020",
+    blurb: "Top Opus — deep reasoning, agentic coding, 1M ctx.",
+  },
+  {
+    id: "claude-sonnet-4-6",
+    label: "Claude Sonnet 4.6",
+    provider: "anthropic",
+    model: "claude-sonnet-4-6",
+    accentHex: "#b94a2a",
+    blurb: "Best speed/intelligence balance — 1M ctx, extended thinking.",
+  },
+  {
     id: "claude-sonnet-4-5",
     label: "Claude Sonnet 4.5",
     provider: "anthropic",
     model: "claude-sonnet-4-5",
     accentHex: "#c45a3b",
-    blurb: "Anthropic's current flagship coder.",
+    blurb: "Previous-gen Sonnet — kept for comparison.",
     defaultSelected: true,
   },
   {
@@ -143,12 +199,28 @@ export const MODELS: CompareModel[] = [
   },
   // ── Gemini ────────────────────────────────────────────────
   {
+    id: "gemini-3-5-flash",
+    label: "Gemini 3.5 Flash",
+    provider: "gemini",
+    model: "gemini-3.5-flash",
+    accentHex: "#1a56db",
+    blurb: "Google's current top model — frontier intelligence.",
+  },
+  {
+    id: "gemini-3-1-pro",
+    label: "Gemini 3.1 Pro",
+    provider: "gemini",
+    model: "gemini-3.1-pro-preview",
+    accentHex: "#1e40af",
+    blurb: "Advanced reasoning — preview.",
+  },
+  {
     id: "gemini-flash",
     label: "Gemini 2.5 Flash",
     provider: "gemini",
     model: "gemini-2.5-flash",
     accentHex: "#4285f4",
-    blurb: "Google's fast multi-modal model.",
+    blurb: "Previous-gen fast multi-modal.",
   },
   {
     id: "gemini-pro",
@@ -156,16 +228,16 @@ export const MODELS: CompareModel[] = [
     provider: "gemini",
     model: "gemini-2.5-pro",
     accentHex: "#1a73e8",
-    blurb: "Google's flagship — higher quality.",
+    blurb: "Previous-gen Pro — kept for comparison.",
   },
   // ── xAI ───────────────────────────────────────────────────
   {
-    id: "grok-3",
-    label: "Grok 3",
+    id: "grok-4-3",
+    label: "Grok 4.3",
     provider: "xai",
-    model: "grok-3",
-    accentHex: "#9ca3af",
-    blurb: "xAI's flagship — current-events aware.",
+    model: "grok-4.3",
+    accentHex: "#4b5563",
+    blurb: "xAI's current flagship — fastest + most intelligent.",
   },
   {
     id: "grok-4",
@@ -173,7 +245,32 @@ export const MODELS: CompareModel[] = [
     provider: "xai",
     model: "grok-4",
     accentHex: "#6b7280",
-    blurb: "xAI's newest — broader reasoning.",
+    blurb: "Previous-gen Grok — broader reasoning.",
+  },
+  {
+    id: "grok-3",
+    label: "Grok 3",
+    provider: "xai",
+    model: "grok-3",
+    accentHex: "#9ca3af",
+    blurb: "Older Grok — current-events aware.",
+  },
+  // ── DeepSeek ──────────────────────────────────────────────
+  {
+    id: "deepseek-v4-flash",
+    label: "DeepSeek V4 Flash",
+    provider: "deepseek",
+    model: "deepseek-v4-flash",
+    accentHex: "#7c3aed",
+    blurb: "DeepSeek's current flagship — fast, frontier-class.",
+  },
+  {
+    id: "deepseek-v4-pro",
+    label: "DeepSeek V4 Pro",
+    provider: "deepseek",
+    model: "deepseek-v4-pro",
+    accentHex: "#6d28d9",
+    blurb: "DeepSeek's reasoning model — deeper, slower.",
   },
 ];
 
@@ -195,6 +292,7 @@ export function providerKey(p: ProviderId): string | null {
     case "anthropic":  return env.ANTHROPIC_API_KEY  || env.ANTHROPIC_KEY  || null;
     case "perplexity": return env.PERPLEXITY_API_KEY || env.PERPLEXITY_KEY || null;
     case "xai":        return env.XAI_API_KEY        || env.XAI_KEY        || null;
+    case "deepseek":   return env.DEEPSEEK_API_KEY   || env.DEEPSEEK_KEY   || null;
     case "gemini": {
       // GEMINI_KEYS can be a comma-separated list (older deploys hold
       // multiple keys for rotation). Take the first non-empty one.
