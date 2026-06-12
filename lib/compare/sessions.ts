@@ -73,6 +73,10 @@ export type CompareSession = {
   /** Virtual project tree parsed from the agents' outputs. Keyed by
    *  file path, ordered insertion-wise by Object.entries(). */
   project?: Record<string, ProjectFile>;
+  /** Agent-mode (local tool-loop) transcript: the streamed agent
+   *  events (assistant text, tool calls, results). Stored opaquely so
+   *  reopening the session restores the conversation in the chat. */
+  agentLog?: unknown[];
 };
 
 function isBrowser() {

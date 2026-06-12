@@ -848,7 +848,8 @@ export function CompareChat({ availableProviders }: Props) {
   // (Can't reference `project` directly: it's a useMemo declared later
   // in this function body, after hasContent's call site.)
   const hasContent =
-    lastSlots.length > 0 || turns.length > 0 || Object.keys(fileEdits).length > 0;
+    lastSlots.length > 0 || turns.length > 0 || Object.keys(fileEdits).length > 0
+    || agentEvents.length > 0;
   const expandedSlot = expandedId ? lastSlots.find((s) => s.id === expandedId) : null;
   const expandedModel = expandedSlot ? MODELS.find((m) => m.id === expandedSlot.modelId) : null;
 
@@ -1336,8 +1337,37 @@ export function CompareChat({ availableProviders }: Props) {
     agentAbortRef.current?.abort();
     const abort = new AbortController();
     agentAbortRef.current = abort;
+
+    // Create / reuse a session so this agent chat shows in History and
+    // survives reload (it skipped session creation entirely before, so
+    // it never appeared in the sidebar). New session migrates the draft
+    // folder cache to this id.
+    const sessId = currentId ?? newSessionId();
+    if (!currentId) setCurrentId(sessId);
+    const existing = getSession(sessId);
+    // Accumulate events locally so we can persist the full transcript
+    // without waiting on async setState. Continue an existing agent log
+    // (follow-up turn) or start fresh.
+    const priorLog = (existing?.agentLog as AgentEvent[] | undefined) ?? [];
+    const collected: AgentEvent[] = [...priorLog, { type: "assistant", text: prompt, calls: [] }];
+    setAgentEvents(collected.slice());
+    const push = (e: AgentEvent) => {
+      collected.push(e);
+      setAgentEvents(collected.slice());
+    };
+    const persist = () => {
+      saveSession({
+        id: sessId,
+        title: existing?.title ?? titleFromPrompt(prompt),
+        createdAt: existing?.createdAt ?? Date.now(),
+        mode: "agent",
+        modelIds: [modelId],
+        agentLog: collected.slice(),
+        runs: existing?.runs ?? {},
+      });
+      setSessions(listSessions());
+    };
     setAgentRunning(true);
-    setAgentEvents([{ type: "assistant", text: prompt, calls: [] }]);
     const systemExtra = hasProjectRules() ? loadProjectRules() ?? undefined : undefined;
 
     // LOCAL agent (Claude-Code style): the whole loop runs in the
@@ -1349,13 +1379,13 @@ export function CompareChat({ availableProviders }: Props) {
       const anthropicModel = model?.provider === "anthropic" ? model.model : undefined;
       const unsub = onDesktopAgentEvent((raw) => {
         const e = mapLocalAgentEvent(raw);
-        setAgentEvents((prev) => [...prev, e]);
+        push(e);
         if (e.type === "done" || e.type === "error") setAgentRunning(false);
       });
       try {
         const res = await desktopRunAgent({ rootId: desktopRootId, task: prompt, model: anthropicModel, systemExtra });
         if (!res.ok) {
-          setAgentEvents((prev) => [...prev, { type: "error", message: res.detail || res.error || "Agent failed." }]);
+          push({ type: "error", message: res.detail || res.error || "Agent failed." });
         }
         // The agent edited the real files on disk — re-walk so the
         // in-memory workspace + editor reflect the changes.
@@ -1369,6 +1399,7 @@ export function CompareChat({ availableProviders }: Props) {
         unsub();
         setAgentRunning(false);
         agentAbortRef.current = null;
+        persist();
       }
       return;
     }
@@ -1393,9 +1424,10 @@ export function CompareChat({ availableProviders }: Props) {
         systemExtra,
         signal: abort.signal,
         requestApproval: async () => true,
-        onEvent: (e) => setAgentEvents((prev) => [...prev, e]),
+        onEvent: (e) => push(e),
       });
     } finally {
+      persist();
       setAgentRunning(false);
       agentAbortRef.current = null;
     }
@@ -1771,10 +1803,17 @@ export function CompareChat({ availableProviders }: Props) {
     // single batch shows as the live state, no prior history).
     setTurns(s.turns ?? []);
     const loadedMode: Mode = s.mode ?? "compare";
-    setMode(loadedMode);
+    // Agent sessions live in the Compare tab; their content is the
+    // transcript, not compare runs. Restore the agent log (or clear it
+    // for non-agent sessions so it doesn't bleed across).
+    setMode(loadedMode === "agent" ? "compare" : loadedMode);
+    setAgentEvents((s.agentLog as AgentEvent[] | undefined) ?? []);
 
     // Rehydrate slots from the saved session into the run state.
-    if (loadedMode === "compare") {
+    if (loadedMode === "agent") {
+      if (s.modelIds?.length) setSelected(new Set(s.modelIds));
+      replaceState({}, []);
+    } else if (loadedMode === "compare") {
       const slots: RunSlot[] = (s.modelIds ?? []).map((modelId) => ({
         id: modelId, modelId, prompt: s.prompt ?? "",
       }));
