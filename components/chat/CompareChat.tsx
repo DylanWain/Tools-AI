@@ -83,6 +83,7 @@ import {
 } from "@/lib/compare/bridgeGit";
 import { PromptBar } from "./PromptBar";
 import { MultiAgentComposer } from "./MultiAgentComposer";
+import { AgentMonitor } from "./AgentMonitor";
 import { ResponseBox } from "./ResponseBox";
 import { SplitWorkspace } from "./SplitWorkspace";
 import { ExpandedModal } from "./ExpandedModal";
@@ -1951,6 +1952,12 @@ export function CompareChat({ availableProviders }: Props) {
               }
               agents={
                 <div className="flex flex-col gap-2.5">
+                  {lastSlots.length > 0 && (
+                    <AgentMonitor
+                      runs={runs}
+                      slots={lastSlots.map((s) => ({ id: s.id, modelId: s.modelId, task: s.prompt }))}
+                    />
+                  )}
                   <div className="flex items-center justify-between gap-3 px-1">
                     <span className={autoPlanError ? "text-[12px] text-red-300/80 leading-snug" : "text-[12px] text-white/40 leading-snug"}>
                       {autoPlanError ?? "Type one goal, then let AI split it into parallel agents — or add them by hand."}
