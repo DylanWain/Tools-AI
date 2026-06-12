@@ -353,9 +353,11 @@ export function CompareChat({ availableProviders }: Props) {
   const loadLocalFolder = async (
     files: FileList,
   ): Promise<{ repo: string; count: number; dropped: number } | null> => {
-    // Two folders = two sessions. Reset first if there's existing
-    // content; the returned key is where this folder's project caches.
-    const cacheKey = resolveFolderSession();
+    // New folder = new session in the sidebar. Title from the picked
+    // folder's root segment.
+    const firstRel = (Array.from(files)[0] as File & { webkitRelativePath?: string })?.webkitRelativePath || "";
+    const rootName = firstRel.split("/")[0] || "Project";
+    const cacheKey = startProjectSession(rootName);
     setImportError(null);
     setImportingGitHub(true);
     const candidates: Candidate[] = [];
@@ -377,9 +379,9 @@ export function CompareChat({ availableProviders }: Props) {
   const loadLocalFolderFromHandle = async (
     handle: FileSystemDirectoryHandle,
   ): Promise<{ repo: string; count: number; dropped: number } | null> => {
-    // Reset for a new session FIRST (it clears liveHandle), then stamp
+    // New session for this folder FIRST (clears liveHandle), then stamp
     // the new handle.
-    const cacheKey = resolveFolderSession();
+    const cacheKey = startProjectSession(handle.name);
     setImportError(null);
     setImportingGitHub(true);
     setLiveHandle(handle);
@@ -409,10 +411,10 @@ export function CompareChat({ availableProviders }: Props) {
         setImportingGitHub(false);
         return null;
       }
-      // New folder = new session (after the pick so a cancel is a
-      // no-op). resolveFolderSession resets the chat + clears the old
-      // folder/agent state and returns the draft cache key.
-      const cacheKey = resolveFolderSession();
+      // New folder = new session shown in the sidebar immediately,
+      // titled with the project name (after the pick so a cancel is a
+      // no-op).
+      const cacheKey = startProjectSession(result.rootName);
       // Merge into fileEdits with the website's path conventions
       // (relative paths, no leading rootName — matches FSA + GitHub).
       const next: Record<string, string> = {};
@@ -1656,24 +1658,25 @@ export function CompareChat({ availableProviders }: Props) {
     replaceState({}, []);
   }
 
-  /** Opening a folder when the current session already has a chat (or
-   *  a different folder) should spin up a SEPARATE session — two
-   *  folders = two sessions, each with its own code + chat (the user's
-   *  model, and how Cursor treats workspaces). If the current chat is
-   *  empty, load into it instead of making a throwaway.
-   *
-   *  Returns the cache key the new folder should be saved under. After
-   *  a reset that's the DRAFT key (currentId state won't have flipped
-   *  to null synchronously, so we can't read it) — the draft migrates
-   *  to the real session on the first send. */
-  function resolveFolderSession(): string {
-    const hasChat = turns.length > 0 || lastSlots.length > 0;
-    const hasFolder = importedRepo !== null;
-    if (hasChat || hasFolder) {
-      newChat();
-      return DRAFT_SESSION_KEY;
-    }
-    return currentId ?? DRAFT_SESSION_KEY;
+  /** Opening a folder = a NEW session, shown in the sidebar IMMEDIATELY
+   *  (titled with the project name), each with its own chat + code —
+   *  the user's model, and how the website behaved. Resets the current
+   *  view, mints a fresh session id, saves a stub so it appears in
+   *  History right away, and returns the id to cache the folder under.
+   *  (Returned explicitly because setCurrentId hasn't flushed yet.) */
+  function startProjectSession(rootName: string): string {
+    newChat();
+    const id = newSessionId();
+    setCurrentId(id);
+    saveSession({
+      id,
+      title: rootName || "Project",
+      createdAt: Date.now(),
+      mode: "agent",
+      runs: {},
+    });
+    setSessions(listSessions());
+    return id;
   }
 
   /** Auto-research / pipeline-mode Send handler. In auto sub-mode we
@@ -1795,6 +1798,17 @@ export function CompareChat({ availableProviders }: Props) {
     const s = getSession(id);
     if (!s) return;
     cancel();
+    agentAbortRef.current?.abort();
+    // CLEAR the previous session's code + folder state before loading,
+    // otherwise the old session's files merge into the new one (the
+    // "chat/code came in underneath" symptom). The restore effect then
+    // loads THIS session's cached project into the clean slate.
+    setFileEdits({});
+    setDeletedPaths(new Set());
+    setImportedRepo(null);
+    setDesktopRootId(null);
+    setLiveHandle(null);
+    setAgentRunning(false);
     setCurrentId(id);
     setFavorite(null);
     setExpandedId(null);
