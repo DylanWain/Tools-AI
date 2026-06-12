@@ -34,6 +34,12 @@ import {
 } from "@/lib/compare/sessions";
 import { parseAgentOutput, buildProject } from "@/lib/compare/projectFiles";
 import {
+  saveProject as saveProjectCache,
+  loadProject as loadProjectCache,
+  probeHandlePermission,
+  walkHandle,
+} from "@/lib/compare/projectCache";
+import {
   type Attachment,
   toWireAttachment,
 } from "@/lib/compare/attachments";
@@ -118,6 +124,15 @@ export function CompareChat({ availableProviders }: Props) {
   // wins over the parsed agent output so streaming new content from
   // a future agent doesn't trample a person's typing.
   const [fileEdits, setFileEdits] = useState<Record<string, string>>({});
+  // The live DirectoryHandle from showDirectoryPicker (Chrome/Edge),
+  // or null for webkitdirectory uploads / GitHub ingests / Safari.
+  // We persist this per-session to IndexedDB so reopening a chat can
+  // silently re-read the folder if Chrome still has the read grant.
+  const [liveHandle, setLiveHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  // True when we loaded files from cache but the handle's read
+  // permission has lapsed — used to surface a one-click Reconnect
+  // affordance instead of silently losing the live link.
+  const [handleNeedsReconnect, setHandleNeedsReconnect] = useState(false);
 
   // Session-start picker — surfaces on first load + every newChat() to
   // make the user pick a project context (New / Upload folder / Upload
@@ -219,6 +234,12 @@ export function CompareChat({ availableProviders }: Props) {
   const processCandidates = async (
     candidates: Candidate[],
     knownRootName: string | null,
+    /** When the candidates came from a DirectoryHandle pick, pass it
+     *  here so we cache the handle alongside the file contents. Passed
+     *  through explicitly rather than read from state because React
+     *  batches setState calls — reading liveHandle inside this same
+     *  synchronous flow would see the stale value. */
+    handleForCache: FileSystemDirectoryHandle | null = null,
   ): Promise<{ repo: string; count: number; dropped: number } | null> => {
     try {
       candidates.sort((a, b) => a.rel.localeCompare(b.rel));
@@ -264,6 +285,21 @@ export function CompareChat({ availableProviders }: Props) {
           : undefined,
         lastUsed: Date.now(),
       });
+      // Persist the project (files + optional handle) so reopening this
+      // chat from history restores the workspace. We pull the handle
+      // from the LATEST liveHandle state; the caller stamps it just
+      // before invoking us via setLiveHandle.
+      if (currentId) {
+        const cachePayload = {
+          rootName: summary.repo,
+          files: Object.entries(next).map(([path, content]) => ({ path, content })),
+          handle: handleForCache,
+          savedAt: Date.now(),
+        };
+        // Fire-and-forget — failures (private mode, quota) shouldn't
+        // block the UI; the warning is logged inside saveProjectCache.
+        void saveProjectCache(currentId, cachePayload);
+      }
       return summary;
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Failed to read folder");
@@ -301,9 +337,16 @@ export function CompareChat({ availableProviders }: Props) {
   ): Promise<{ repo: string; count: number; dropped: number } | null> => {
     setImportError(null);
     setImportingGitHub(true);
+    // Stamp the handle BEFORE processCandidates runs — it reads
+    // liveHandle when it builds the IndexedDB payload. React schedules
+    // the state update synchronously so the closure inside
+    // processCandidates picks it up; if a race ever bites us, we can
+    // pass handle as an extra arg instead.
+    setLiveHandle(handle);
+    setHandleNeedsReconnect(false);
     try {
       const candidates = await walkDirectoryHandle(handle, handle.name);
-      return processCandidates(candidates, handle.name);
+      return processCandidates(candidates, handle.name, handle);
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Failed to read folder");
       setImportingGitHub(false);
@@ -572,6 +615,73 @@ export function CompareChat({ availableProviders }: Props) {
   // Sessions
   const [sessions, setSessions] = useState<CompareSession[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
+
+  // Restore the cached project (files + DirectoryHandle) when the user
+  // switches to a different chat session. Two paths:
+  //   1. Files come back from IndexedDB instantly — workspace looks
+  //      the same as when the user left it. No permission popup.
+  //   2. If a DirectoryHandle was saved AND its read permission is
+  //      still 'granted', we silently re-walk the folder for fresh
+  //      content. If permission lapsed we flip handleNeedsReconnect
+  //      so the UI can surface a one-click reconnect.
+  // Dependencies: currentId only. Don't trigger on fileEdits changes
+  // (that would clobber edits the user just made with stale cache).
+  useEffect(() => {
+    if (!currentId) {
+      setLiveHandle(null);
+      setHandleNeedsReconnect(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const cached = await loadProjectCache(currentId);
+      if (cancelled || !cached) return;
+      // Files first — instant restore so the workspace is non-empty
+      // even if the handle path is slow or fails.
+      const restored: Record<string, string> = {};
+      for (const f of cached.files) restored[f.path] = f.content;
+      setFileEdits((prev) => ({ ...prev, ...restored }));
+      setImportedRepo({
+        repo: cached.rootName,
+        count: cached.files.length,
+        dropped: 0,
+      });
+      // Handle, when present: probe permission, re-walk if granted.
+      if (cached.handle) {
+        const state = await probeHandlePermission(cached.handle);
+        if (cancelled) return;
+        if (state === "granted") {
+          setLiveHandle(cached.handle);
+          setHandleNeedsReconnect(false);
+          try {
+            const fresh = await walkHandle(cached.handle, {
+              skipDirs: LOCAL_SKIP_DIRS,
+              allowedExtensions: LOCAL_ALLOWED_EXTENSIONS,
+              maxFileBytes: MAX_FILE_BYTES,
+            });
+            if (cancelled) return;
+            const merged: Record<string, string> = {};
+            for (const f of fresh) merged[f.path] = f.content;
+            setFileEdits((prev) => ({ ...prev, ...merged }));
+          } catch {
+            // Walk failed mid-flight — keep the cached snapshot.
+          }
+        } else {
+          // 'prompt' or 'denied' — keep the snapshot visible but flag
+          // that the live link is broken so the UI can offer reconnect.
+          setLiveHandle(cached.handle);
+          setHandleNeedsReconnect(true);
+        }
+      } else {
+        setLiveHandle(null);
+        setHandleNeedsReconnect(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId]);
 
   useEffect(() => { setSessions(listSessions()); }, []);
 
