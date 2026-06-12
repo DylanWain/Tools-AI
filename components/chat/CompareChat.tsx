@@ -45,6 +45,7 @@ import {
   isDesktop as isVeronumDesktop,
   desktopPickFolder,
   desktopWalkFolder,
+  desktopWriteFile,
   type DesktopPickResult,
 } from "@/lib/desktop";
 import {
@@ -976,8 +977,20 @@ export function CompareChat({ availableProviders }: Props) {
     }, 500);
   }
 
+  // Write an edit through to the REAL local file when a desktop folder
+  // is loaded. This is what makes the agents (and the editor) actually
+  // change code on disk, not just Veronum's in-memory copy. No-op in
+  // the browser (no bridge) — there fileEdits stays the source of truth.
+  function persistToDisk(path: string, content: string) {
+    if (!desktopRootId) return;
+    void desktopWriteFile(desktopRootId, path, content).then((r) => {
+      if (!r.ok) console.warn(`[disk] write ${path} failed: ${r.error}`);
+    });
+  }
+
   function handleFileEdit(path: string, content: string) {
     setFileEdits((prev) => ({ ...prev, [path]: content }));
+    persistToDisk(path, content);
     scheduleUserEditRecord(path, content);
   }
 
@@ -986,6 +999,7 @@ export function CompareChat({ availableProviders }: Props) {
    *  recreating a previously-deleted path. */
   function handleFileCreate(path: string, content: string) {
     setFileEdits((prev) => ({ ...prev, [path]: content }));
+    persistToDisk(path, content);
     setDeletedPaths((prev) => {
       if (!prev.has(path)) return prev;
       const next = new Set(prev);
@@ -1001,6 +1015,7 @@ export function CompareChat({ availableProviders }: Props) {
   function handleFileRename(oldPath: string, newPath: string) {
     if (oldPath === newPath) return;
     const current = project[oldPath]?.content ?? fileEdits[oldPath] ?? "";
+    persistToDisk(newPath, current);
     setFileEdits((prev) => {
       const next = { ...prev, [newPath]: current };
       delete next[oldPath];
@@ -1611,27 +1626,7 @@ export function CompareChat({ availableProviders }: Props) {
          *  back to body scroll). overflow-y-auto makes <main> the
          *  scrolling container. */}
         <main ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-          {(mode === "compare" && importedRepo) ? (
-            // Compare mixed with Agent: a folder is loaded, so this is
-            // now the agent surface — pick a model, set the permission
-            // (Auto = just do it / Ask = accept-skip each action), and
-            // it actually edits files + runs commands. The ModeToggle
-            // stays on top so the user can jump to Multi-agent.
-            <>
-              <div className="flex justify-center pt-4">
-                <ModeToggle mode={mode} onChange={setModeAndReset} autoResearchLocked={!isSubscribed} />
-              </div>
-              <AgentRunner
-                files={agentFilesMap}
-                applyEdit={handleFileEdit}
-                desktopRootId={desktopRootId}
-                availableProviders={availableProviders}
-                systemExtra={hasProjectRules() ? loadProjectRules() ?? undefined : undefined}
-                projectName={importedRepo.repo}
-                onChangeFolder={inDesktopWrapper ? loadDesktopFolder : undefined}
-              />
-            </>
-          ) : !hasContent ? (
+          {!hasContent ? (
             <EmptyState
               mode={mode}
               onModeChange={setModeAndReset}
