@@ -33,13 +33,25 @@ export const metadata: Metadata = {
 // session at runtime; the page must not be cached at the route level.
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const providers: ProviderId[] = (["openai", "anthropic", "perplexity", "gemini", "xai", "deepseek"] as ProviderId[])
-    .filter(providerAvailable);
+const ALL_PROVIDERS: ProviderId[] = ["openai", "anthropic", "perplexity", "gemini", "xai", "deepseek"];
 
-  if (providers.length === 0) {
-    return <NoProvidersConfigured />;
-  }
+export default function Home() {
+  // Providers with a key set ON THIS SERVER. May be empty in two
+  // legitimate cases: (a) the desktop app forwards /api/* to the live
+  // deploy where the real keys live, so local keys are irrelevant;
+  // (b) a dev server that just hasn't loaded env yet.
+  const localProviders = ALL_PROVIDERS.filter(providerAvailable);
+
+  // NEVER hard-block the whole page on local key presence. The
+  // "No model providers configured" full-screen gate used to take
+  // over whenever a server couldn't see keys — which kept happening
+  // across the desktop/dev launch permutations and was infuriating.
+  // We always render the chat. If no provider is locally available we
+  // fall back to advertising all of them: in the desktop app the
+  // /api/* rewrite forwards to the live deploy (real keys), and if a
+  // model genuinely has no key anywhere the failure is a clear
+  // per-send error, not a screen takeover.
+  const providers = localProviders.length > 0 ? localProviders : ALL_PROVIDERS;
 
   return (
     <>
