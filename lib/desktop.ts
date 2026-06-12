@@ -40,6 +40,9 @@ type DesktopApi = {
     command: string,
     opts?: { timeoutMs?: number },
   ): Promise<{ ok: boolean; code: number; stdout: string; stderr: string }>;
+  runAgent(args: { rootId: string; task: string; model?: string; systemExtra?: string }): Promise<{ ok: boolean; error?: string; detail?: string }>;
+  cancelAgent(): Promise<{ ok: boolean }>;
+  onAgentEvent(handler: (e: unknown) => void): () => void;
   platform(): Promise<{
     isDesktop: true;
     platform: string;
@@ -129,4 +132,34 @@ export async function desktopRunCommand(
   const a = api();
   if (!a) return { ok: false, code: -1, stdout: "", stderr: "not_desktop" };
   return a.runCommand(rootId, command, opts);
+}
+
+/** True when the desktop wrapper exposes the LOCAL agent loop (runs the
+ *  whole tool loop in the main process, Claude-Code style). When true,
+ *  prefer it over the /api/agent/step network loop — it's faster and
+ *  has no token-expiry. */
+export function hasLocalAgent(): boolean {
+  const a = api();
+  return !!a && typeof a.runAgent === "function";
+}
+
+/** Kick off the local agent loop. Events stream via onDesktopAgentEvent. */
+export async function desktopRunAgent(args: {
+  rootId: string; task: string; model?: string; systemExtra?: string;
+}): Promise<{ ok: boolean; error?: string; detail?: string }> {
+  const a = api();
+  if (!a) return { ok: false, error: "not_desktop" };
+  return a.runAgent(args);
+}
+
+export async function desktopCancelAgent(): Promise<void> {
+  const a = api();
+  if (a) await a.cancelAgent();
+}
+
+/** Subscribe to streamed local-agent events. Returns an unsubscribe fn. */
+export function onDesktopAgentEvent(handler: (e: unknown) => void): () => void {
+  const a = api();
+  if (!a) return () => {};
+  return a.onAgentEvent(handler);
 }

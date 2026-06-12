@@ -46,6 +46,9 @@ import {
   desktopPickFolder,
   desktopWalkFolder,
   desktopWriteFile,
+  hasLocalAgent,
+  desktopRunAgent,
+  onDesktopAgentEvent,
   type DesktopPickResult,
 } from "@/lib/desktop";
 import {
@@ -1327,6 +1330,43 @@ export function CompareChat({ availableProviders }: Props) {
     agentAbortRef.current = abort;
     setAgentRunning(true);
     setAgentEvents([{ type: "assistant", text: prompt, calls: [] }]);
+    const systemExtra = hasProjectRules() ? loadProjectRules() ?? undefined : undefined;
+
+    // LOCAL agent (Claude-Code style): the whole loop runs in the
+    // Electron main process — model call + edits + commands all on the
+    // machine, no Vercel round-trip, no token expiry. Preferred when
+    // the desktop wrapper exposes it.
+    if (hasLocalAgent()) {
+      const model = MODELS.find((m) => m.id === modelId);
+      const anthropicModel = model?.provider === "anthropic" ? model.model : undefined;
+      const unsub = onDesktopAgentEvent((raw) => {
+        const e = mapLocalAgentEvent(raw);
+        setAgentEvents((prev) => [...prev, e]);
+        if (e.type === "done" || e.type === "error") setAgentRunning(false);
+      });
+      try {
+        const res = await desktopRunAgent({ rootId: desktopRootId, task: prompt, model: anthropicModel, systemExtra });
+        if (!res.ok) {
+          setAgentEvents((prev) => [...prev, { type: "error", message: res.detail || res.error || "Agent failed." }]);
+        }
+        // The agent edited the real files on disk — re-walk so the
+        // in-memory workspace + editor reflect the changes.
+        const fresh = await desktopWalkFolder(desktopRootId);
+        if (fresh) {
+          const merged: Record<string, string> = {};
+          for (const f of fresh.files) merged[f.path] = f.content;
+          setFileEdits((prev) => ({ ...prev, ...merged }));
+        }
+      } finally {
+        unsub();
+        setAgentRunning(false);
+        agentAbortRef.current = null;
+      }
+      return;
+    }
+
+    // Fallback: the /api/agent/step network loop (browser, or desktop
+    // builds without the local engine). Tools execute via the bridge.
     const context: AgentContext = {
       desktopRootId,
       files: () => agentFilesMap,
@@ -1336,15 +1376,13 @@ export function CompareChat({ availableProviders }: Props) {
       await runAgent({
         modelId,
         task: prompt,
-        // Fresh, auto-refreshed token each step so a long npm/build
-        // run doesn't die with invalid_token partway through.
         getToken: async () => {
           const { data } = await getBrowserSupabase().auth.getSession();
           return data.session?.access_token ?? null;
         },
         context,
-        mode: "bypass", // auto — just do it (user: ignore permissions for now)
-        systemExtra: hasProjectRules() ? loadProjectRules() ?? undefined : undefined,
+        mode: "bypass",
+        systemExtra,
         signal: abort.signal,
         requestApproval: async () => true,
         onEvent: (e) => setAgentEvents((prev) => [...prev, e]),
@@ -1353,6 +1391,23 @@ export function CompareChat({ availableProviders }: Props) {
       setAgentRunning(false);
       agentAbortRef.current = null;
     }
+  }
+
+  // Map the main-process agent event shape to the renderer AgentEvent
+  // the transcript rows render.
+  function mapLocalAgentEvent(raw: unknown): AgentEvent {
+    const e = raw as {
+      type: string; text?: string; calls?: { name: string; input: Record<string, unknown> }[];
+      name?: string; ok?: boolean; preview?: string; summary?: string; steps?: number; message?: string;
+    };
+    if (e.type === "assistant") {
+      return { type: "assistant", text: e.text ?? "", calls: (e.calls ?? []).map((c) => ({ id: "", name: c.name, input: c.input })) };
+    }
+    if (e.type === "tool-result") {
+      return { type: "tool-result", call: { id: "", name: e.name ?? "", input: {} }, result: { id: "", name: e.name ?? "", content: e.preview ?? "", isError: e.ok === false }, skipped: false };
+    }
+    if (e.type === "done") return { type: "done", summary: e.summary ?? "", steps: e.steps ?? 0 };
+    return { type: "error", message: e.message ?? "Agent error" };
   }
 
   async function submitCompare(prompt: string, attachments: Attachment[]) {
