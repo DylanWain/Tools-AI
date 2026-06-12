@@ -95,7 +95,7 @@ export async function POST(req: Request) {
     if (files.length === 0) return "";
     const parts: string[] = [];
     let used = 0;
-    parts.push("## Current workspace files\n\nThese files are loaded into the user's workspace. Treat them as the source of truth for existing code; reference paths exactly when you propose edits.\n\n");
+    parts.push("## Current workspace files\n\nThese files are loaded into the user's workspace. Treat them as the source of truth for existing code; reference paths exactly when you propose edits.\n\nIMPORTANT — when you change a file, output the COMPLETE updated file (every line, top to bottom) inside a fenced block whose info string is the language AND the exact path, like ```ts:lib/foo.ts. Veronum writes that block VERBATIM to the real file on the user's disk, so a partial snippet would overwrite and destroy the rest of the file. Only emit a file block for files you actually changed; leave untouched files out.\n\n");
     used += parts[0].length;
     for (const f of files) {
       if (!f || typeof f.path !== "string" || typeof f.content !== "string") continue;

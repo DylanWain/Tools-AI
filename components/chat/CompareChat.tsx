@@ -1046,6 +1046,57 @@ export function CompareChat({ availableProviders }: Props) {
     });
   }
 
+  // ── Compare → real file edits ────────────────────────────────────
+  // Write a model's code output through to the actual local files.
+  // handleFileEdit persists to disk (desktop) AND updates the in-memory
+  // workspace, so the editor reflects it too. Only COMPLETE blocks are
+  // written — never partial streamed content.
+  const applyModelEditsToDisk = useCallback((slotId: string) => {
+    if (!desktopRootId) return;
+    const text = runs[slotId]?.text ?? "";
+    if (!text.trim()) return;
+    const model = MODELS.find((m) => m.id === slotId);
+    const hint = model?.label?.replace(/\s+/g, "-") || slotId;
+    const blocks = parseAgentOutput(text, hint);
+    for (const b of blocks) {
+      if (b.path && b.complete && b.content) handleFileEdit(b.path, b.content);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktopRootId, runs]);
+
+  // Tracks which (slotId@finishedAt) completions we've already written
+  // so the effects don't re-apply the same output every render.
+  const appliedRef = useRef<Set<string>>(new Set());
+
+  // SINGLE model + folder loaded → auto-apply its edits to real files
+  // the moment it finishes. No picking needed (the user's rule).
+  useEffect(() => {
+    if (!desktopRootId) return;
+    const workers = lastSlots.filter((s) => s.role !== "synthesizer");
+    if (workers.length !== 1) return;
+    const slot = workers[0];
+    const run = runs[slot.id];
+    if (run?.status !== "done") return;
+    const key = `${slot.id}@${run.finishedAt ?? 0}`;
+    if (appliedRef.current.has(key)) return;
+    appliedRef.current.add(key);
+    applyModelEditsToDisk(slot.id);
+  }, [runs, lastSlots, desktopRootId, applyModelEditsToDisk]);
+
+  // MULTIPLE models + folder → when the user PICKS a winner (favorite),
+  // apply THAT model's edits to the real files.
+  useEffect(() => {
+    if (!desktopRootId || !favorite) return;
+    const workers = lastSlots.filter((s) => s.role !== "synthesizer");
+    if (workers.length < 2) return;
+    const run = runs[favorite];
+    if (run?.status !== "done") return;
+    const key = `pick:${favorite}@${run.finishedAt ?? 0}`;
+    if (appliedRef.current.has(key)) return;
+    appliedRef.current.add(key);
+    applyModelEditsToDisk(favorite);
+  }, [favorite, runs, lastSlots, desktopRootId, applyModelEditsToDisk]);
+
   function handleUndo() {
     if (!currentId || !undoState.nextUndo) return;
     const e = undoState.nextUndo;
