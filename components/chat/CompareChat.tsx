@@ -89,7 +89,7 @@ import { ProjectView } from "./ProjectView";
 import { VersionHistoryModal } from "./VersionHistoryModal";
 import { ProjectRulesModal } from "./ProjectRulesModal";
 import { loadProjectRules, hasProjectRules } from "@/lib/compare/projectRules";
-import { AgentRunner, AgentEventRow } from "./AgentRunner";
+import { AgentEventRow } from "./AgentRunner";
 import { runAgent, type AgentEvent } from "@/lib/agent/loop";
 import type { AgentContext } from "@/lib/agent/executor";
 import {
@@ -1736,59 +1736,7 @@ export function CompareChat({ availableProviders }: Props) {
          *  back to body scroll). overflow-y-auto makes <main> the
          *  scrolling container. */}
         <main ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-          {agentEvents.length > 0 ? (
-            // Agent execution view: a normal top-to-bottom chat where
-            // the transcript scrolls and the composer stays pinned to
-            // the bottom (same sticky pattern as ActiveCompare) — so it
-            // never pushes the composer off-screen.
-            <>
-              <div className="flex justify-center pt-4">
-                <ModeToggle mode={mode} onChange={setModeAndReset} autoResearchLocked={!isSubscribed} />
-              </div>
-              <div className="flex-1 px-4 sm:px-6 lg:px-10 pt-5 pb-40">
-                <div className="max-w-[1100px] mx-auto w-full">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-white/80 text-[13px] font-medium">Agent</span>
-                    {agentRunning ? (
-                      <button
-                        onClick={() => { agentAbortRef.current?.abort(); setAgentRunning(false); }}
-                        className="text-[12px] text-white/50 hover:text-white/80 underline underline-offset-2"
-                      >
-                        Stop
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setAgentEvents([])}
-                        className="text-[12px] text-white/40 hover:text-white/70 underline underline-offset-2"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-2.5">
-                    {agentEvents.map((e, i) => <AgentEventRow key={i} event={e} />)}
-                    {agentRunning && (
-                      <div className="text-white/45 text-[13px] animate-pulse">Working…</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="sticky bottom-0 px-4 sm:px-6 lg:px-10 pb-6 pt-12 bg-gradient-to-t from-black from-50% to-transparent pointer-events-none">
-                <div className="max-w-[1100px] mx-auto pointer-events-auto">
-                  <PromptBar
-                    busy={agentRunning}
-                    onSubmit={submitCompare}
-                    onCancel={() => { agentAbortRef.current?.abort(); setAgentRunning(false); }}
-                    selected={selected}
-                    onOpenPicker={() => setPickerOpen(true)}
-                    autoFocus
-                    onOpenRulesModal={() => setRulesModalOpen(true)}
-                    onNewChat={newChat}
-                  />
-                </div>
-              </div>
-            </>
-          ) : !hasContent ? (
+          {!hasContent ? (
             <EmptyState
               mode={mode}
               onModeChange={setModeAndReset}
@@ -1884,6 +1832,34 @@ export function CompareChat({ availableProviders }: Props) {
               onOpenVersionHistory={() => setVersionModalOpen(true)}
               canPreview={isSubscribed === true}
               outerScrollRef={mainScrollRef}
+              agentTranscript={agentEvents.length > 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-[#141414] p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-white/80 text-[13px] font-medium">Agent</span>
+                    {agentRunning ? (
+                      <button
+                        onClick={() => { agentAbortRef.current?.abort(); setAgentRunning(false); }}
+                        className="text-[12px] text-white/50 hover:text-white/80 underline underline-offset-2"
+                      >
+                        Stop
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setAgentEvents([])}
+                        className="text-[12px] text-white/40 hover:text-white/70 underline underline-offset-2"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    {agentEvents.map((e, i) => <AgentEventRow key={i} event={e} />)}
+                    {agentRunning && (
+                      <div className="text-white/45 text-[13px] animate-pulse">Working…</div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
               compose={
                 <PromptBar
                   busy={busy}
@@ -2532,7 +2508,7 @@ function ActiveCompare({
   onFileCreate, onFileRename, onFileDelete, onInspect,
   canUndo, canRedo, undoTooltip, redoTooltip,
   onUndo, onRedo, onOpenVersionHistory, canPreview,
-  outerScrollRef,
+  outerScrollRef, agentTranscript,
 }: {
   onModeChange: (m: Mode) => void;
   turns: FrozenTurn[];
@@ -2561,6 +2537,10 @@ function ActiveCompare({
   onOpenVersionHistory: () => void;
   canPreview: boolean;
   outerScrollRef: React.RefObject<HTMLDivElement | null>;
+  /** Live agent tool-use transcript, rendered inline in the chat
+   *  column (the code panel + history stay put). null when no agent
+   *  run is active. */
+  agentTranscript?: React.ReactNode;
 }) {
   const [chatPct, setChatPct] = useState(56);
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -2574,6 +2554,9 @@ function ActiveCompare({
       <div className="flex justify-center">
         <ModeToggle mode="compare" onChange={onModeChange} />
       </div>
+      {/* Agent tool-use transcript — inline in the chat, code panel
+          and history stay alongside (Claude Code's flow). */}
+      {agentTranscript}
       {/* Frozen transcript — every completed Send is a turn here. */}
       {turns.map((turn) => (
         <FrozenTurnView
