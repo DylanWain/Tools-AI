@@ -236,7 +236,7 @@ function describeCall(call: ToolCall): string {
   return JSON.stringify(call.input, null, 2);
 }
 
-function AgentEventRow({ event }: { event: AgentEvent }) {
+export function AgentEventRow({ event }: { event: AgentEvent }) {
   if (event.type === "assistant") {
     if (!event.text && event.calls.length === 0) return null;
     return (

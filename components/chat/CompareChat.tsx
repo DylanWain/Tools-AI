@@ -89,7 +89,9 @@ import { ProjectView } from "./ProjectView";
 import { VersionHistoryModal } from "./VersionHistoryModal";
 import { ProjectRulesModal } from "./ProjectRulesModal";
 import { loadProjectRules, hasProjectRules } from "@/lib/compare/projectRules";
-import { AgentRunner } from "./AgentRunner";
+import { AgentRunner, AgentEventRow } from "./AgentRunner";
+import { runAgent, type AgentEvent } from "@/lib/agent/loop";
+import type { AgentContext } from "@/lib/agent/executor";
 import {
   INSPECTION_SYSTEM_PROMPT,
   buildInspectionPrompt,
@@ -123,6 +125,14 @@ export function CompareChat({ availableProviders }: Props) {
   // Compare-mode state
   const [selected, setSelected] = useState<Set<string>>(() => initialSelection(availSet));
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Agent execution (the tool loop with bash) — active when a folder
+  // is loaded in the desktop app and ONE model is selected. This is
+  // what lets Compare actually RUN commands (npm, git, open apps), not
+  // just edit files. Events drive the inline transcript.
+  const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
+  const [agentRunning, setAgentRunning] = useState(false);
+  const agentAbortRef = useRef<AbortController | null>(null);
 
   // Multi-agent state. The composer is inline (no popup), so we just
   // hold the live draft right here in CompareChat.
@@ -1304,7 +1314,57 @@ export function CompareChat({ availableProviders }: Props) {
     );
   }
 
+  /** Run the tool-use agent loop for the single selected model. This
+   *  is what makes Compare actually DO things — edit files AND run
+   *  commands (npm, git, open apps) via the desktop bash bridge.
+   *  Auto-applies (no permission prompts) per the user's rule. */
+  async function runCompareAgent(prompt: string) {
+    if (!desktopRootId) return;
+    const modelId = [...selected][0];
+    if (!modelId) return;
+    const { data } = await getBrowserSupabase().auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      setAgentEvents([{ type: "error", message: "Sign in first — agent steps need an account." }]);
+      return;
+    }
+    agentAbortRef.current?.abort();
+    const abort = new AbortController();
+    agentAbortRef.current = abort;
+    setAgentRunning(true);
+    setAgentEvents([{ type: "assistant", text: prompt, calls: [] }]);
+    const context: AgentContext = {
+      desktopRootId,
+      files: () => agentFilesMap,
+      applyEdit: async (path, content) => { handleFileEdit(path, content); return true; },
+    };
+    try {
+      await runAgent({
+        modelId,
+        task: prompt,
+        token,
+        context,
+        mode: "bypass", // auto — just do it (user: ignore permissions for now)
+        systemExtra: hasProjectRules() ? loadProjectRules() ?? undefined : undefined,
+        signal: abort.signal,
+        requestApproval: async () => true,
+        onEvent: (e) => setAgentEvents((prev) => [...prev, e]),
+      });
+    } finally {
+      setAgentRunning(false);
+      agentAbortRef.current = null;
+    }
+  }
+
   async function submitCompare(prompt: string, attachments: Attachment[]) {
+    // Agent path: a real local folder is loaded (desktop bridge) AND
+    // exactly one model is selected → run the tool loop so it can edit
+    // files AND run commands, instead of a chat-only compare. Multiple
+    // models stay normal compare (you pick a winner to apply).
+    if (desktopRootId && selected.size === 1) {
+      void runCompareAgent(prompt);
+      return;
+    }
     // 1. Freeze the previous live batch (if any) into the transcript
     //    BEFORE we start a new one — useCompareStream is about to
     //    overwrite lastSlots/runs, and we want the old turn preserved
@@ -1677,6 +1737,38 @@ export function CompareChat({ availableProviders }: Props) {
          *  back to body scroll). overflow-y-auto makes <main> the
          *  scrolling container. */}
         <main ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+          {agentEvents.length > 0 && (
+            // Agent execution transcript — shows the model actually
+            // reading files, editing, and running commands (npm/git/
+            // open apps) via the desktop bridge. Appears above the
+            // composer so the user can keep sending follow-ups.
+            <div className="px-4 sm:px-6 lg:px-10 pt-5 pb-2 max-w-[1100px] mx-auto w-full">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-white/80 text-[13px] font-medium">Agent</span>
+                {agentRunning ? (
+                  <button
+                    onClick={() => { agentAbortRef.current?.abort(); setAgentRunning(false); }}
+                    className="text-[12px] text-white/50 hover:text-white/80 underline underline-offset-2"
+                  >
+                    Stop
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setAgentEvents([])}
+                    className="text-[12px] text-white/40 hover:text-white/70 underline underline-offset-2"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {agentEvents.map((e, i) => <AgentEventRow key={i} event={e} />)}
+                {agentRunning && (
+                  <div className="text-white/45 text-[13px] animate-pulse">Working…</div>
+                )}
+              </div>
+            </div>
+          )}
           {!hasContent ? (
             <EmptyState
               mode={mode}
