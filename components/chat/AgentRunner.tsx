@@ -68,8 +68,8 @@ export function AgentRunner({ files, applyEdit, desktopRootId, availableProvider
 
   async function run() {
     if (!canRun) return;
-    const token = await getToken();
-    if (!token) {
+    const first = await getToken();
+    if (!first) {
       setEvents([{ type: "error", message: "Sign in first — agent steps need an account." }]);
       return;
     }
@@ -86,7 +86,7 @@ export function AgentRunner({ files, applyEdit, desktopRootId, availableProvider
       await runAgent({
         modelId,
         task: task.trim(),
-        token,
+        getToken,
         context,
         mode,
         systemExtra,

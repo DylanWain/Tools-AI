@@ -36,7 +36,12 @@ export type AgentEvent =
 export type RunAgentArgs = {
   modelId: string;
   task: string;
-  token: string;
+  /** Returns a FRESH auth token for each step. A long run (e.g. a 2-min
+   *  npm install) can outlive a token grabbed once at the start, which
+   *  is what caused mid-run `step 401: invalid_token`. Supabase's
+   *  getSession() auto-refreshes, so calling it per step keeps the
+   *  token valid the whole way through. */
+  getToken: () => Promise<string | null>;
   context: AgentContext;
   mode: PermissionMode;
   /** Resolve true to run a mutating tool, false to skip. Only called
@@ -57,9 +62,12 @@ async function fetchStep(args: {
   modelId: string;
   system: string;
   messages: AgentMsg[];
-  token: string;
+  token: string | null;
   signal?: AbortSignal;
 }): Promise<{ text: string; calls: ToolCall[]; stopReason: string; error?: string }> {
+  if (!args.token) {
+    return { text: "", calls: [], stopReason: "error", error: "Signed out — sign in and try again." };
+  }
   const r = await fetch("/api/agent/step", {
     method: "POST",
     headers: {
@@ -89,11 +97,15 @@ export async function runAgent(args: RunAgentArgs): Promise<void> {
       return;
     }
 
+    // Fresh token PER step — long runs (npm install, builds) outlive a
+    // single token, which caused mid-run invalid_token. getToken()
+    // returns an auto-refreshed token from the Supabase client.
+    const token = await args.getToken().catch(() => null);
     const res = await fetchStep({
       modelId: args.modelId,
       system,
       messages,
-      token: args.token,
+      token,
       signal: args.signal,
     }).catch((e) => ({ text: "", calls: [], stopReason: "error", error: (e as Error).message }));
 

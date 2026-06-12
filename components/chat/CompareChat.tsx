@@ -1322,12 +1322,6 @@ export function CompareChat({ availableProviders }: Props) {
     if (!desktopRootId) return;
     const modelId = [...selected][0];
     if (!modelId) return;
-    const { data } = await getBrowserSupabase().auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) {
-      setAgentEvents([{ type: "error", message: "Sign in first — agent steps need an account." }]);
-      return;
-    }
     agentAbortRef.current?.abort();
     const abort = new AbortController();
     agentAbortRef.current = abort;
@@ -1342,7 +1336,12 @@ export function CompareChat({ availableProviders }: Props) {
       await runAgent({
         modelId,
         task: prompt,
-        token,
+        // Fresh, auto-refreshed token each step so a long npm/build
+        // run doesn't die with invalid_token partway through.
+        getToken: async () => {
+          const { data } = await getBrowserSupabase().auth.getSession();
+          return data.session?.access_token ?? null;
+        },
         context,
         mode: "bypass", // auto — just do it (user: ignore permissions for now)
         systemExtra: hasProjectRules() ? loadProjectRules() ?? undefined : undefined,
@@ -1737,39 +1736,59 @@ export function CompareChat({ availableProviders }: Props) {
          *  back to body scroll). overflow-y-auto makes <main> the
          *  scrolling container. */}
         <main ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-          {agentEvents.length > 0 && (
-            // Agent execution transcript — shows the model actually
-            // reading files, editing, and running commands (npm/git/
-            // open apps) via the desktop bridge. Appears above the
-            // composer so the user can keep sending follow-ups.
-            <div className="px-4 sm:px-6 lg:px-10 pt-5 pb-2 max-w-[1100px] mx-auto w-full">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-white/80 text-[13px] font-medium">Agent</span>
-                {agentRunning ? (
-                  <button
-                    onClick={() => { agentAbortRef.current?.abort(); setAgentRunning(false); }}
-                    className="text-[12px] text-white/50 hover:text-white/80 underline underline-offset-2"
-                  >
-                    Stop
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setAgentEvents([])}
-                    className="text-[12px] text-white/40 hover:text-white/70 underline underline-offset-2"
-                  >
-                    Clear
-                  </button>
-                )}
+          {agentEvents.length > 0 ? (
+            // Agent execution view: a normal top-to-bottom chat where
+            // the transcript scrolls and the composer stays pinned to
+            // the bottom (same sticky pattern as ActiveCompare) — so it
+            // never pushes the composer off-screen.
+            <>
+              <div className="flex justify-center pt-4">
+                <ModeToggle mode={mode} onChange={setModeAndReset} autoResearchLocked={!isSubscribed} />
               </div>
-              <div className="flex flex-col gap-2.5">
-                {agentEvents.map((e, i) => <AgentEventRow key={i} event={e} />)}
-                {agentRunning && (
-                  <div className="text-white/45 text-[13px] animate-pulse">Working…</div>
-                )}
+              <div className="flex-1 px-4 sm:px-6 lg:px-10 pt-5 pb-40">
+                <div className="max-w-[1100px] mx-auto w-full">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-white/80 text-[13px] font-medium">Agent</span>
+                    {agentRunning ? (
+                      <button
+                        onClick={() => { agentAbortRef.current?.abort(); setAgentRunning(false); }}
+                        className="text-[12px] text-white/50 hover:text-white/80 underline underline-offset-2"
+                      >
+                        Stop
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setAgentEvents([])}
+                        className="text-[12px] text-white/40 hover:text-white/70 underline underline-offset-2"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    {agentEvents.map((e, i) => <AgentEventRow key={i} event={e} />)}
+                    {agentRunning && (
+                      <div className="text-white/45 text-[13px] animate-pulse">Working…</div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
-          {!hasContent ? (
+              <div className="sticky bottom-0 px-4 sm:px-6 lg:px-10 pb-6 pt-12 bg-gradient-to-t from-black from-50% to-transparent pointer-events-none">
+                <div className="max-w-[1100px] mx-auto pointer-events-auto">
+                  <PromptBar
+                    busy={agentRunning}
+                    onSubmit={submitCompare}
+                    onCancel={() => { agentAbortRef.current?.abort(); setAgentRunning(false); }}
+                    selected={selected}
+                    onOpenPicker={() => setPickerOpen(true)}
+                    autoFocus
+                    onOpenRulesModal={() => setRulesModalOpen(true)}
+                    onNewChat={newChat}
+                  />
+                </div>
+              </div>
+            </>
+          ) : !hasContent ? (
             <EmptyState
               mode={mode}
               onModeChange={setModeAndReset}
