@@ -237,6 +237,15 @@ function describeCall(call: ToolCall): string {
 }
 
 export function AgentEventRow({ event }: { event: AgentEvent }) {
+  if (event.type === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="rounded-2xl bg-[#1f1f1f] border border-white/10 text-white/95 px-4 py-2.5 max-w-[68ch]">
+          <div className="text-[15px] leading-[1.5] whitespace-pre-wrap">{event.text}</div>
+        </div>
+      </div>
+    );
+  }
   if (event.type === "assistant") {
     if (!event.text && event.calls.length === 0) return null;
     return (

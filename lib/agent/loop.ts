@@ -27,6 +27,7 @@ type AgentMsg =
   | { role: "tool"; results: ToolResult[] };
 
 export type AgentEvent =
+  | { type: "user"; text: string }
   | { type: "assistant"; text: string; calls: ToolCall[] }
   | { type: "approval-request"; call: ToolCall }
   | { type: "tool-result"; call: ToolCall; result: ToolResult; skipped: boolean }

@@ -527,6 +527,12 @@ export function CompareChat({ availableProviders }: Props) {
   // ActiveCompare / ActiveAgents so the scroll-to-bottom chevron can
   // listen to scroll events and call scrollTo on this exact ref.
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
+  // Anchor at the end of the agent transcript so new turns auto-scroll
+  // into view — newest at the bottom, like every chat.
+  const agentBottomRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (agentEvents.length > 0) agentBottomRef.current?.scrollIntoView({ block: "end" });
+  }, [agentEvents]);
   // Version history modal visibility + a tick that re-derives the
   // edit log / version list whenever we mutate localStorage. (We
   // could subscribe to a storage event, but a manual tick is cheaper
@@ -1351,7 +1357,7 @@ export function CompareChat({ availableProviders }: Props) {
     // without waiting on async setState. Continue an existing agent log
     // (follow-up turn) or start fresh.
     const priorLog = (existing?.agentLog as AgentEvent[] | undefined) ?? [];
-    const collected: AgentEvent[] = [...priorLog, { type: "assistant", text: prompt, calls: [] }];
+    const collected: AgentEvent[] = [...priorLog, { type: "user", text: prompt }];
     setAgentEvents(collected.slice());
     const push = (e: AgentEvent) => {
       collected.push(e);
@@ -1979,9 +1985,9 @@ export function CompareChat({ availableProviders }: Props) {
               canPreview={isSubscribed === true}
               outerScrollRef={mainScrollRef}
               agentTranscript={agentEvents.length > 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-[#141414] p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-white/80 text-[13px] font-medium">Agent</span>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/40 text-[11px] font-medium uppercase tracking-wider">Agent</span>
                     {agentRunning ? (
                       <button
                         onClick={() => { agentAbortRef.current?.abort(); setAgentRunning(false); }}
@@ -1998,12 +2004,11 @@ export function CompareChat({ availableProviders }: Props) {
                       </button>
                     )}
                   </div>
-                  <div className="flex flex-col gap-2.5">
-                    {agentEvents.map((e, i) => <AgentEventRow key={i} event={e} />)}
-                    {agentRunning && (
-                      <div className="text-white/45 text-[13px] animate-pulse">Working…</div>
-                    )}
-                  </div>
+                  {agentEvents.map((e, i) => <AgentEventRow key={i} event={e} />)}
+                  {agentRunning && (
+                    <div className="text-white/45 text-[13px] animate-pulse">Working…</div>
+                  )}
+                  <div ref={agentBottomRef} />
                 </div>
               ) : null}
               compose={
