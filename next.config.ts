@@ -41,15 +41,25 @@ const nextConfig: NextConfig = {
   // ride along in the .app. SSE streaming passes through Next's
   // rewrite layer unchanged. Auth/session cookies do NOT forward
   // (cross-origin) — covered in a follow-up.
+  // CRITICAL: must be `beforeFiles`. A plain-array rewrite is
+  // afterFiles — it only fires when no local route matches, and
+  // /api/compare DOES exist locally (with placeholder keys), so the
+  // local handler would shadow the rewrite and every model call
+  // would fail. beforeFiles rewrites are evaluated before the
+  // filesystem/route match, so the forward actually happens.
   async rewrites() {
     const remote = process.env.DESKTOP_REMOTE_API_URL;
-    if (!remote) return [];
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${remote.replace(/\/$/, "")}/api/:path*`,
-      },
-    ];
+    if (!remote) return { beforeFiles: [], afterFiles: [], fallback: [] };
+    return {
+      beforeFiles: [
+        {
+          source: "/api/:path*",
+          destination: `${remote.replace(/\/$/, "")}/api/:path*`,
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
   },
 };
 
