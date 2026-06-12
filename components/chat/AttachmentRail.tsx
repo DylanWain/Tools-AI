@@ -74,12 +74,18 @@ export function useIngestFiles({
 
   return useCallback(async (files: File[]) => {
     const shells = files.map(newAttachmentShell);
-    onChange([...ref.current, ...shells]);
-    // Resolve each in parallel; patch in as they complete.
+    // Patch a LOCAL working copy synchronously as each file resolves.
+    // Reading ref.current inside the loop raced: with several files
+    // finishing in the same tick, each onChange saw the SAME stale ref
+    // (it only updates on re-render) and clobbered the others' patches,
+    // leaving images stuck on "preparing…" forever with Send disabled.
+    let working = [...ref.current, ...shells];
+    onChange(working);
     await Promise.all(
       shells.map(async (shell, i) => {
         const filled = await finishIngest(files[i], shell);
-        onChange(ref.current.map((a) => (a.id === shell.id ? filled : a)));
+        working = working.map((a) => (a.id === shell.id ? filled : a));
+        onChange(working);
       }),
     );
   }, [onChange]);

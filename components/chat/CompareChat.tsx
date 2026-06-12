@@ -1904,6 +1904,7 @@ export function CompareChat({ availableProviders }: Props) {
               }
               compare={
                 <PromptBar
+                  key={currentId ?? "new"}
                   busy={busy}
                   onSubmit={submitCompare}
                   onCancel={cancel}
@@ -2013,6 +2014,7 @@ export function CompareChat({ availableProviders }: Props) {
               ) : null}
               compose={
                 <PromptBar
+                  key={currentId ?? "new"}
                   busy={busy}
                   onSubmit={submitCompare}
                   onCancel={cancel}
