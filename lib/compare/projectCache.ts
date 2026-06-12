@@ -43,8 +43,31 @@ export type CachedProject = {
   /** Present when picked via showDirectoryPicker (Chrome/Edge). null
    *  for webkitdirectory uploads, GitHub ingests, or Safari. */
   handle: FileSystemDirectoryHandle | null;
+  /** Present when picked via the Veronum Desktop bridge. The main
+   *  process persists rootId → absolute-path to disk (Cursor model:
+   *  path persisted, files read live), so this id stays valid across
+   *  app relaunches and lets restore re-walk the folder fresh from
+   *  disk instead of trusting the snapshot. */
+  desktopRootId?: string | null;
   savedAt: number;
 };
+
+/** Cache key used when the user picks a folder BEFORE any chat
+ *  session exists (currentId is null at the empty state). The pick
+ *  is saved under this key immediately, then migrated to the real
+ *  session id the moment the first message creates one — see
+ *  migrateDraft. Without this, a pick-then-reload loses everything,
+ *  which is exactly the "my code disappeared" bug. */
+export const DRAFT_SESSION_KEY = "__draft__";
+
+/** Re-keys the draft cache record to a real session id. No-op if no
+ *  draft exists. Called when currentId transitions null → id. */
+export async function migrateDraft(sessionId: string): Promise<void> {
+  const draft = await loadProject(DRAFT_SESSION_KEY);
+  if (!draft) return;
+  await saveProject(sessionId, draft);
+  await clearProject(DRAFT_SESSION_KEY);
+}
 
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 

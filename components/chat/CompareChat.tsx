@@ -38,10 +38,13 @@ import {
   loadProject as loadProjectCache,
   probeHandlePermission,
   walkHandle,
+  DRAFT_SESSION_KEY,
+  migrateDraft,
 } from "@/lib/compare/projectCache";
 import {
   isDesktop as isVeronumDesktop,
   desktopPickFolder,
+  desktopWalkFolder,
   type DesktopPickResult,
 } from "@/lib/desktop";
 import {
@@ -141,6 +144,11 @@ export function CompareChat({ availableProviders }: Props) {
   // We persist this per-session to IndexedDB so reopening a chat can
   // silently re-read the folder if Chrome still has the read grant.
   const [liveHandle, setLiveHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  // Desktop-bridge root id for the active workspace (Veronum Desktop
+  // only). The main process persists rootId → path on disk, so this
+  // id stays valid across app relaunches — restore re-walks the
+  // folder live instead of using the snapshot. Cursor's model.
+  const [desktopRootId, setDesktopRootId] = useState<string | null>(null);
   // True when we loaded files from cache but the handle's read
   // permission has lapsed — used to surface a one-click Reconnect
   // affordance instead of silently losing the live link.
@@ -301,17 +309,16 @@ export function CompareChat({ availableProviders }: Props) {
       // chat from history restores the workspace. We pull the handle
       // from the LATEST liveHandle state; the caller stamps it just
       // before invoking us via setLiveHandle.
-      if (currentId) {
-        const cachePayload = {
-          rootName: summary.repo,
-          files: Object.entries(next).map(([path, content]) => ({ path, content })),
-          handle: handleForCache,
-          savedAt: Date.now(),
-        };
-        // Fire-and-forget — failures (private mode, quota) shouldn't
-        // block the UI; the warning is logged inside saveProjectCache.
-        void saveProjectCache(currentId, cachePayload);
-      }
+      // ALWAYS cache — draft key when no session exists yet (folder
+      // picked before the first message), migrated to the session id
+      // on creation. Fire-and-forget — failures (private mode, quota)
+      // shouldn't block the UI.
+      void saveProjectCache(currentId ?? DRAFT_SESSION_KEY, {
+        rootName: summary.repo,
+        files: Object.entries(next).map(([path, content]) => ({ path, content })),
+        handle: handleForCache,
+        savedAt: Date.now(),
+      });
       return summary;
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Failed to read folder");
@@ -392,22 +399,25 @@ export function CompareChat({ availableProviders }: Props) {
         dropped: result.dropped,
       };
       setImportedRepo(summary);
+      setDesktopRootId(result.rootId);
       pushRecent({
         kind: "folder",
         name: result.rootName,
         lastUsed: Date.now(),
       });
-      // Cache file contents to IndexedDB so refreshing the Electron
-      // window still restores instantly (handle is null — desktop
-      // rootIds are session-scoped to the main process, not portable).
-      if (currentId) {
-        void saveProjectCache(currentId, {
-          rootName: result.rootName,
-          files: result.files,
-          handle: null,
-          savedAt: Date.now(),
-        });
-      }
+      // ALWAYS cache — under the session id when one exists, under
+      // the draft key otherwise (folder picked at the empty state
+      // before the first message). The draft migrates to the real
+      // session id the moment one is created. desktopRootId rides
+      // along so restore can re-walk the folder LIVE from disk —
+      // the main process persists rootId → path across relaunches.
+      void saveProjectCache(currentId ?? DRAFT_SESSION_KEY, {
+        rootName: result.rootName,
+        files: result.files,
+        handle: null,
+        desktopRootId: result.rootId,
+        savedAt: Date.now(),
+      });
       setImportingGitHub(false);
       return summary;
     } catch (e) {
@@ -695,12 +705,17 @@ export function CompareChat({ availableProviders }: Props) {
       setHandleNeedsReconnect(false);
       return;
     }
+    // A session just came into existence (or was switched to). If the
+    // user picked a folder BEFORE this session existed, the cache rode
+    // under the draft key — migrate it to this session id first so the
+    // load below finds it. Idempotent: no-op when no draft exists.
     let cancelled = false;
     (async () => {
+      await migrateDraft(currentId);
       const cached = await loadProjectCache(currentId);
       if (cancelled || !cached) return;
       // Files first — instant restore so the workspace is non-empty
-      // even if the handle path is slow or fails.
+      // even if the live re-walk below is slow or fails.
       const restored: Record<string, string> = {};
       for (const f of cached.files) restored[f.path] = f.content;
       setFileEdits((prev) => ({ ...prev, ...restored }));
@@ -709,6 +724,29 @@ export function CompareChat({ availableProviders }: Props) {
         count: cached.files.length,
         dropped: 0,
       });
+      // Desktop bridge root (Cursor model): the main process persists
+      // rootId → absolute path on disk, so we can re-walk the folder
+      // LIVE — fresh bytes from disk, exactly like Cursor reopening a
+      // workspace. The snapshot above is just the instant-paint
+      // fallback for when the folder moved or was deleted.
+      if (cached.desktopRootId && isVeronumDesktop()) {
+        setDesktopRootId(cached.desktopRootId);
+        try {
+          const fresh = await desktopWalkFolder(cached.desktopRootId);
+          if (!cancelled && fresh && fresh.files.length > 0) {
+            const merged: Record<string, string> = {};
+            for (const f of fresh.files) merged[f.path] = f.content;
+            setFileEdits((prev) => ({ ...prev, ...merged }));
+            setImportedRepo({
+              repo: cached.rootName,
+              count: fresh.files.length,
+              dropped: fresh.dropped,
+            });
+          }
+        } catch {
+          // Folder gone or walk failed — cached snapshot stays.
+        }
+      }
       // Handle, when present: probe permission, re-walk if granted.
       if (cached.handle) {
         const state = await probeHandlePermission(cached.handle);
@@ -745,6 +783,27 @@ export function CompareChat({ availableProviders }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId]);
+
+  // Reopen exactly where the user left off — Cursor's model: its
+  // storage.json remembers lastActiveWindow.folder and reopens it on
+  // every launch. We remember the last active session id and reload
+  // it on mount; that flips currentId, which re-fires the restore
+  // effect above and brings the whole workspace back (live-walked
+  // from disk in desktop mode). Without this, any reload landed on
+  // an empty new chat and the user read it as "my code is gone".
+  useEffect(() => {
+    try {
+      if (currentId) localStorage.setItem("veronum.last_session_id", currentId);
+    } catch { /* private mode — non-fatal */ }
+  }, [currentId]);
+  useEffect(() => {
+    if (currentId) return; // user already navigated — don't clobber
+    let saved: string | null = null;
+    try { saved = localStorage.getItem("veronum.last_session_id"); } catch { /* */ }
+    if (saved && getSession(saved)) loadSession(saved);
+    // Mount-only by design; loadSession is a stable function declaration.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { setSessions(listSessions()); }, []);
 
@@ -1971,8 +2030,16 @@ function ChatHeader({
    *  Picking / changing happens via the WorkspaceChips in EmptyState. */
   currentProjectName: string | null;
 }) {
+  // Window-drag region for Veronum Desktop (Claude.app's pattern,
+  // verified in their CSS bundle: `-webkit-app-region: drag` on the
+  // title bar surface, `no-drag` on every interactive child). The
+  // Electron window uses titleBarStyle:hiddenInset, so without this
+  // the window can be resized but never MOVED. In a regular browser
+  // the property is unknown CSS and silently ignored.
+  const dragRegion = { WebkitAppRegion: "drag" } as React.CSSProperties;
+  const noDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
   return (
-    <header className="sticky top-0 z-30 backdrop-blur-md bg-black/85">
+    <header className="sticky top-0 z-30 backdrop-blur-md bg-black/85" style={dragRegion}>
       <div className="px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-end gap-1">
         {/* Project status pill — shown only when something's attached
          *  so the user always knows what's in context. Pick / change a
@@ -1991,6 +2058,7 @@ function ChatHeader({
           <button
             type="button"
             onClick={onToggleWorkspace}
+            style={noDrag}
             title={workspaceOpen ? "Hide code workspace" : "Show code workspace"}
             aria-pressed={workspaceOpen}
             className={[
@@ -2007,6 +2075,7 @@ function ChatHeader({
         <button
           type="button"
           onClick={onOpenRules}
+          style={noDrag}
           title={rulesActive
             ? "Edit project rules (active on every send)"
             : "Set project rules — the CLAUDE.md for every model in the grid"}
@@ -2021,10 +2090,10 @@ function ChatHeader({
           <RulesIcon />
           Rules{rulesActive ? " · on" : ""}
         </button>
-        <Link href="/welcome" className="px-3 py-1.5 rounded-full text-[13px] text-white/60 hover:text-white hover:bg-white/[0.06] transition">
+        <Link href="/welcome" style={noDrag} className="px-3 py-1.5 rounded-full text-[13px] text-white/60 hover:text-white hover:bg-white/[0.06] transition">
           Desktop app
         </Link>
-        <Link href="/admin" className="hidden sm:inline px-3 py-1.5 rounded-full text-[13px] text-white/60 hover:text-white hover:bg-white/[0.06] transition">
+        <Link href="/admin" style={noDrag} className="hidden sm:inline px-3 py-1.5 rounded-full text-[13px] text-white/60 hover:text-white hover:bg-white/[0.06] transition">
           Admin
         </Link>
       </div>
