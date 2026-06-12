@@ -40,6 +40,11 @@ import {
   walkHandle,
 } from "@/lib/compare/projectCache";
 import {
+  isDesktop as isVeronumDesktop,
+  desktopPickFolder,
+  type DesktopPickResult,
+} from "@/lib/desktop";
+import {
   type Attachment,
   toWireAttachment,
 } from "@/lib/compare/attachments";
@@ -124,6 +129,13 @@ export function CompareChat({ availableProviders }: Props) {
   // wins over the parsed agent output so streaming new content from
   // a future agent doesn't trample a person's typing.
   const [fileEdits, setFileEdits] = useState<Record<string, string>>({});
+  // True iff the page is running inside Veronum Desktop (Electron).
+  // SSR safe: starts false so server-rendered HTML matches first
+  // client paint; flipped in a mount effect once window is available.
+  const [inDesktopWrapper, setInDesktopWrapper] = useState(false);
+  useEffect(() => {
+    setInDesktopWrapper(isVeronumDesktop());
+  }, []);
   // The live DirectoryHandle from showDirectoryPicker (Chrome/Edge),
   // or null for webkitdirectory uploads / GitHub ingests / Safari.
   // We persist this per-session to IndexedDB so reopening a chat can
@@ -347,6 +359,57 @@ export function CompareChat({ availableProviders }: Props) {
     try {
       const candidates = await walkDirectoryHandle(handle, handle.name);
       return processCandidates(candidates, handle.name, handle);
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "Failed to read folder");
+      setImportingGitHub(false);
+      return null;
+    }
+  };
+
+  /** Desktop-wrapper entry point — when running inside Veronum Desktop
+   *  (Electron), the picker is a native OS dialog and the file walk runs
+   *  in the main process. The renderer never sees absolute paths; we
+   *  just merge the returned files into fileEdits and stash the opaque
+   *  rootId in importedRepo so future reads/writes can authorize. The
+   *  flow bypasses the FSA permission popup entirely. */
+  const loadDesktopFolder = async (): Promise<{ repo: string; count: number; dropped: number } | null> => {
+    setImportError(null);
+    setImportingGitHub(true);
+    try {
+      const result: DesktopPickResult | null = await desktopPickFolder();
+      if (!result) {
+        setImportingGitHub(false);
+        return null;
+      }
+      // Merge into fileEdits with the website's path conventions
+      // (relative paths, no leading rootName — matches FSA + GitHub).
+      const next: Record<string, string> = {};
+      for (const f of result.files) next[f.path] = f.content;
+      setFileEdits((prev) => ({ ...prev, ...next }));
+      const summary = {
+        repo: result.rootName,
+        count: result.files.length,
+        dropped: result.dropped,
+      };
+      setImportedRepo(summary);
+      pushRecent({
+        kind: "folder",
+        name: result.rootName,
+        lastUsed: Date.now(),
+      });
+      // Cache file contents to IndexedDB so refreshing the Electron
+      // window still restores instantly (handle is null — desktop
+      // rootIds are session-scoped to the main process, not portable).
+      if (currentId) {
+        void saveProjectCache(currentId, {
+          rootName: result.rootName,
+          files: result.files,
+          handle: null,
+          savedAt: Date.now(),
+        });
+      }
+      setImportingGitHub(false);
+      return summary;
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Failed to read folder");
       setImportingGitHub(false);
@@ -1491,6 +1554,7 @@ export function CompareChat({ availableProviders }: Props) {
                   busy={importingGitHub}
                   onPickHandle={loadLocalFolderFromHandle}
                   onPickFiles={loadLocalFolder}
+                  onPickDesktop={inDesktopWrapper ? loadDesktopFolder : undefined}
                 />
               }
               compare={
@@ -1996,12 +2060,15 @@ function GitHubIconSmall() {
  * no app-side dropdown.
  */
 function FolderChip({
-  currentName, busy, onPickHandle, onPickFiles,
+  currentName, busy, onPickHandle, onPickFiles, onPickDesktop,
 }: {
   currentName: string | null;
   busy: boolean;
   onPickHandle: (handle: FileSystemDirectoryHandle) => Promise<{ repo: string; count: number; dropped: number } | null>;
   onPickFiles: (files: FileList) => Promise<{ repo: string; count: number; dropped: number } | null>;
+  /** Present only when the app is running inside Veronum Desktop —
+   *  fires a native OS folder dialog via Electron IPC. */
+  onPickDesktop?: () => Promise<{ repo: string; count: number; dropped: number } | null>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -2014,6 +2081,17 @@ function FolderChip({
 
   const handleClick = async () => {
     if (busy) return;
+    // 1) Desktop wrapper wins outright — native dialog, no FSA prompt,
+    //    Node fs walks the tree. The bridge is the whole point of the
+    //    desktop app.
+    if (onPickDesktop) {
+      try { await onPickDesktop(); } catch (e) {
+        console.warn("[FolderChip] desktop pick failed:", e);
+      }
+      return;
+    }
+    // 2) Chrome/Edge/Brave/Opera — FSA path with the native "New
+    //    Folder" button in the dialog.
     const fsa = (window as Window & {
       showDirectoryPicker?: (opts?: { mode?: "read" | "readwrite" }) => Promise<FileSystemDirectoryHandle>;
     }).showDirectoryPicker;
@@ -2029,6 +2107,8 @@ function FolderChip({
       }
       return;
     }
+    // 3) Safari / Firefox — webkitdirectory fallback. No "New Folder"
+    //    button but covers everyone.
     inputRef.current?.click();
   };
 
