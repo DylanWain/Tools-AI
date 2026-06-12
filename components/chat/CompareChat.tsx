@@ -141,6 +141,9 @@ export function CompareChat({ availableProviders }: Props) {
   // hold the live draft right here in CompareChat.
   const [agents, setAgents] = useState<AgentSlot[]>([]);
   const [goal, setGoal] = useState<string>("");
+  // Auto-plan: AI decomposes the goal into parallel agent tasks.
+  const [autoPlanning, setAutoPlanning] = useState(false);
+  const [autoPlanError, setAutoPlanError] = useState<string | null>(null);
   const [agentAttachments, setAgentAttachments] = useState<Attachment[]>([]);
   const codeMode = true;
   // User edits to files in the workspace editor. Keyed by path,
@@ -1638,6 +1641,37 @@ export function CompareChat({ availableProviders }: Props) {
     });
   }
 
+  /** Auto-plan: send the goal to the decomposer, then fill the agent
+   *  rows with the AI's parallel breakdown for the user to confirm and
+   *  run. Reuses the existing multi-agent (parallel) execution path. */
+  async function planAuto() {
+    const g = goal.trim();
+    if (!g || autoPlanning) return;
+    setAutoPlanning(true);
+    setAutoPlanError(null);
+    try {
+      const res = await fetch("/api/task-decompose", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ goal: g }),
+      });
+      const data = await res.json();
+      const proposed = Array.isArray(data?.agents) ? data.agents : [];
+      const slots = proposed
+        .filter((a: { modelId?: string; task?: string }) => a && a.modelId && a.task)
+        .map((a: { modelId: string; task: string }) => ({ modelId: a.modelId, task: a.task }));
+      if (res.ok && slots.length > 0) {
+        setAgents(slots);
+      } else {
+        setAutoPlanError("Couldn't plan this one — add agents by hand, or rephrase the goal.");
+      }
+    } catch {
+      setAutoPlanError("Auto-plan failed (network). Try again.");
+    } finally {
+      setAutoPlanning(false);
+    }
+  }
+
   function newChat() {
     cancel();
     agentAbortRef.current?.abort();
@@ -1916,19 +1950,34 @@ export function CompareChat({ availableProviders }: Props) {
                 />
               }
               agents={
-                <MultiAgentComposer
-                  goal={goal}
-                  onGoalChange={setGoal}
-                  agents={agents}
-                  onAgentsChange={setAgents}
-                  attachments={agentAttachments}
-                  onAttachmentsChange={setAgentAttachments}
-                  busy={busy}
-                  onSubmit={submitAgents}
-                  onCancel={cancel}
-                  availableProviders={availSet}
-                  autoFocus
-                />
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between gap-3 px-1">
+                    <span className={autoPlanError ? "text-[12px] text-red-300/80 leading-snug" : "text-[12px] text-white/40 leading-snug"}>
+                      {autoPlanError ?? "Type one goal, then let AI split it into parallel agents — or add them by hand."}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={planAuto}
+                      disabled={autoPlanning || !goal.trim()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium bg-[#d97757]/10 text-[#d97757] border border-[#d97757]/40 hover:bg-[#d97757]/15 transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    >
+                      {autoPlanning ? "Planning…" : "✨ Auto-plan agents"}
+                    </button>
+                  </div>
+                  <MultiAgentComposer
+                    goal={goal}
+                    onGoalChange={setGoal}
+                    agents={agents}
+                    onAgentsChange={setAgents}
+                    attachments={agentAttachments}
+                    onAttachmentsChange={setAgentAttachments}
+                    busy={busy}
+                    onSubmit={submitAgents}
+                    onCancel={cancel}
+                    availableProviders={availSet}
+                    autoFocus
+                  />
+                </div>
               }
               autoResearch={
                 <AutoResearchComposer
