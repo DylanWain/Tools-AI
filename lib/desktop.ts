@@ -41,6 +41,7 @@ type DesktopApi = {
     arch: string;
     version: string;
   }>;
+  onAuthCallback(handler: (url: string) => void): () => void;
 };
 
 /** True when the app is running inside the Veronum Desktop wrapper.
@@ -91,4 +92,15 @@ export async function desktopWriteFile(
   const a = api();
   if (!a) return { ok: false, error: "not_desktop" };
   return a.writeFile(rootId, relPath, content);
+}
+
+/** Subscribe to veronum://auth deep-link callbacks. Fires when macOS
+ *  reopens the app via a magic-link redirect from the handoff page.
+ *  The full URL is passed so the caller can parse access_token /
+ *  refresh_token from the query string. Returns an unsubscribe fn,
+ *  or a no-op when not running in desktop mode. */
+export function onDesktopAuthCallback(handler: (url: string) => void): () => void {
+  const a = api();
+  if (!a) return () => {};
+  return a.onAuthCallback(handler);
 }

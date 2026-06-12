@@ -26,7 +26,9 @@
 import { useEffect, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase";
 import { FREE_TRIAL_CENTS } from "@/lib/compare/billing";
-import { isDesktop } from "@/lib/desktop";
+import { isDesktop, onDesktopAuthCallback } from "@/lib/desktop";
+
+const DESKTOP_HANDOFF_ORIGIN = "https://thetoolswebsite.com";
 
 export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
   const [email, setEmail] = useState("");
@@ -53,13 +55,25 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
     setBusy(true);
     try {
       const supabase = getBrowserSupabase();
-      // Redirect to "/" directly (not "/compare" → 308 → "/") so the
-      // browser preserves the access_token URL fragment without ever
-      // bouncing through a redirect — fragments survive 308s in most
-      // browsers but it's fragile, so avoid it.
-      const redirect = typeof window !== "undefined"
-        ? `${window.location.origin}/`
-        : undefined;
+      // Two redirect targets depending on where this is rendered:
+      //
+      //   Desktop: send Supabase to the desktop-handoff page on the
+      //     live site. That page extracts the access_token from the
+      //     URL hash and bounces to veronum://auth?...  — macOS
+      //     reopens Veronum.app, the main process IPCs the URL into
+      //     the renderer, and we sign the user in via setSession
+      //     in the auth-callback effect below.
+      //
+      //   Browser: same behavior we had before — redirect back to
+      //     the current origin's root so detectSessionInUrl picks up
+      //     the token from the fragment without bouncing through a
+      //     308 (fragments are fragile across redirects).
+      const inDesktop = isDesktop();
+      const redirect = typeof window === "undefined"
+        ? undefined
+        : inDesktop
+          ? `${DESKTOP_HANDOFF_ORIGIN}/auth/desktop-handoff`
+          : `${window.location.origin}/`;
       const { error } = await supabase.auth.signInWithOtp({
         email: target,
         options: { emailRedirectTo: redirect },
@@ -124,7 +138,36 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user?.id) onSignedIn();
     });
-    return () => sub.subscription.unsubscribe();
+    // Listen for the deep-link auth callback from the desktop wrapper.
+    // When the user clicks the magic link in their email, the browser
+    // lands on /auth/desktop-handoff which redirects to veronum://auth?...
+    // macOS opens Veronum.app, the main process IPCs us the URL — we
+    // parse the tokens and complete sign-in in place. In browser mode
+    // this subscription is a no-op (the lib returns an empty unsub).
+    const unsub = onDesktopAuthCallback(async (url) => {
+      try {
+        // veronum://auth?access_token=...&refresh_token=...
+        const u = new URL(url);
+        const access_token = u.searchParams.get("access_token");
+        const refresh_token = u.searchParams.get("refresh_token");
+        if (!access_token || !refresh_token) return;
+        const { error } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+        if (error) {
+          setErr(error.message);
+        }
+        // The onAuthStateChange above fires SIGNED_IN, which calls
+        // onSignedIn() and dismisses the gate. No need to do it here.
+      } catch (e) {
+        setErr((e as Error).message || "Couldn't read the sign-in link.");
+      }
+    });
+    return () => {
+      sub.subscription.unsubscribe();
+      unsub();
+    };
   }, [onSignedIn]);
 
   return (
