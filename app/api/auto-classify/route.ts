@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   // Which providers does this deploy actually have keys for? The
   // lineup builder needs this to drop unavailable models.
   const available = new Set<ProviderId>();
-  for (const p of ["openai", "anthropic", "perplexity", "gemini", "xai"] as ProviderId[]) {
+  for (const p of ["openai", "anthropic", "perplexity", "gemini", "xai", "deepseek"] as ProviderId[]) {
     if (providerAvailable(p)) available.add(p);
   }
 

@@ -48,10 +48,11 @@ const PROVIDER_LABEL: Record<ProviderId, string> = {
   perplexity: "Perplexity",
   gemini: "Google (Gemini)",
   xai: "xAI (Grok)",
+  deepseek: "DeepSeek",
 };
 
 const PROVIDER_ORDER: ProviderId[] = [
-  "anthropic", "openai", "perplexity", "gemini", "xai",
+  "anthropic", "openai", "perplexity", "gemini", "xai", "deepseek",
 ];
 
 const ENV_HINT: Record<ProviderId, string> = {
@@ -60,6 +61,7 @@ const ENV_HINT: Record<ProviderId, string> = {
   perplexity: "PERPLEXITY_API_KEY",
   gemini: "GEMINI_API_KEY",
   xai: "XAI_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
 };
 
 export function ModelPickerModal({

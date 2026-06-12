@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default function Home() {
-  const providers: ProviderId[] = (["openai", "anthropic", "perplexity", "gemini", "xai"] as ProviderId[])
+  const providers: ProviderId[] = (["openai", "anthropic", "perplexity", "gemini", "xai", "deepseek"] as ProviderId[])
     .filter(providerAvailable);
 
   if (providers.length === 0) {
