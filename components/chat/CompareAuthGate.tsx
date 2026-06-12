@@ -3,24 +3,27 @@
 /**
  * CompareAuthGate — sign-in / sign-up overlay for /compare.
  *
- * Two flows from a single Supabase signInWithOtp call:
+ * Primary flow: email + password (signInWithPassword / signUp).
+ *   Works identically in the browser and inside Veronum Desktop —
+ *   no redirect, no cross-origin cookie issue, no Supabase dashboard
+ *   config (except `Enable email confirmations = OFF` so signup
+ *   returns a session immediately rather than requiring an email
+ *   click). Single source of truth, simplest UX.
  *
- *   1. Magic link (browser default) — the link Supabase emails opens
- *      in the user's default browser. They land on / with an access
- *      token in the URL fragment, the supabase client picks it up,
- *      and onAuthStateChange fires SIGNED_IN.
+ * Fallbacks (kept for users who don't want a password or need to
+ * reset):
+ *   - Magic link: traditional emailed sign-in link. Works in browser;
+ *     in desktop the link redirects via /auth/desktop-handoff to the
+ *     veronum:// custom scheme (needs Supabase URL whitelist + the
+ *     user to have opened Veronum.app at least once so Launch
+ *     Services knows about the scheme).
+ *   - 6-digit code: Supabase embeds a numeric token in the same magic
+ *     link email; pasting it here calls verifyOtp and signs in
+ *     in-place. Works EVERYWHERE with zero config. Lifeline.
  *
- *   2. 6-digit code (desktop fallback) — Supabase ALSO embeds a
- *      numeric token in the same email. In the Veronum Desktop wrapper
- *      the magic link can't reach the Electron-rendered origin
- *      (127.0.0.1:27500), so the user pastes the 6-digit code instead.
- *      verifyOtp completes auth in-place. Session persists via the
- *      same storageKey:"veronum-auth", so reloading the desktop
- *      keeps them signed in.
- *
- * Both flows write the same session under storageKey:"veronum-auth"
- * — /chat and /compare share auth state, and the desktop session is
- * indistinguishable from a browser session downstream.
+ * All flows write the same session under storageKey:"veronum-auth"
+ * so /chat and /compare share auth state regardless of how the user
+ * got signed in.
  */
 
 import { useEffect, useState } from "react";
@@ -30,60 +33,116 @@ import { isDesktop, onDesktopAuthCallback } from "@/lib/desktop";
 
 const DESKTOP_HANDOFF_ORIGIN = "https://thetoolswebsite.com";
 
+type Mode = "password" | "magic" | "code-after-magic";
+
 export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // Code paste flow — desktop wrapper uses this because the magic
-  // link can't reach the Electron renderer.
+  const [mode, setMode] = useState<Mode>("password");
+  // Code paste flow — used after a magic link was sent.
   const [code, setCode] = useState("");
-  const [verifying, setVerifying] = useState(false);
-  // Mirror isDesktop in state so it's safe across SSR (always false
-  // server-side, flipped in the same mount effect we already run).
+  // Track sign-up vs sign-in intent for the password form. Toggled
+  // by the user; on sign-in failure we auto-flip to sign-up if the
+  // error suggests "user doesn't exist," giving a smoother UX.
+  const [intent, setIntent] = useState<"sign-in" | "sign-up">("sign-in");
   const [inDesktop, setInDesktop] = useState(false);
 
-  async function sendMagicLink(e: React.FormEvent) {
+  function validEmail(): boolean {
+    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim().toLowerCase());
+  }
+
+  /** Primary path. signInWithPassword for existing accounts, signUp
+   *  for new ones. With email confirmations disabled in Supabase,
+   *  signUp returns a session synchronously and onAuthStateChange
+   *  fires SIGNED_IN — gate dismisses without any email round-trip. */
+  async function handlePassword(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
-    const target = email.trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(target)) {
-      setErr("Enter a valid email.");
+    if (!validEmail()) { setErr("Enter a valid email."); return; }
+    if (password.length < 8) {
+      setErr("Password must be at least 8 characters.");
       return;
     }
     setErr(null);
     setBusy(true);
     try {
       const supabase = getBrowserSupabase();
-      // Two redirect targets depending on where this is rendered:
-      //
-      //   Desktop: send Supabase to the desktop-handoff page on the
-      //     live site. That page extracts the access_token from the
-      //     URL hash and bounces to veronum://auth?...  — macOS
-      //     reopens Veronum.app, the main process IPCs the URL into
-      //     the renderer, and we sign the user in via setSession
-      //     in the auth-callback effect below.
-      //
-      //   Browser: same behavior we had before — redirect back to
-      //     the current origin's root so detectSessionInUrl picks up
-      //     the token from the fragment without bouncing through a
-      //     308 (fragments are fragile across redirects).
-      const inDesktop = isDesktop();
+      const target = email.trim().toLowerCase();
+      if (intent === "sign-up") {
+        const { error, data } = await supabase.auth.signUp({
+          email: target,
+          password,
+        });
+        if (error) {
+          // If the account already exists Supabase returns
+          // "User already registered" — flip to sign-in mode and
+          // retry transparently.
+          if (/already/i.test(error.message)) {
+            setIntent("sign-in");
+            const { error: e2 } = await supabase.auth.signInWithPassword({
+              email: target,
+              password,
+            });
+            if (e2) throw e2;
+          } else {
+            throw error;
+          }
+        } else if (!data.session) {
+          // Signup succeeded but no session — email confirmations are
+          // ON in the Supabase project. Tell the user to disable it
+          // (one toggle in the dashboard) or to check their email.
+          setErr(
+            "Account created — check your email to confirm, OR ask the maintainer to disable Auth → Email → Enable email confirmations in Supabase.",
+          );
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: target,
+          password,
+        });
+        if (error) {
+          // Common case: typo'd password OR the user hasn't signed up
+          // yet. Distinguish by checking the message. Supabase returns
+          // "Invalid login credentials" for both, so just give one
+          // friendly nudge.
+          if (/invalid login/i.test(error.message)) {
+            throw new Error("That email + password didn't match. New here? Hit 'Create account'.");
+          }
+          throw error;
+        }
+      }
+      // The onAuthStateChange listener below catches SIGNED_IN and
+      // calls onSignedIn() — no need to do it here.
+    } catch (e) {
+      setErr((e as Error).message || "Sign-in failed. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Magic-link fallback. Same logic as before — picks a redirect
+   *  target based on whether we're in the desktop wrapper. */
+  async function handleMagicLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    if (!validEmail()) { setErr("Enter a valid email."); return; }
+    setErr(null);
+    setBusy(true);
+    try {
+      const supabase = getBrowserSupabase();
       const redirect = typeof window === "undefined"
         ? undefined
         : inDesktop
           ? `${DESKTOP_HANDOFF_ORIGIN}/auth/desktop-handoff`
           : `${window.location.origin}/`;
       const { error } = await supabase.auth.signInWithOtp({
-        email: target,
+        email: email.trim().toLowerCase(),
         options: { emailRedirectTo: redirect },
       });
       if (error) throw error;
-      setSent(true);
-      // Once the magic link is clicked, the redirect lands back on /
-      // with the access_token in the URL fragment; detectSessionInUrl
-      // (configured in lib/supabase.ts) parses it. The parent
-      // component listens for auth-state changes and fires onSignedIn.
+      setMode("code-after-magic");
     } catch (e) {
       setErr((e as Error).message || "Failed to send magic link.");
     } finally {
@@ -91,42 +150,35 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
     }
   }
 
-  /** Verify the 6-digit code Supabase embedded in the email. Works
-   *  anywhere — desktop OR browser — and signs the user in on the
-   *  current origin without any redirect dance. */
-  async function verifyCode(e: React.FormEvent) {
+  /** Verify the 6-digit code from the magic-link email. */
+  async function handleVerifyCode(e: React.FormEvent) {
     e.preventDefault();
-    if (verifying) return;
-    const target = email.trim().toLowerCase();
+    if (busy) return;
     const token = code.trim().replace(/\s+/g, "");
     if (!/^\d{6}$/.test(token)) {
       setErr("Enter the 6-digit code from the email.");
       return;
     }
     setErr(null);
-    setVerifying(true);
+    setBusy(true);
     try {
       const supabase = getBrowserSupabase();
       const { error } = await supabase.auth.verifyOtp({
-        email: target,
+        email: email.trim().toLowerCase(),
         token,
         type: "email",
       });
       if (error) throw error;
-      // verifyOtp triggers SIGNED_IN through onAuthStateChange below,
-      // which drops the gate. No need to set state here.
     } catch (e) {
-      setErr((e as Error).message || "That code didn't work. Try again or request a fresh email.");
-      setVerifying(false);
+      setErr((e as Error).message || "That code didn't work. Request a fresh email.");
+    } finally {
+      setBusy(false);
     }
   }
 
-  // Watch for sign-in (magic-link return OR verifyOtp). When the
-  // session flips from null → present we tell the parent to drop
-  // this overlay. Also check the persisted session at mount — if the
-  // user is already signed in (reloaded after auth landed elsewhere)
-  // we drop the gate immediately rather than wait for an event that
-  // won't fire.
+  // Watch for sign-in. Same effect as before, plus the desktop
+  // veronum:// IPC callback listener so magic-link users on desktop
+  // get signed in when the deep link round-trips.
   useEffect(() => {
     setInDesktop(isDesktop());
     const supabase = getBrowserSupabase();
@@ -138,28 +190,14 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user?.id) onSignedIn();
     });
-    // Listen for the deep-link auth callback from the desktop wrapper.
-    // When the user clicks the magic link in their email, the browser
-    // lands on /auth/desktop-handoff which redirects to veronum://auth?...
-    // macOS opens Veronum.app, the main process IPCs us the URL — we
-    // parse the tokens and complete sign-in in place. In browser mode
-    // this subscription is a no-op (the lib returns an empty unsub).
     const unsub = onDesktopAuthCallback(async (url) => {
       try {
-        // veronum://auth?access_token=...&refresh_token=...
         const u = new URL(url);
         const access_token = u.searchParams.get("access_token");
         const refresh_token = u.searchParams.get("refresh_token");
         if (!access_token || !refresh_token) return;
-        const { error } = await supabase.auth.setSession({
-          access_token,
-          refresh_token,
-        });
-        if (error) {
-          setErr(error.message);
-        }
-        // The onAuthStateChange above fires SIGNED_IN, which calls
-        // onSignedIn() and dismisses the gate. No need to do it here.
+        const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (error) setErr(error.message);
       } catch (e) {
         setErr((e as Error).message || "Couldn't read the sign-in link.");
       }
@@ -173,63 +211,14 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <div className="w-full max-w-[420px] mx-auto rounded-2xl border border-white/10 bg-[#161616] p-7 shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
       <h2 className="text-white font-serif text-[22px] mb-1.5">
-        Sign in to compare models
+        {intent === "sign-up" ? "Create your Veronum account" : "Sign in to Veronum"}
       </h2>
       <p className="text-white/55 text-[13px] leading-[1.5] mb-5">
         Every account starts with <span className="text-white font-medium">{FREE_TRIAL_CENTS}¢ of free use</span> across every model. After that, pick a plan — $25/mo flat or pay-as-you-go.
       </p>
 
-      {sent ? (
-        <div className="flex flex-col gap-3">
-          <div className="rounded-lg border border-[#7eb472]/30 bg-[#7eb472]/[0.06] px-4 py-3 text-[13px] text-[#a8d49b]">
-            <strong className="block mb-0.5">Check your email.</strong>
-            {inDesktop ? (
-              <>
-                We sent a one-time code to <span className="font-mono">{email}</span>. Paste it below — the email also contains a magic link, but use the code in the desktop app.
-              </>
-            ) : (
-              <>
-                We sent a magic link to <span className="font-mono">{email}</span>. Click it and you&rsquo;ll land right back here, signed in.
-              </>
-            )}
-          </div>
-          {/* Code-paste form. Always rendered so browser users who
-              prefer pasting (or whose email link is blocked) have the
-              option, but only auto-focused in desktop mode. */}
-          <form onSubmit={verifyCode} className="flex flex-col gap-2">
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="\d*"
-              maxLength={6}
-              autoFocus={inDesktop}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="6-digit code"
-              className="bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2.5 text-[15px] font-mono tracking-[0.3em] text-center text-white/95 placeholder:text-white/30 placeholder:tracking-normal placeholder:font-sans outline-none focus:border-white/30 transition-colors"
-              disabled={verifying}
-            />
-            <button
-              type="submit"
-              disabled={verifying || code.length !== 6}
-              className="px-4 py-2.5 rounded-md text-[14px] font-medium bg-[#d97757] text-white hover:bg-[#c6613f] transition disabled:opacity-40"
-            >
-              {verifying ? "Verifying…" : "Sign in with code"}
-            </button>
-            {err && (
-              <p className="text-[12px] text-red-300/90 mt-1">{err}</p>
-            )}
-          </form>
-          <button
-            type="button"
-            onClick={() => { setSent(false); setCode(""); setErr(null); }}
-            className="text-[11.5px] text-white/45 hover:text-white/75 underline underline-offset-2 self-start"
-          >
-            Wrong email? Start over.
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={sendMagicLink} className="flex flex-col gap-3">
+      {mode === "password" && (
+        <form onSubmit={handlePassword} className="flex flex-col gap-3">
           <input
             type="email"
             required
@@ -237,6 +226,62 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
+            autoComplete="email"
+            className="bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2.5 text-[14px] text-white/95 placeholder:text-white/30 outline-none focus:border-white/30 transition-colors"
+            disabled={busy}
+          />
+          <input
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={intent === "sign-up" ? "Choose a password (8+ chars)" : "Password"}
+            autoComplete={intent === "sign-up" ? "new-password" : "current-password"}
+            className="bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2.5 text-[14px] text-white/95 placeholder:text-white/30 outline-none focus:border-white/30 transition-colors"
+            disabled={busy}
+            minLength={8}
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="px-4 py-2.5 rounded-md text-[14px] font-medium bg-[#d97757] text-white hover:bg-[#c6613f] transition disabled:opacity-50"
+          >
+            {busy
+              ? (intent === "sign-up" ? "Creating account…" : "Signing in…")
+              : (intent === "sign-up" ? "Create account" : "Sign in")}
+          </button>
+          {err && (
+            <p className="text-[12px] text-red-300/90 mt-1">{err}</p>
+          )}
+          <div className="flex items-center justify-between text-[12px] text-white/45 mt-1">
+            <button
+              type="button"
+              onClick={() => { setIntent(intent === "sign-up" ? "sign-in" : "sign-up"); setErr(null); }}
+              className="hover:text-white/75 underline underline-offset-2"
+            >
+              {intent === "sign-up" ? "Have an account? Sign in" : "New here? Create account"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode("magic"); setErr(null); }}
+              className="hover:text-white/75 underline underline-offset-2"
+            >
+              Email me a link instead
+            </button>
+          </div>
+        </form>
+      )}
+
+      {mode === "magic" && (
+        <form onSubmit={handleMagicLink} className="flex flex-col gap-3">
+          <input
+            type="email"
+            required
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
             className="bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2.5 text-[14px] text-white/95 placeholder:text-white/30 outline-none focus:border-white/30 transition-colors"
             disabled={busy}
           />
@@ -247,15 +292,58 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
           >
             {busy ? "Sending magic link…" : "Send magic link"}
           </button>
-          {err && (
-            <p className="text-[12px] text-red-300/90 mt-1">{err}</p>
-          )}
-          <p className="text-[11.5px] text-white/35 leading-[1.5] mt-1">
-            No password to remember — we email you a one-tap sign-in link.
-          </p>
+          {err && <p className="text-[12px] text-red-300/90 mt-1">{err}</p>}
+          <button
+            type="button"
+            onClick={() => { setMode("password"); setErr(null); }}
+            className="text-[12px] text-white/45 hover:text-white/75 underline underline-offset-2 self-start"
+          >
+            Use password instead
+          </button>
         </form>
+      )}
+
+      {mode === "code-after-magic" && (
+        <div className="flex flex-col gap-3">
+          <div className="rounded-lg border border-[#7eb472]/30 bg-[#7eb472]/[0.06] px-4 py-3 text-[13px] text-[#a8d49b]">
+            <strong className="block mb-0.5">Check your email.</strong>
+            {inDesktop ? (
+              <>We sent a one-time code to <span className="font-mono">{email}</span>. Paste it below.</>
+            ) : (
+              <>We sent a magic link to <span className="font-mono">{email}</span>. Click it OR paste the 6-digit code below.</>
+            )}
+          </div>
+          <form onSubmit={handleVerifyCode} className="flex flex-col gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="\d*"
+              maxLength={6}
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="6-digit code"
+              className="bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2.5 text-[15px] font-mono tracking-[0.3em] text-center text-white/95 placeholder:text-white/30 placeholder:tracking-normal placeholder:font-sans outline-none focus:border-white/30 transition-colors"
+              disabled={busy}
+            />
+            <button
+              type="submit"
+              disabled={busy || code.length !== 6}
+              className="px-4 py-2.5 rounded-md text-[14px] font-medium bg-[#d97757] text-white hover:bg-[#c6613f] transition disabled:opacity-40"
+            >
+              {busy ? "Verifying…" : "Sign in with code"}
+            </button>
+            {err && <p className="text-[12px] text-red-300/90 mt-1">{err}</p>}
+          </form>
+          <button
+            type="button"
+            onClick={() => { setMode("password"); setCode(""); setErr(null); }}
+            className="text-[12px] text-white/45 hover:text-white/75 underline underline-offset-2 self-start"
+          >
+            Back to password sign-in
+          </button>
+        </div>
       )}
     </div>
   );
 }
-
