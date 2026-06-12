@@ -1611,7 +1611,12 @@ export function CompareChat({ availableProviders }: Props) {
          *  back to body scroll). overflow-y-auto makes <main> the
          *  scrolling container. */}
         <main ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-          {mode === "agent" ? (
+          {(mode === "compare" && importedRepo) ? (
+            // Compare mixed with Agent: a folder is loaded, so this is
+            // now the agent surface — pick a model, set the permission
+            // (Auto = just do it / Ask = accept-skip each action), and
+            // it actually edits files + runs commands. The ModeToggle
+            // stays on top so the user can jump to Multi-agent.
             <>
               <div className="flex justify-center pt-4">
                 <ModeToggle mode={mode} onChange={setModeAndReset} autoResearchLocked={!isSubscribed} />
@@ -1622,6 +1627,8 @@ export function CompareChat({ availableProviders }: Props) {
                 desktopRootId={desktopRootId}
                 availableProviders={availableProviders}
                 systemExtra={hasProjectRules() ? loadProjectRules() ?? undefined : undefined}
+                projectName={importedRepo.repo}
+                onChangeFolder={inDesktopWrapper ? loadDesktopFolder : undefined}
               />
             </>
           ) : !hasContent ? (
@@ -2274,9 +2281,11 @@ function ModeToggle({
    *  subscription check. */
   autoResearchLocked?: boolean;
 }) {
+  // "Agent" is no longer a separate tab — it's merged into Compare:
+  // load a folder in Compare and the agent surface (tool execution +
+  // permission control) takes over. Multi-agent stays its own tab.
   const tabs: Array<{ id: Mode; label: string; locked?: boolean }> = [
     { id: "compare",       label: "Compare" },
-    { id: "agent",         label: "Agent" },
     { id: "agents",        label: "Multi-agent" },
     { id: "auto-research", label: "Auto-research", locked: autoResearchLocked },
   ];

@@ -40,9 +40,13 @@ type Props = {
   availableProviders: ProviderId[];
   /** Optional project rules appended to the agent system prompt. */
   systemExtra?: string;
+  /** Loaded folder/repo name, shown as a status pill. */
+  projectName?: string;
+  /** Re-pick the folder (desktop only). */
+  onChangeFolder?: () => void | Promise<unknown>;
 };
 
-export function AgentRunner({ files, applyEdit, desktopRootId, availableProviders, systemExtra }: Props) {
+export function AgentRunner({ files, applyEdit, desktopRootId, availableProviders, systemExtra, projectName, onChangeFolder }: Props) {
   const availSet = new Set(availableProviders);
   const models = MODELS.filter((m) => AGENT_PROVIDERS.has(m.provider) && availSet.has(m.provider));
   const [modelId, setModelId] = useState(models[0]?.id ?? "");
@@ -118,12 +122,23 @@ export function AgentRunner({ files, applyEdit, desktopRootId, availableProvider
 
   return (
     <div className="flex-1 min-h-0 flex flex-col px-4 sm:px-6 lg:px-10 py-5 max-w-[1100px] mx-auto w-full">
-      <div className="mb-4">
-        <h2 className="text-white font-serif text-[22px] mb-1">Agent</h2>
-        <p className="text-white/55 text-[13px] leading-[1.5]">
-          The agent reads and edits your loaded workspace with tools, and runs git in the desktop app.
-          {fileCount === 0 && <span className="text-[#d9a25f]"> Load a folder first — the agent has nothing to work on yet.</span>}
-        </p>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-white font-serif text-[22px] mb-1">Agent</h2>
+          <p className="text-white/55 text-[13px] leading-[1.5]">
+            Editing <span className="font-mono text-white/80">{projectName ?? "your workspace"}</span> — reads + edits files with tools, runs git in the desktop app.
+            {fileCount === 0 && <span className="text-[#d9a25f]"> Load a folder first — the agent has nothing to work on yet.</span>}
+          </p>
+        </div>
+        {onChangeFolder && (
+          <button
+            onClick={() => { void onChangeFolder(); }}
+            disabled={running}
+            className="shrink-0 px-2.5 py-1.5 rounded-md text-[12px] text-white/65 border border-white/12 hover:bg-white/[0.06] disabled:opacity-40"
+          >
+            Change folder
+          </button>
+        )}
       </div>
 
       {/* Transcript */}
@@ -180,11 +195,11 @@ export function AgentRunner({ files, applyEdit, desktopRootId, availableProvider
             value={mode}
             onChange={(e) => setMode(e.target.value as PermissionMode)}
             disabled={running}
-            title="Accept/Skip pauses for each edit; Bypass auto-accepts everything"
+            title="Ask = approve each edit/command. Auto = it just does everything without asking."
             className="bg-[#0f0f0f] border border-white/10 rounded-md px-2.5 py-1.5 text-[12.5px] text-white/85 outline-none"
           >
-            <option value="accept-skip">Accept / Skip each change</option>
-            <option value="bypass">Bypass — auto-accept all</option>
+            <option value="accept-skip">Ask — approve each action</option>
+            <option value="bypass">Auto — just do it</option>
           </select>
           <div className="flex-1" />
           {desktopRootId && (
