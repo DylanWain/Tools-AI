@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this project. Otherwise Next 15 walks
+  // up looking for the nearest package-lock.json and may pick the
+  // stray /Users/dylanwain/package-lock.json (an orphan lockfile
+  // with no matching package.json), which corrupts the post-compile
+  // step with `SyntaxError: Unexpected end of JSON input`.
+  outputFileTracingRoot: __dirname,
   // Untracked WIP routes under /app/api/v1/ reference symbols that
   // aren't exported yet (getServiceSupabase, checkSupabaseConfig).
   // We don't want those to block `next build` while we're shipping
