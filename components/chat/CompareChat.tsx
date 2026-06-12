@@ -88,6 +88,7 @@ import { ProjectView } from "./ProjectView";
 import { VersionHistoryModal } from "./VersionHistoryModal";
 import { ProjectRulesModal } from "./ProjectRulesModal";
 import { loadProjectRules, hasProjectRules } from "@/lib/compare/projectRules";
+import { AgentRunner } from "./AgentRunner";
 import {
   INSPECTION_SYSTEM_PROMPT,
   buildInspectionPrompt,
@@ -112,7 +113,7 @@ type Props = {
   availableProviders: ProviderId[];
 };
 
-type Mode = "compare" | "agents" | "auto-research";
+type Mode = "compare" | "agents" | "auto-research" | "agent";
 
 export function CompareChat({ availableProviders }: Props) {
   const availSet = useMemo(() => new Set(availableProviders), [availableProviders]);
@@ -871,6 +872,14 @@ export function CompareChat({ availableProviders }: Props) {
     return built;
   }, [mode, codeMode, lastSlots, runs, fileEdits, deletedPaths]);
 
+  // Flat path → content map for the agent (read/grep/glob source of
+  // truth). Derived from the same `project` the file tree renders.
+  const agentFilesMap = useMemo<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const [path, pf] of Object.entries(project)) out[path] = pf.content;
+    return out;
+  }, [project]);
+
   // Workspace snapshot for the prompt — same map the file tree renders,
   // serialised down to the {path, content} pairs /api/compare wants.
   // Capped at ~60KB total to keep the upstream payload sane; the server
@@ -1602,7 +1611,20 @@ export function CompareChat({ availableProviders }: Props) {
          *  back to body scroll). overflow-y-auto makes <main> the
          *  scrolling container. */}
         <main ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-          {!hasContent ? (
+          {mode === "agent" ? (
+            <>
+              <div className="flex justify-center pt-4">
+                <ModeToggle mode={mode} onChange={setModeAndReset} autoResearchLocked={!isSubscribed} />
+              </div>
+              <AgentRunner
+                files={agentFilesMap}
+                applyEdit={handleFileEdit}
+                desktopRootId={desktopRootId}
+                availableProviders={availableProviders}
+                systemExtra={hasProjectRules() ? loadProjectRules() ?? undefined : undefined}
+              />
+            </>
+          ) : !hasContent ? (
             <EmptyState
               mode={mode}
               onModeChange={setModeAndReset}
@@ -2254,6 +2276,7 @@ function ModeToggle({
 }) {
   const tabs: Array<{ id: Mode; label: string; locked?: boolean }> = [
     { id: "compare",       label: "Compare" },
+    { id: "agent",         label: "Agent" },
     { id: "agents",        label: "Multi-agent" },
     { id: "auto-research", label: "Auto-research", locked: autoResearchLocked },
   ];

@@ -56,7 +56,7 @@ export type CompareSession = {
   id: string;
   title: string;              // first ~60 chars of the prompt / synthesized for agents
   createdAt: number;          // epoch ms
-  mode: "compare" | "agents" | "auto-research"; // default 'compare' for backward compat
+  mode: "compare" | "agents" | "auto-research" | "agent"; // default 'compare' for backward compat
   // Compare-mode fields
   prompt?: string;            // the single user prompt fan'd out to N models
   modelIds?: string[];        // which models the user picked
