@@ -275,6 +275,11 @@ export function CompareChat({ availableProviders }: Props) {
      *  batches setState calls — reading liveHandle inside this same
      *  synchronous flow would see the stale value. */
     handleForCache: FileSystemDirectoryHandle | null = null,
+    /** Cache key for this folder's project. Defaults to the current
+     *  session (or draft), but callers that started a new session for
+     *  the folder pass the draft key explicitly (the currentId state
+     *  hasn't flipped yet). */
+    cacheKey?: string,
   ): Promise<{ repo: string; count: number; dropped: number } | null> => {
     try {
       candidates.sort((a, b) => a.rel.localeCompare(b.rel));
@@ -328,7 +333,7 @@ export function CompareChat({ availableProviders }: Props) {
       // picked before the first message), migrated to the session id
       // on creation. Fire-and-forget — failures (private mode, quota)
       // shouldn't block the UI.
-      void saveProjectCache(currentId ?? DRAFT_SESSION_KEY, {
+      void saveProjectCache(cacheKey ?? currentId ?? DRAFT_SESSION_KEY, {
         rootName: summary.repo,
         files: Object.entries(next).map(([path, content]) => ({ path, content })),
         handle: handleForCache,
@@ -348,6 +353,9 @@ export function CompareChat({ availableProviders }: Props) {
   const loadLocalFolder = async (
     files: FileList,
   ): Promise<{ repo: string; count: number; dropped: number } | null> => {
+    // Two folders = two sessions. Reset first if there's existing
+    // content; the returned key is where this folder's project caches.
+    const cacheKey = resolveFolderSession();
     setImportError(null);
     setImportingGitHub(true);
     const candidates: Candidate[] = [];
@@ -359,7 +367,7 @@ export function CompareChat({ availableProviders }: Props) {
       if (f.size > MAX_FILE_BYTES) continue;
       candidates.push({ file: f, rel });
     }
-    return processCandidates(candidates, null);
+    return processCandidates(candidates, null, null, cacheKey);
   };
 
   /** DirectoryHandle entry point — the path that gives Chrome/Edge the
@@ -369,18 +377,16 @@ export function CompareChat({ availableProviders }: Props) {
   const loadLocalFolderFromHandle = async (
     handle: FileSystemDirectoryHandle,
   ): Promise<{ repo: string; count: number; dropped: number } | null> => {
+    // Reset for a new session FIRST (it clears liveHandle), then stamp
+    // the new handle.
+    const cacheKey = resolveFolderSession();
     setImportError(null);
     setImportingGitHub(true);
-    // Stamp the handle BEFORE processCandidates runs — it reads
-    // liveHandle when it builds the IndexedDB payload. React schedules
-    // the state update synchronously so the closure inside
-    // processCandidates picks it up; if a race ever bites us, we can
-    // pass handle as an extra arg instead.
     setLiveHandle(handle);
     setHandleNeedsReconnect(false);
     try {
       const candidates = await walkDirectoryHandle(handle, handle.name);
-      return processCandidates(candidates, handle.name, handle);
+      return processCandidates(candidates, handle.name, handle, cacheKey);
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Failed to read folder");
       setImportingGitHub(false);
@@ -403,6 +409,10 @@ export function CompareChat({ availableProviders }: Props) {
         setImportingGitHub(false);
         return null;
       }
+      // New folder = new session (after the pick so a cancel is a
+      // no-op). resolveFolderSession resets the chat + clears the old
+      // folder/agent state and returns the draft cache key.
+      const cacheKey = resolveFolderSession();
       // Merge into fileEdits with the website's path conventions
       // (relative paths, no leading rootName — matches FSA + GitHub).
       const next: Record<string, string> = {};
@@ -420,13 +430,11 @@ export function CompareChat({ availableProviders }: Props) {
         name: result.rootName,
         lastUsed: Date.now(),
       });
-      // ALWAYS cache — under the session id when one exists, under
-      // the draft key otherwise (folder picked at the empty state
-      // before the first message). The draft migrates to the real
-      // session id the moment one is created. desktopRootId rides
-      // along so restore can re-walk the folder LIVE from disk —
-      // the main process persists rootId → path across relaunches.
-      void saveProjectCache(currentId ?? DRAFT_SESSION_KEY, {
+      // Cache under the session this folder belongs to (draft after a
+      // reset; migrates to the real session id on first send).
+      // desktopRootId rides along so restore can re-walk the folder
+      // LIVE from disk across relaunches.
+      void saveProjectCache(cacheKey, {
         rootName: result.rootName,
         files: result.files,
         handle: null,
@@ -1592,6 +1600,7 @@ export function CompareChat({ availableProviders }: Props) {
 
   function newChat() {
     cancel();
+    agentAbortRef.current?.abort();
     setCurrentId(null);
     setFavorite(null);
     setExpandedId(null);
@@ -1603,7 +1612,36 @@ export function CompareChat({ availableProviders }: Props) {
     setDeletedPaths(new Set());
     setImportedRepo(null);
     setImportError(null);
+    // Folder + agent state are session-scoped too — without these
+    // resets the new chat stays half-bound to the old folder (writes
+    // landed on the previous project's disk) and the old agent
+    // transcript lingered. Now a new chat is a truly clean slate.
+    setDesktopRootId(null);
+    setLiveHandle(null);
+    setHandleNeedsReconnect(false);
+    setAgentEvents([]);
+    setAgentRunning(false);
     replaceState({}, []);
+  }
+
+  /** Opening a folder when the current session already has a chat (or
+   *  a different folder) should spin up a SEPARATE session — two
+   *  folders = two sessions, each with its own code + chat (the user's
+   *  model, and how Cursor treats workspaces). If the current chat is
+   *  empty, load into it instead of making a throwaway.
+   *
+   *  Returns the cache key the new folder should be saved under. After
+   *  a reset that's the DRAFT key (currentId state won't have flipped
+   *  to null synchronously, so we can't read it) — the draft migrates
+   *  to the real session on the first send. */
+  function resolveFolderSession(): string {
+    const hasChat = turns.length > 0 || lastSlots.length > 0;
+    const hasFolder = importedRepo !== null;
+    if (hasChat || hasFolder) {
+      newChat();
+      return DRAFT_SESSION_KEY;
+    }
+    return currentId ?? DRAFT_SESSION_KEY;
   }
 
   /** Auto-research / pipeline-mode Send handler. In auto sub-mode we
