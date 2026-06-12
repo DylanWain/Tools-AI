@@ -3061,12 +3061,12 @@ function PickedReply({
 }) {
   return (
     <article
-      className="rounded-xl border border-[#d97757]/30 bg-[#161616] overflow-hidden"
+      className="rounded-xl border-2 border-[#d97757]/40 overflow-hidden"
       onDoubleClick={(e) => { e.preventDefault(); onExpand(); }}
     >
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+      <header className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[13px] font-medium text-white/95 truncate">
+          <span className="text-[12.5px] font-medium text-white/70 truncate">
             {model.label}
           </span>
           <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded text-[#d97757] border border-[#d97757]/40 font-mono">
@@ -3076,13 +3076,13 @@ function PickedReply({
         <button
           type="button"
           onClick={onViewAll}
-          className="text-[12px] text-white/45 hover:text-white/85 transition-colors"
+          className="text-[12px] text-white/40 hover:text-white/75 transition-colors"
           title="Un-pick and see every model's response again"
         >
           View all {totalSlots} responses
         </button>
       </header>
-      <div className="px-5 py-4 max-h-[520px] overflow-y-auto text-white/90 text-[14px] leading-[1.6] whitespace-pre-wrap font-sans">
+      <div className="px-4 py-3 max-h-[520px] overflow-y-auto text-white/85 text-[14px] leading-[1.6] whitespace-pre-wrap font-sans">
         {run.error ? (
           <div className="text-red-300/90 text-[13px]">⚠ {run.error}</div>
         ) : run.text ? (

@@ -33,21 +33,22 @@ export function ResponseBox({
       onClick={onToggleFavorite}
       onDoubleClick={(e) => { e.preventDefault(); onExpand(); }}
       className={[
-        "group relative rounded-xl border bg-[#161616] overflow-hidden cursor-pointer transition-colors",
+        "group relative rounded-xl overflow-hidden cursor-pointer transition-all",
+        // Minimal border only - no dark background, responses flow free in the chat like Grok
         isFavorite
-          ? "border-[#d97757] shadow-[0_0_0_1px_#d97757]"
-          : "border-white/10 hover:border-white/25",
+          ? "border-2 border-[#d97757]"
+          : "border border-white/[0.08] hover:border-white/15",
       ].join(" ")}
       title="Click to mark as preferred · double-click to expand"
     >
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+      <header className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
         <div className="flex items-center gap-2 min-w-0">
           {agentLabel && (
-            <span className="text-[11px] uppercase tracking-wider text-white/40 font-mono shrink-0">
+            <span className="text-[11px] uppercase tracking-wider text-white/35 font-mono shrink-0">
               {agentLabel}
             </span>
           )}
-          <span className="text-[13px] font-medium text-white/95 truncate">{model.label}</span>
+          <span className="text-[12.5px] font-medium text-white/70 truncate">{model.label}</span>
           <StatusPill run={run} />
         </div>
         <div className="flex items-center gap-2">
@@ -59,7 +60,7 @@ export function ResponseBox({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onExpand(); }}
-            className="text-white/35 hover:text-white text-[12px] opacity-0 group-hover:opacity-100 transition-opacity"
+            className="text-white/30 hover:text-white text-[12px] opacity-0 group-hover:opacity-100 transition-opacity"
             aria-label="Expand to full screen"
             title="Expand (or double-click anywhere)"
           >
@@ -67,10 +68,10 @@ export function ResponseBox({
           </button>
         </div>
       </header>
-      <div className="px-5 py-4 max-h-[420px] overflow-y-auto text-white/90 text-[14px] leading-[1.6] whitespace-pre-wrap font-sans">
+      <div className="px-4 py-3 max-h-[420px] overflow-y-auto text-white/85 text-[14px] leading-[1.6] whitespace-pre-wrap font-sans">
         {task && (
-          <div className="mb-3 -mt-1 px-3 py-2 rounded-md bg-white/[0.03] border border-white/5 text-white/60 text-[12.5px] leading-[1.45] italic">
-            <span className="text-white/35 not-italic font-mono text-[10px] uppercase tracking-wider mr-2">task</span>
+          <div className="mb-3 -mt-1 px-3 py-2 rounded-md bg-white/[0.02] border border-white/[0.04] text-white/55 text-[12.5px] leading-[1.45] italic">
+            <span className="text-white/30 not-italic font-mono text-[10px] uppercase tracking-wider mr-2">task</span>
             {task}
           </div>
         )}

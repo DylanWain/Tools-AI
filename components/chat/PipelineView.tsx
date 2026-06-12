@@ -78,10 +78,10 @@ export function PipelineView({ steps, runs, originalPrompt, autoLabel }: Props) 
       </div>
 
       {/* Chain card */}
-      <div className="rounded-xl border border-white/10 bg-[#161616] overflow-hidden">
-        <header className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+      <div className="rounded-xl border border-white/[0.08] overflow-hidden">
+        <header className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-[13px] text-white/95 font-medium">Auto-research pipeline</span>
+            <span className="text-[12.5px] text-white/70 font-medium">Auto-research pipeline</span>
             {autoLabel && (
               <span
                 className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-mono"
@@ -95,7 +95,7 @@ export function PipelineView({ steps, runs, originalPrompt, autoLabel }: Props) 
               </span>
             )}
           </div>
-          <span className="text-[11px] text-white/45 font-mono">
+          <span className="text-[11px] text-white/40 font-mono">
             {completed} / {steps.length} step{steps.length === 1 ? "" : "s"}
           </span>
         </header>
@@ -137,11 +137,11 @@ export function PipelineView({ steps, runs, originalPrompt, autoLabel }: Props) 
 
       {/* Final output — rendered as the canonical assistant reply. */}
       {finalText !== null && finalText.length > 0 && (
-        <article className="rounded-xl border border-[#d97757]/35 bg-[#161616] overflow-hidden">
-          <header className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+        <article className="rounded-xl border-2 border-[#d97757]/40 overflow-hidden">
+          <header className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
             <div className="flex items-center gap-2">
-              <span className="text-[13px] text-white/95 font-medium">Final answer</span>
-              <span className="text-[10.5px] uppercase tracking-wider text-white/45 font-mono">
+              <span className="text-[12.5px] text-white/70 font-medium">Final answer</span>
+              <span className="text-[10.5px] uppercase tracking-wider text-white/40 font-mono">
                 from {labelFor(finalStep.modelId)}
               </span>
             </div>
@@ -156,7 +156,7 @@ export function PipelineView({ steps, runs, originalPrompt, autoLabel }: Props) 
               final
             </span>
           </header>
-          <div className="px-5 py-4 max-h-[640px] overflow-y-auto text-white/90 text-[14px] leading-[1.6] whitespace-pre-wrap font-sans">
+          <div className="px-4 py-3 max-h-[640px] overflow-y-auto text-white/85 text-[14px] leading-[1.6] whitespace-pre-wrap font-sans">
             {finalText}
           </div>
         </article>
