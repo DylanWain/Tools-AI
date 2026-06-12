@@ -118,7 +118,10 @@ function isValidSession(s: unknown): s is CompareSession {
   if (typeof r.runs !== "object") return false;
   // Mode is optional for back-compat — pre-existing rows without
   // `mode` are treated as compare. Normalize on read.
-  if (r.mode && r.mode !== "compare" && r.mode !== "agents" && r.mode !== "auto-research") return false;
+  // NOTE: "agent" MUST be here — folder/agent sessions save with
+  // mode "agent" and were being silently filtered out on read, so they
+  // never appeared in the sidebar (the whole "no session shows up" bug).
+  if (r.mode && r.mode !== "compare" && r.mode !== "agents" && r.mode !== "auto-research" && r.mode !== "agent") return false;
   return true;
 }
 
