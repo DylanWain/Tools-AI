@@ -35,6 +35,8 @@ import {
   type SlashCommand,
 } from "@/lib/compare/slashCommands";
 import { SlashCommandMenu } from "./SlashCommandMenu";
+import { VoiceButton } from "./VoiceButton";
+import type { VoiceApi } from "@/lib/voice/useVoiceSession";
 
 type Props = {
   busy: boolean;
@@ -49,11 +51,13 @@ type Props = {
    *  new built-in command doesn't churn the parent. */
   onOpenRulesModal?: () => void;
   onNewChat?: () => void;
+  /** When provided, renders the hold-to-talk mic in the composer footer. */
+  voice?: VoiceApi;
 };
 
 export function PromptBar({
   busy, onSubmit, onCancel, selected, onOpenPicker, autoFocus, placeholder,
-  onOpenRulesModal, onNewChat,
+  onOpenRulesModal, onNewChat, voice,
 }: Props) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -215,6 +219,7 @@ export function PromptBar({
                   : `${selectedCount} model${selectedCount === 1 ? "" : "s"}`}
               </span>
             </button>
+            {voice ? <VoiceButton voice={voice} /> : null}
           </div>
 
           <div className="flex items-center gap-3">

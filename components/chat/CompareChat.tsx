@@ -113,6 +113,7 @@ import { AutoResearchComposer } from "./AutoResearchComposer";
 import { PipelineView, type PipelineSlot } from "./PipelineView";
 import { useCompareStream, type RunSlot, type RunState } from "./useCompareStream";
 import { getBrowserSupabase } from "@/lib/supabase";
+import { useVoiceSession } from "@/lib/voice/useVoiceSession";
 import { trackActivity } from "@/lib/activity/track";
 import { claimSubscriptionIfNeeded } from "@/lib/claim/claim";
 import {
@@ -725,6 +726,19 @@ export function CompareChat({ availableProviders }: Props) {
   // user can click any card later to change their pick. (See
   // lib/compare/turns.ts for the buildHistory rules.)
   const [turns, setTurns] = useState<FrozenTurn[]>([]);
+
+  // Live voice — hold-to-talk forwards a transcript into the compare send;
+  // the always-on Companion can also dispatch hands-free. Shares the $5
+  // quota via the /api/voice/* gate (same billing as /api/compare).
+  const voice = useVoiceSession({
+    getToken: async () =>
+      (await getBrowserSupabase().auth.getSession()).data.session?.access_token ?? null,
+    onSubmit: (t) => { void submitCompare(t, []); },
+    getLastReply: () => {
+      const last = turns[turns.length - 1];
+      return last ? (Object.values(last.runs)[0]?.text ?? "") : "";
+    },
+  });
 
   // Sessions
   const [sessions, setSessions] = useState<CompareSession[]>([]);
@@ -1972,6 +1986,7 @@ export function CompareChat({ availableProviders }: Props) {
               compare={
                 <PromptBar
                   key={currentId ?? "new"}
+                  voice={voice}
                   busy={busy}
                   onSubmit={submitCompare}
                   onCancel={cancel}
@@ -2103,6 +2118,7 @@ export function CompareChat({ availableProviders }: Props) {
               compose={
                 <PromptBar
                   key={currentId ?? "new"}
+                  voice={voice}
                   busy={busy}
                   onSubmit={submitCompare}
                   onCancel={cancel}
