@@ -17,6 +17,8 @@ import type { CompareSession, Project, ProjectFile } from "@/lib/compare/session
 import type { AgentEvent } from "@/lib/agent/loop";
 import { AgentEventRow } from "./AgentRunner";
 import { SplitWorkspace } from "./SplitWorkspace";
+import type { FrozenTurn } from "@/lib/compare/turns";
+import { MODELS } from "@/lib/compare/models";
 
 export function ProjectCockpit({
   project, sessions, workspaceOpen, onBack, onOpenSession, onSend,
@@ -139,7 +141,6 @@ function ChatColumn({
   onSend: (prompt: string) => void;
 }) {
   const [text, setText] = useState("");
-  const log = Array.isArray(session.agentLog) ? (session.agentLog as AgentEvent[]) : [];
 
   function submit() {
     const t = text.trim();
@@ -168,14 +169,8 @@ function ChatColumn({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-2.5 flex flex-col gap-2.5 min-h-0">
-        {log.length ? (
-          log.map((e, i) => <AgentEventRow key={i} event={e} />)
-        ) : (
-          <div className="text-white/40 text-[12.5px] leading-[1.5]">
-            {session.prompt ?? "No messages yet — type below to start."}
-          </div>
-        )}
+      <div className="flex-1 overflow-y-auto px-3 py-2.5 flex flex-col gap-3 min-h-0">
+        <ChatTranscript session={session} />
       </div>
 
       <div className="p-2 border-t border-white/[0.06] shrink-0">
@@ -201,6 +196,71 @@ function ChatColumn({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Renders a chat's real content inside its column: an agent chat's
+// tool-use transcript, OR a compare chat's prompt + every model's reply
+// (so a 2-model chat shows both replies, matching the real chat).
+function ChatTranscript({ session }: { session: CompareSession }) {
+  const agentLog = Array.isArray(session.agentLog) ? (session.agentLog as AgentEvent[]) : [];
+  if (agentLog.length) {
+    return <>{agentLog.map((e, i) => <AgentEventRow key={i} event={e} />)}</>;
+  }
+  const turns = (session.turns ?? []) as FrozenTurn[];
+  const lastModelIds = session.modelIds ?? Object.keys(session.runs ?? {});
+  const lastResponses = lastModelIds
+    .map((id) => ({ modelId: id, text: session.runs?.[id]?.text ?? "" }))
+    .filter((r) => r.text);
+
+  if (turns.length === 0 && lastResponses.length === 0) {
+    return session.prompt ? (
+      <Round prompt={session.prompt} responses={[]} />
+    ) : (
+      <div className="text-white/40 text-[12.5px] leading-[1.5]">No messages yet — type below to start.</div>
+    );
+  }
+  return (
+    <>
+      {turns.map((t) => (
+        <Round
+          key={t.id}
+          prompt={t.userPrompt}
+          responses={t.slots
+            .map((s) => ({ modelId: s.modelId, text: t.runs?.[s.id]?.text ?? "" }))
+            .filter((r) => r.text)}
+        />
+      ))}
+      {lastResponses.length > 0 && (
+        <Round prompt={turns.length === 0 ? session.prompt ?? "" : ""} responses={lastResponses} />
+      )}
+    </>
+  );
+}
+
+// One user→models round: the prompt bubble + a card per model reply.
+function Round({ prompt, responses }: { prompt: string; responses: { modelId: string; text: string }[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {prompt && (
+        <div className="flex justify-end">
+          <div className="rounded-2xl bg-[#1f1f1f] border border-white/10 text-white/95 px-3 py-1.5 max-w-[90%]">
+            <div className="text-[13px] leading-[1.5] whitespace-pre-wrap">{prompt}</div>
+          </div>
+        </div>
+      )}
+      {responses.map((r, i) => {
+        const model = MODELS.find((m) => m.id === r.modelId);
+        return (
+          <div key={i} className="rounded-xl border border-white/[0.08]">
+            <div className="px-3 py-1.5 border-b border-white/[0.06]">
+              <span className="text-[11.5px] font-medium text-white/70">{model?.label ?? r.modelId}</span>
+            </div>
+            <div className="px-3 py-2 text-white/85 text-[13px] leading-[1.55] whitespace-pre-wrap">{r.text}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }
