@@ -60,7 +60,11 @@ export function buildImportedSession(opts: {
     title: (opts.title || opts.sourceLabel).slice(0, 80),
     createdAt: opts.createdAt,
     mode: "compare",
-    modelIds: [modelId],
+    // Empty on purpose: the source label isn't a real model id, and
+    // loadSession would otherwise set it as the selected model and break
+    // the next Send with unknown_model. The user picks a real model
+    // (GPT / Claude / …) to continue. Cards still label via slot.modelId.
+    modelIds: [],
     turns,
     // No live batch — the transcript lives entirely in `turns`.
     runs: {},
