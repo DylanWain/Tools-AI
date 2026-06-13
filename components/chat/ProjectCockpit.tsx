@@ -146,7 +146,7 @@ function ChatColumn({
   return (
     <div
       onDoubleClick={onOpen}
-      className="flex flex-col rounded-xl border border-white/[0.08] bg-[#141414] min-h-[300px] max-h-[560px]"
+      className="flex flex-col rounded-xl overflow-hidden border border-white/[0.08] hover:border-white/15 transition-all min-h-[300px] max-h-[560px]"
     >
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06] shrink-0">
         <span className="flex-1 truncate text-white/85 text-[13px] font-medium" title={session.title}>
