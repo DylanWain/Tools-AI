@@ -14,7 +14,7 @@
  *      tier      | gate                                  | metering
  *      ----------+---------------------------------------+--------------
  *      anonymous | 401 — must sign in first              | n/a
- *      free      | over_quota = consumed >= 10¢          | n/a
+ *      free      | over_quota = consumed >= $5           | n/a
  *      chad      | always allowed (subscription)         | 2× past $25
  *      payg      | always allowed (card on file)         | 3× metered
  *      admin     | always allowed                        | n/a
@@ -29,7 +29,7 @@ import { serverSupabaseAdmin } from "@/lib/supabase";
 /** Cents of free usage before an unauthenticated/free user hits the
  *  hard paywall. Centralized here so /api/compare and any future gated
  *  route agree on the same number. */
-export const FREE_TRIAL_CENTS = 10;
+export const FREE_TRIAL_CENTS = 500;
 
 export type BillingDecision =
   | {

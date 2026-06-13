@@ -14,7 +14,7 @@
  * git history.
  *
  * Auth: anonymous visitors see the magic-link sign-in gate. Once
- * signed in, every account gets 10¢ of free use across every model;
+ * signed in, every account gets $5 of free use across every model;
  * after that the paywall (Subscribe $25/mo or PAYG 3×) takes over.
  * Both flows live inside <CompareChat />.
  */
@@ -26,7 +26,7 @@ import { providerAvailable, type ProviderId } from "@/lib/compare/models";
 export const metadata: Metadata = {
   title: "The Tools Website — one prompt, every model",
   description:
-    "Compare GPT, Claude, Perplexity, Gemini, and Grok side-by-side. Pick the best answer, multi-turn from any model. 10¢ free, then $25/mo or pay-as-you-go.",
+    "Compare GPT, Claude, Perplexity, Gemini, and Grok side-by-side. Pick the best answer, multi-turn from any model. $5 free, then $25/mo or pay-as-you-go.",
 };
 
 // CompareChat reads auth state from the browser's persisted Supabase

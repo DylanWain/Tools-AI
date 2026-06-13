@@ -330,13 +330,13 @@ export default function ChatRedirect() {
               You&rsquo;ve used your free trial
             </h1>
             <p className="text-[14px] text-ink-faded mb-2">
-              Veronum gives you 10¢ of free use to try the chat and voice
+              Veronum gives you $5 of free use to try the chat and voice
               agent. You&rsquo;ve hit the cap — pick a plan below to keep
               going. Cancel anytime.
             </p>
             <p className="text-[13px] text-ink-faded mb-6">
               Used: <span className="font-mono text-ink">${(view.consumedCents / 100).toFixed(2)}</span> /
-              {" "}<span className="font-mono text-ink">$0.10</span>
+              {" "}<span className="font-mono text-ink">$5</span>
             </p>
 
             {/* Plan picker — Subscribe (flat $25/mo, 2x overage past $25) vs

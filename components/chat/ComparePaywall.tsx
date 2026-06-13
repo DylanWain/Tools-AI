@@ -3,7 +3,7 @@
 /**
  * ComparePaywall — over-quota overlay.
  *
- * Shown when /api/compare returns 402 (free user has used >= 10¢ and
+ * Shown when /api/compare returns 402 (free user has used >= $5 and
  * has no active subscription). Three paid paths:
  *
  *   Subscribe ($25/mo) → POST /api/checkout         {plan:'subscribe'} → Stripe Checkout
@@ -116,7 +116,7 @@ export function ComparePaywall({
         You&rsquo;ve used your free trial
       </h2>
       <p className="text-white/55 text-[13.5px] leading-[1.5] mb-3">
-        Every account gets {freeTrialCents}¢ of free use to try /compare
+        Every account gets ${(freeTrialCents / 100).toFixed(freeTrialCents % 100 ? 2 : 0)} of free use to try /compare
         across every model. Pick what fits — cancel anytime.
       </p>
       <p className="text-[12.5px] text-white/40 mb-6 font-mono">
