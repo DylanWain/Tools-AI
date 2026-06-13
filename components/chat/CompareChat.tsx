@@ -850,10 +850,10 @@ export function CompareChat({ availableProviders }: Props) {
 
   useEffect(() => { setSessions(listSessions()); setProjects(listProjects()); }, []);
 
-  function handleNewProject() {
-    const name = window.prompt("Name this project")?.trim();
-    if (!name) return;
-    saveProject({ id: newProjectId(), name, createdAt: Date.now() });
+  function handleNewProject(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    saveProject({ id: newProjectId(), name: trimmed, createdAt: Date.now() });
     setProjects(listProjects());
   }
   function handleAssignSession(sessionId: string, projectId: string | null) {

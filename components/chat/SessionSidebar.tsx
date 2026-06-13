@@ -44,7 +44,7 @@ type Props = {
   projects: Project[];
   /** Create a brand-new empty project (the "+" button next to the
    *  Projects header). Parent owns id minting + persistence. */
-  onNewProject: () => void;
+  onNewProject: (name: string) => void;
   /** Opens the project cockpit — all the project's chats side by side. */
   onOpenProject: (id: string) => void;
   /** Move a session into a project, or out of all projects when null.
@@ -65,6 +65,9 @@ export function SessionSidebar({
   // Per-project collapse state. We track the set of CLOSED project ids
   // so groups default to OPEN with no pre-seeding (absent ⇒ open).
   const [closedProjects, setClosedProjects] = useState<Set<string>>(() => new Set());
+  // Inline "new project" name entry — window.prompt() is a no-op in Electron.
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
   // History shows ONLY ungrouped chats; grouped ones live under their
   // project. Bucket the ungrouped slice, not the full list.
   const ungrouped = useMemo(() => sessions.filter((s) => !s.projectId), [sessions]);
@@ -150,7 +153,7 @@ export function SessionSidebar({
           </span>
           <button
             type="button"
-            onClick={onNewProject}
+            onClick={() => setCreatingProject(true)}
             className="w-6 h-6 inline-flex items-center justify-center rounded-md text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors"
             aria-label="New project"
             title="New project"
@@ -158,6 +161,31 @@ export function SessionSidebar({
             <PlusIcon />
           </button>
         </div>
+
+        {creatingProject && (
+          <div className="px-3 pb-1.5">
+            <input
+              autoFocus
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const n = newProjectName.trim();
+                  if (n) onNewProject(n);
+                  setNewProjectName("");
+                  setCreatingProject(false);
+                } else if (e.key === "Escape") {
+                  setNewProjectName("");
+                  setCreatingProject(false);
+                }
+              }}
+              onBlur={() => { setNewProjectName(""); setCreatingProject(false); }}
+              placeholder="Project name, then Enter…"
+              className="w-full bg-[#1c1c1c] border border-white/15 rounded-md px-2.5 py-1.5 text-[13px] text-white/90 placeholder:text-white/30 outline-none focus:border-white/30"
+            />
+          </div>
+        )}
 
         {projects.length === 0 ? (
           <p className="text-[12px] text-white/30 px-3 py-1.5 leading-[1.5]">
