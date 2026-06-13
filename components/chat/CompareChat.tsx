@@ -114,6 +114,8 @@ import { PipelineView, type PipelineSlot } from "./PipelineView";
 import { useCompareStream, type RunSlot, type RunState } from "./useCompareStream";
 import { getBrowserSupabase } from "@/lib/supabase";
 import { useVoiceSession } from "@/lib/voice/useVoiceSession";
+import { buildImportedSession } from "@/lib/compare/importSession";
+import type { LinkedOpen } from "./LinkedSources";
 import { trackActivity } from "@/lib/activity/track";
 import { claimSubscriptionIfNeeded } from "@/lib/claim/claim";
 import {
@@ -1868,6 +1870,24 @@ export function CompareChat({ availableProviders }: Props) {
     }
   }
 
+  // Open a linked coding session (Claude Code / Cursor / Codex) as a
+  // continuable Veronum chat: copy its transcript into a fresh compare
+  // session and load it. Every imported turn is pre-"picked", so the
+  // whole conversation feeds forward as context — the user can continue
+  // it with any model (keep going with Claude, then switch to GPT, etc.).
+  function openLinkedSession(c: LinkedOpen) {
+    const session = buildImportedSession({
+      title: c.title,
+      messages: c.messages,
+      sourceLabel: c.sourceLabel,
+      createdAt: Date.now(),
+    });
+    saveSession(session);
+    setSessions((prev) => [session, ...prev.filter((s) => s.id !== session.id)]);
+    setOpenProjectId(null);
+    loadSession(session.id);
+  }
+
   function loadSession(id: string) {
     const s = getSession(id);
     if (!s) return;
@@ -1942,6 +1962,7 @@ export function CompareChat({ availableProviders }: Props) {
         projects={projects}
         onNewProject={handleNewProject}
         onOpenProject={(id) => setOpenProjectId(id)}
+        onOpenLinkedSession={openLinkedSession}
         onAssignSession={handleAssignSession}
         onRequestSignIn={() => setManualAuthOpen(true)}
       />

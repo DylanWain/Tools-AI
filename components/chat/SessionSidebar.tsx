@@ -28,7 +28,7 @@ import Link from "next/link";
 import type { CompareSession, Project } from "@/lib/compare/sessions";
 import { VeronumMark } from "@/components/VeronumMark";
 import { getBrowserSupabase } from "@/lib/supabase";
-import { LinkedSources } from "./LinkedSources";
+import { LinkedSources, type LinkedOpen } from "./LinkedSources";
 
 // Same Stripe Payment Link the /compare paywall + /chat page use —
 // one source of truth for the subscribe URL.
@@ -55,11 +55,15 @@ type Props = {
    *  doesn't need to own a second magic-link form — same flow as the
    *  one that pops on Send 401. */
   onRequestSignIn?: () => void;
+  /** Open a linked coding session (Claude Code / Cursor / Codex) as a
+   *  continuable chat. Desktop-only; ignored in a plain browser. */
+  onOpenLinkedSession: (c: LinkedOpen) => void;
 };
 
 export function SessionSidebar({
   sessions, currentId, onNewChat, onLoad, onDelete,
   projects, onNewProject, onOpenProject, onAssignSession, onRequestSignIn,
+  onOpenLinkedSession,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
@@ -257,7 +261,7 @@ export function SessionSidebar({
 
         {/* Linked coding sessions (Claude Code / Cursor / Codex) — desktop only;
             renders nothing in a plain browser. */}
-        <LinkedSources />
+        <LinkedSources onOpen={onOpenLinkedSession} />
 
         {/* History section — ungrouped chats only */}
         <button
