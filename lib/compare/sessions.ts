@@ -18,6 +18,7 @@
 import type { FrozenTurn } from "./turns";
 
 const KEY = "veronum.compare.sessions.v1";
+const PROJECTS_KEY = "veronum.compare.projects.v1";
 const MAX = 50;
 
 export type SessionRun = {
@@ -77,6 +78,18 @@ export type CompareSession = {
    *  events (assistant text, tool calls, results). Stored opaquely so
    *  reopening the session restores the conversation in the chat. */
   agentLog?: unknown[];
+  /** Project grouping — which Project (sidebar group) this chat belongs
+   *  to. Undefined = ungrouped (shows in History). NOT `project` above
+   *  (that's the code-mode virtual file tree). */
+  projectId?: string;
+};
+
+/** A named group of chats + codebases — the sidebar's top-level unit.
+ *  Sessions reference it by id; clicking a project opens its cockpit. */
+export type Project = {
+  id: string;
+  name: string;
+  createdAt: number;
 };
 
 function isBrowser() {
@@ -162,4 +175,66 @@ export function titleFromPrompt(prompt: string, max = 60): string {
   const oneLine = prompt.replace(/\s+/g, " ").trim();
   if (oneLine.length <= max) return oneLine;
   return oneLine.slice(0, max - 1).trimEnd() + "…";
+}
+
+// ── Projects — a named group of chats (the sidebar's top-level unit) ──
+function readProjects(): Project[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = window.localStorage.getItem(PROJECTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (p): p is Project =>
+        !!p && typeof p === "object" &&
+        typeof (p as Project).id === "string" &&
+        typeof (p as Project).name === "string" &&
+        typeof (p as Project).createdAt === "number",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function listProjects(): Project[] {
+  return readProjects().sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Upsert a project. Never mutates the stored array. */
+export function saveProject(project: Project) {
+  if (!isBrowser()) return;
+  const next = [project, ...readProjects().filter((p) => p.id !== project.id)];
+  try { window.localStorage.setItem(PROJECTS_KEY, JSON.stringify(next)); } catch { /* quota */ }
+}
+
+/** Delete a project and unassign every session that pointed at it (so
+ *  the chats fall back into History rather than vanishing). */
+export function deleteProject(id: string) {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.setItem(
+      PROJECTS_KEY,
+      JSON.stringify(readProjects().filter((p) => p.id !== id)),
+    );
+  } catch { /* quota */ }
+  const all = readAll();
+  let changed = false;
+  const next = all.map((s) => {
+    if (s.projectId === id) { changed = true; return { ...s, projectId: undefined }; }
+    return s;
+  });
+  if (changed) writeAll(next);
+}
+
+/** Move a session into a project, or out of all projects when null. */
+export function setSessionProject(sessionId: string, projectId: string | null) {
+  const next = readAll().map((s) =>
+    s.id === sessionId ? { ...s, projectId: projectId ?? undefined } : s,
+  );
+  writeAll(next);
+}
+
+export function newProjectId(): string {
+  return newSessionId();
 }

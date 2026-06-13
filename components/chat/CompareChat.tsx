@@ -31,6 +31,11 @@ import {
   getSession,
   newSessionId,
   titleFromPrompt,
+  listProjects,
+  saveProject,
+  setSessionProject,
+  newProjectId,
+  type Project,
 } from "@/lib/compare/sessions";
 import { parseAgentOutput, buildProject } from "@/lib/compare/projectFiles";
 import {
@@ -722,6 +727,7 @@ export function CompareChat({ availableProviders }: Props) {
 
   // Sessions
   const [sessions, setSessions] = useState<CompareSession[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
 
   // Restore the cached project (files + DirectoryHandle) when the user
@@ -840,7 +846,18 @@ export function CompareChat({ availableProviders }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { setSessions(listSessions()); }, []);
+  useEffect(() => { setSessions(listSessions()); setProjects(listProjects()); }, []);
+
+  function handleNewProject() {
+    const name = window.prompt("Name this project")?.trim();
+    if (!name) return;
+    saveProject({ id: newProjectId(), name, createdAt: Date.now() });
+    setProjects(listProjects());
+  }
+  function handleAssignSession(sessionId: string, projectId: string | null) {
+    setSessionProject(sessionId, projectId);
+    setSessions(listSessions());
+  }
 
   // Project rules — the user's CLAUDE.md-equivalent text. Persisted in
   // localStorage by lib/compare/projectRules; loaded fresh on each Send
@@ -1906,6 +1923,9 @@ export function CompareChat({ availableProviders }: Props) {
         onNewChat={newChat}
         onLoad={loadSession}
         onDelete={removeSession}
+        projects={projects}
+        onNewProject={handleNewProject}
+        onAssignSession={handleAssignSession}
         onRequestSignIn={() => setManualAuthOpen(true)}
       />
 

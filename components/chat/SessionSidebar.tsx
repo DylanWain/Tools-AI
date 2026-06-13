@@ -25,7 +25,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { CompareSession } from "@/lib/compare/sessions";
+import type { CompareSession, Project } from "@/lib/compare/sessions";
 import { VeronumMark } from "@/components/VeronumMark";
 import { getBrowserSupabase } from "@/lib/supabase";
 
@@ -39,6 +39,15 @@ type Props = {
   onNewChat: () => void;
   onLoad: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Named groups shown above History. Each session can belong to at
+   *  most one project (via CompareSession.projectId). */
+  projects: Project[];
+  /** Create a brand-new empty project (the "+" button next to the
+   *  Projects header). Parent owns id minting + persistence. */
+  onNewProject: () => void;
+  /** Move a session into a project, or out of all projects when null.
+   *  Parent persists via setSessionProject. */
+  onAssignSession: (sessionId: string, projectId: string | null) => void;
   /** Opens the sign-in modal. Pulled up from CompareChat so the sidebar
    *  doesn't need to own a second magic-link form — same flow as the
    *  one that pops on Send 401. */
@@ -46,11 +55,18 @@ type Props = {
 };
 
 export function SessionSidebar({
-  sessions, currentId, onNewChat, onLoad, onDelete, onRequestSignIn,
+  sessions, currentId, onNewChat, onLoad, onDelete,
+  projects, onNewProject, onAssignSession, onRequestSignIn,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
-  const buckets = useMemo(() => bucketByRecency(sessions), [sessions]);
+  // Per-project collapse state. We track the set of CLOSED project ids
+  // so groups default to OPEN with no pre-seeding (absent ⇒ open).
+  const [closedProjects, setClosedProjects] = useState<Set<string>>(() => new Set());
+  // History shows ONLY ungrouped chats; grouped ones live under their
+  // project. Bucket the ungrouped slice, not the full list.
+  const ungrouped = useMemo(() => sessions.filter((s) => !s.projectId), [sessions]);
+  const buckets = useMemo(() => bucketByRecency(ungrouped), [ungrouped]);
 
   // Auth state for the bottom-left footer. Watches Supabase session
   // changes so signing in from anywhere (Send→modal, magic link return)
@@ -123,12 +139,89 @@ export function SessionSidebar({
         </button>
       </div>
 
-      {/* History section */}
+      {/* Scroll region — Projects then History */}
       <div className="flex-1 overflow-y-auto px-2 mt-3">
+        {/* Projects section */}
+        <div className="flex items-center justify-between pr-1">
+          <span className="px-3 py-1.5 text-white/70 text-[13px] font-medium">
+            Projects
+          </span>
+          <button
+            type="button"
+            onClick={onNewProject}
+            className="w-6 h-6 inline-flex items-center justify-center rounded-md text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors"
+            aria-label="New project"
+            title="New project"
+          >
+            <PlusIcon />
+          </button>
+        </div>
+
+        {projects.length === 0 ? (
+          <p className="text-[12px] text-white/30 px-3 py-1.5 leading-[1.5]">
+            No projects yet.
+          </p>
+        ) : (
+          <ul className="space-y-0.5">
+            {projects.map((project) => {
+              const open = !closedProjects.has(project.id);
+              const groupSessions = sessions.filter((s) => s.projectId === project.id);
+              return (
+                <li key={project.id}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setClosedProjects((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(project.id)) next.delete(project.id);
+                        else next.add(project.id);
+                        return next;
+                      })
+                    }
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.04] text-white/80 hover:text-white text-[13.5px] transition-colors"
+                    title={project.name}
+                  >
+                    <FolderIcon />
+                    <span className="flex-1 min-w-0 text-left truncate">{project.name}</span>
+                    <span className="text-[11px] text-white/35 tabular-nums">
+                      {groupSessions.length}
+                    </span>
+                    <Caret open={open} />
+                  </button>
+                  {open && (
+                    <div className="ml-3 border-l border-white/[0.06] pl-1.5 mt-0.5">
+                      {groupSessions.length === 0 ? (
+                        <p className="text-[12px] text-white/30 px-3 py-1 leading-[1.5]">
+                          No chats here yet.
+                        </p>
+                      ) : (
+                        <ul className="space-y-0.5">
+                          {groupSessions.map((s) => (
+                            <SessionRow
+                              key={s.id}
+                              session={s}
+                              active={s.id === currentId}
+                              onLoad={() => onLoad(s.id)}
+                              onDelete={() => onDelete(s.id)}
+                              projects={projects}
+                              onAssign={onAssignSession}
+                            />
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {/* History section — ungrouped chats only */}
         <button
           type="button"
           onClick={() => setHistoryOpen((v) => !v)}
-          className="w-full flex items-center gap-1 px-3 py-1.5 text-white/70 hover:text-white text-[13px] font-medium transition-colors"
+          className="w-full flex items-center gap-1 px-3 py-1.5 mt-3 text-white/70 hover:text-white text-[13px] font-medium transition-colors"
         >
           <span>History</span>
           <Caret open={historyOpen} />
@@ -136,7 +229,7 @@ export function SessionSidebar({
 
         {historyOpen && (
           <div className="mt-1">
-            {sessions.length === 0 ? (
+            {ungrouped.length === 0 ? (
               <p className="text-[12px] text-white/30 px-3 py-2 leading-[1.5]">
                 Nothing yet. Send a prompt to create your first session.
               </p>
@@ -156,6 +249,8 @@ export function SessionSidebar({
                             active={s.id === currentId}
                             onLoad={() => onLoad(s.id)}
                             onDelete={() => onDelete(s.id)}
+                            projects={projects}
+                            onAssign={onAssignSession}
                           />
                         ))}
                       </ul>
@@ -304,15 +399,42 @@ function AccountFooter({
 }
 
 function SessionRow({
-  session, active, onLoad, onDelete,
+  session, active, onLoad, onDelete, projects, onAssign,
 }: {
   session: CompareSession;
   active: boolean;
   onLoad: () => void;
   onDelete: () => void;
+  projects: Project[];
+  onAssign: (sessionId: string, projectId: string | null) => void;
 }) {
+  // "Move to project" popover. Self-contained per row (mirrors the
+  // AccountFooter menu) so rows don't fight over a single shared menu.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const wrapRef = useRef<HTMLLIElement | null>(null);
+
+  // Click-away + Escape to close — same pattern as AccountFooter.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (wrapRef.current.contains(e.target as Node)) return;
+      setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
   return (
     <li
+      ref={wrapRef}
       className={[
         "group relative rounded-lg",
         active ? "bg-white/[0.08]" : "hover:bg-white/[0.04]",
@@ -321,7 +443,7 @@ function SessionRow({
       <button
         type="button"
         onClick={onLoad}
-        className="w-full text-left px-3 py-1.5 pr-9 block"
+        className="w-full text-left px-3 py-1.5 pr-[3.75rem] block"
         title={session.title}
       >
         <div
@@ -337,6 +459,23 @@ function SessionRow({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
+          setMenuOpen((v) => !v);
+        }}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        className={[
+          "absolute right-7 top-1/2 -translate-y-1/2 w-6 h-6 inline-flex items-center justify-center rounded-md text-white/40 hover:text-white hover:bg-white/10 transition-opacity",
+          menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        ].join(" ")}
+        aria-label="Move to project"
+        title="Move to project"
+      >
+        <FolderIcon />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
           if (confirm("Delete this session?")) onDelete();
         }}
         className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 inline-flex items-center justify-center rounded-md text-white/40 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -345,6 +484,54 @@ function SessionRow({
       >
         ×
       </button>
+
+      {menuOpen && (
+        <div
+          role="menu"
+          aria-label="Move to project"
+          className="absolute right-1 top-[calc(100%-2px)] mt-1 w-[200px] max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-[#161616] shadow-[0_12px_40px_rgba(0,0,0,0.45)] p-1.5 z-50"
+        >
+          {projects.length === 0 ? (
+            <p className="px-3 py-2 text-[12px] text-white/30 leading-[1.5]">
+              No projects yet.
+            </p>
+          ) : (
+            projects.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="menuitem"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onAssign(session.id, p.id);
+                }}
+                className={[
+                  "w-full text-left px-3 py-2 rounded-lg text-[13px] truncate hover:bg-white/[0.06] transition-colors",
+                  session.projectId === p.id ? "text-white" : "text-white/85 hover:text-white",
+                ].join(" ")}
+                title={p.name}
+              >
+                {p.name}
+              </button>
+            ))
+          )}
+          {session.projectId && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                onAssign(session.id, null);
+              }}
+              className="w-full text-left px-3 py-2 mt-1 border-t border-white/[0.06] rounded-lg text-[13px] text-white/85 hover:text-white hover:bg-white/[0.06] transition-colors"
+            >
+              Remove from project
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }
@@ -381,6 +568,23 @@ function EditIcon() {
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z" />
       <path d="M10 4l2 2" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 3.5 V12.5" />
+      <path d="M3.5 8 H12.5" />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2 4.5a1 1 0 0 1 1-1h3l1.2 1.4H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.5z" />
     </svg>
   );
 }
