@@ -1934,7 +1934,7 @@ export function CompareChat({ availableProviders }: Props) {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <ChatHeader
-          showWorkspaceToggle={hasContent}
+          showWorkspaceToggle={hasContent || !!openProjectId}
           workspaceOpen={workspaceOpen}
           onToggleWorkspace={() => setWorkspaceOpen((v) => !v)}
           rulesActive={rulesActive}
@@ -1950,6 +1950,7 @@ export function CompareChat({ availableProviders }: Props) {
             <ProjectCockpit
               project={projects.find((p) => p.id === openProjectId)!}
               sessions={sessions.filter((s) => s.projectId === openProjectId)}
+              workspaceOpen={workspaceOpen}
               onBack={() => setOpenProjectId(null)}
               onOpenSession={(id) => { setOpenProjectId(null); loadSession(id); }}
               onSend={(id) => { setOpenProjectId(null); loadSession(id); }}
