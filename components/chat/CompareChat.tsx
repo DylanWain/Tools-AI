@@ -94,6 +94,7 @@ import { SplitWorkspace } from "./SplitWorkspace";
 import { ExpandedModal } from "./ExpandedModal";
 import { ModelPickerModal } from "./ModelPickerModal";
 import { SessionSidebar } from "./SessionSidebar";
+import { ProjectCockpit } from "./ProjectCockpit";
 import { ProjectView } from "./ProjectView";
 import { VersionHistoryModal } from "./VersionHistoryModal";
 import { ProjectRulesModal } from "./ProjectRulesModal";
@@ -728,6 +729,7 @@ export function CompareChat({ availableProviders }: Props) {
   // Sessions
   const [sessions, setSessions] = useState<CompareSession[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [openProjectId, setOpenProjectId] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(null);
 
   // Restore the cached project (files + DirectoryHandle) when the user
@@ -1925,6 +1927,7 @@ export function CompareChat({ availableProviders }: Props) {
         onDelete={removeSession}
         projects={projects}
         onNewProject={handleNewProject}
+        onOpenProject={(id) => setOpenProjectId(id)}
         onAssignSession={handleAssignSession}
         onRequestSignIn={() => setManualAuthOpen(true)}
       />
@@ -1943,7 +1946,15 @@ export function CompareChat({ availableProviders }: Props) {
          *  back to body scroll). overflow-y-auto makes <main> the
          *  scrolling container. */}
         <main ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-          {!hasContent ? (
+          {openProjectId && projects.some((p) => p.id === openProjectId) ? (
+            <ProjectCockpit
+              project={projects.find((p) => p.id === openProjectId)!}
+              sessions={sessions.filter((s) => s.projectId === openProjectId)}
+              onBack={() => setOpenProjectId(null)}
+              onOpenSession={(id) => { setOpenProjectId(null); loadSession(id); }}
+              onSend={(id) => { setOpenProjectId(null); loadSession(id); }}
+            />
+          ) : !hasContent ? (
             <EmptyState
               mode={mode}
               onModeChange={setModeAndReset}

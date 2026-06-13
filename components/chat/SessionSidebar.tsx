@@ -45,6 +45,8 @@ type Props = {
   /** Create a brand-new empty project (the "+" button next to the
    *  Projects header). Parent owns id minting + persistence. */
   onNewProject: () => void;
+  /** Opens the project cockpit — all the project's chats side by side. */
+  onOpenProject: (id: string) => void;
   /** Move a session into a project, or out of all projects when null.
    *  Parent persists via setSessionProject. */
   onAssignSession: (sessionId: string, projectId: string | null) => void;
@@ -56,7 +58,7 @@ type Props = {
 
 export function SessionSidebar({
   sessions, currentId, onNewChat, onLoad, onDelete,
-  projects, onNewProject, onAssignSession, onRequestSignIn,
+  projects, onNewProject, onOpenProject, onAssignSession, onRequestSignIn,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
@@ -168,26 +170,33 @@ export function SessionSidebar({
               const groupSessions = sessions.filter((s) => s.projectId === project.id);
               return (
                 <li key={project.id}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setClosedProjects((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(project.id)) next.delete(project.id);
-                        else next.add(project.id);
-                        return next;
-                      })
-                    }
-                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.04] text-white/80 hover:text-white text-[13.5px] transition-colors"
-                    title={project.name}
-                  >
-                    <FolderIcon />
-                    <span className="flex-1 min-w-0 text-left truncate">{project.name}</span>
-                    <span className="text-[11px] text-white/35 tabular-nums">
-                      {groupSessions.length}
-                    </span>
-                    <Caret open={open} />
-                  </button>
+                  <div className="w-full flex items-center gap-1 rounded-lg hover:bg-white/[0.04] transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => onOpenProject(project.id)}
+                      className="flex-1 min-w-0 flex items-center gap-2 pl-3 pr-1 py-1.5 text-white/80 hover:text-white text-[13.5px]"
+                      title={`Open ${project.name}`}
+                    >
+                      <FolderIcon />
+                      <span className="flex-1 min-w-0 text-left truncate">{project.name}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setClosedProjects((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(project.id)) next.delete(project.id);
+                          else next.add(project.id);
+                          return next;
+                        })
+                      }
+                      className="shrink-0 flex items-center gap-1.5 pr-2.5 pl-1 py-1.5 text-white/40 hover:text-white/80 transition-colors"
+                      aria-label={open ? "Collapse project" : "Expand project"}
+                    >
+                      <span className="text-[11px] tabular-nums">{groupSessions.length}</span>
+                      <Caret open={open} />
+                    </button>
+                  </div>
                   {open && (
                     <div className="ml-3 border-l border-white/[0.06] pl-1.5 mt-0.5">
                       {groupSessions.length === 0 ? (
