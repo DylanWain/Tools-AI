@@ -28,6 +28,7 @@ import Link from "next/link";
 import type { CompareSession, Project } from "@/lib/compare/sessions";
 import { VeronumMark } from "@/components/VeronumMark";
 import { getBrowserSupabase } from "@/lib/supabase";
+import { LinkedSources } from "./LinkedSources";
 
 // Same Stripe Payment Link the /compare paywall + /chat page use —
 // one source of truth for the subscribe URL.
@@ -253,6 +254,10 @@ export function SessionSidebar({
             })}
           </ul>
         )}
+
+        {/* Linked coding sessions (Claude Code / Cursor / Codex) — desktop only;
+            renders nothing in a plain browser. */}
+        <LinkedSources />
 
         {/* History section — ungrouped chats only */}
         <button

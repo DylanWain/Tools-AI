@@ -22,6 +22,27 @@ export type DesktopPickResult = {
   dropped: number;
 };
 
+/** A linked coding-tool project (Claude Code / Cursor). */
+export type LinkedProject = { id: string; name: string; fullPath: string; sessionCount?: number; lastMtime: number };
+/** A single session within a linked source. */
+export type LinkedSession = { id: string; title: string; size?: number; mtime: number; model?: string | null };
+export type LinkedMessage = { id?: string; role: "user" | "assistant"; text: string; timestamp?: number };
+export type LinkedSessionContent = { ok: boolean; title?: string; messages?: LinkedMessage[]; error?: string };
+
+/** Sources with a project → session hierarchy (Claude Code, Cursor). */
+export type ProjectSessionSource = {
+  available?(): Promise<{ ok: boolean; available: boolean }>;
+  listProjects(): Promise<{ ok: boolean; projects?: LinkedProject[]; error?: string }>;
+  listSessions(projectId: string): Promise<{ ok: boolean; sessions?: LinkedSession[]; error?: string }>;
+  getSession(projectId: string, sessionId: string): Promise<LinkedSessionContent>;
+};
+/** Flat source — sessions are global, no projects (Codex). */
+export type GlobalSessionSource = {
+  available(): Promise<{ ok: boolean; available: boolean; error?: string }>;
+  listSessions(): Promise<{ ok: boolean; sessions?: LinkedSession[]; error?: string }>;
+  getSession(sessionId: string): Promise<LinkedSessionContent>;
+};
+
 type DesktopApi = {
   pickFolder(): Promise<DesktopPickResult | null>;
   walkFolder(rootId: string): Promise<{
@@ -50,6 +71,12 @@ type DesktopApi = {
     version: string;
   }>;
   onAuthCallback(handler: (url: string) => void): () => void;
+  // Read-only linked coding sessions. Optional — older desktop builds
+  // (before the session-reader bridge) won't expose these, so callers
+  // must feature-detect via sessionReaders().
+  claudeCode?: ProjectSessionSource;
+  cursor?: ProjectSessionSource;
+  codex?: GlobalSessionSource;
 };
 
 export type RunCommandResult = {
@@ -162,4 +189,18 @@ export function onDesktopAgentEvent(handler: (e: unknown) => void): () => void {
   const a = api();
   if (!a) return () => {};
   return a.onAgentEvent(handler);
+}
+
+/** The linked-session readers (Claude Code / Cursor / Codex), or null
+ *  when not in the desktop app OR the desktop build predates the
+ *  session-reader bridge. Lets the UI surface coding sessions read
+ *  straight from disk. */
+export function sessionReaders(): {
+  claudeCode?: ProjectSessionSource;
+  cursor?: ProjectSessionSource;
+  codex?: GlobalSessionSource;
+} | null {
+  const a = api();
+  if (!a || !a.claudeCode) return null;
+  return { claudeCode: a.claudeCode, cursor: a.cursor, codex: a.codex };
 }
