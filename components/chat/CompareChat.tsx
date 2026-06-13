@@ -1880,6 +1880,7 @@ export function CompareChat({ availableProviders }: Props) {
       title: c.title,
       messages: c.messages,
       sourceLabel: c.sourceLabel,
+      model: c.model,
       createdAt: Date.now(),
     });
     saveSession(session);

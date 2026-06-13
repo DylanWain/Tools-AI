@@ -21,8 +21,8 @@ import {
   type ProjectSessionSource,
 } from "@/lib/desktop";
 
-export type LinkedOpen = { title: string; messages: LinkedMessage[]; sourceLabel: string };
-type OpenFn = (load: () => Promise<LinkedSessionContent>, title: string, sourceLabel: string) => void;
+export type LinkedOpen = { title: string; messages: LinkedMessage[]; sourceLabel: string; model?: string | null };
+type OpenFn = (load: () => Promise<LinkedSessionContent>, title: string, sourceLabel: string, model?: string | null) => void;
 
 const ROW = "w-full text-left truncate rounded-md px-2 py-1 text-[12.5px] text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors";
 
@@ -33,12 +33,12 @@ export function LinkedSources({ onOpen }: { onOpen: (c: LinkedOpen) => void }) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   if (!readers) return null;
 
-  const handleOpen: OpenFn = async (load, title, sourceLabel) => {
+  const handleOpen: OpenFn = async (load, title, sourceLabel, model) => {
     setError(null);
     setLoadingId(title);
     try {
       const r = await load();
-      if (r.ok) onOpen({ title: r.title || title, messages: r.messages || [], sourceLabel });
+      if (r.ok) onOpen({ title: r.title || title, messages: r.messages || [], sourceLabel, model });
       else setError(r.error || "could not open session");
     } catch (e) {
       setError(e instanceof Error ? e.message : "could not open session");
@@ -122,7 +122,7 @@ function ProjectNode({ project, source, label, onOpen, loadingId }: { project: L
         <div className="ml-2 border-l border-white/[0.06] pl-1.5">
           {sessions?.length === 0 && <div className="px-2 py-1 text-[11px] text-white/30">no sessions</div>}
           {sessions?.map((s) => (
-            <button key={s.id} className={ROW} title={s.title} disabled={loadingId === s.title} onClick={() => onOpen(() => source.getSession(project.id, s.id), s.title, label)}>
+            <button key={s.id} className={ROW} title={s.title} disabled={loadingId === s.title} onClick={() => onOpen(() => source.getSession(project.id, s.id), s.title, label, s.model)}>
               {loadingId === s.title ? "opening…" : s.title}
             </button>
           ))}
@@ -156,7 +156,7 @@ function FlatTree({ label, source, onOpen, loadingId }: { label: string; source:
           {err && <div className="px-2 py-1 text-[11px] text-white/30">{err}</div>}
           {sessions?.length === 0 && !err && <div className="px-2 py-1 text-[11px] text-white/30">no sessions</div>}
           {sessions?.map((s) => (
-            <button key={s.id} className={ROW} title={s.title} disabled={loadingId === s.title} onClick={() => onOpen(() => source.getSession(s.id), s.title, label)}>
+            <button key={s.id} className={ROW} title={s.title} disabled={loadingId === s.title} onClick={() => onOpen(() => source.getSession(s.id), s.title, label, s.model)}>
               {loadingId === s.title ? "opening…" : s.title}
             </button>
           ))}

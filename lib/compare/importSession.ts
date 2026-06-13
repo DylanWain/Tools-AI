@@ -17,18 +17,42 @@
 import type { CompareSession } from "./sessions";
 import { newSessionId } from "./sessions";
 import type { FrozenTurn } from "./turns";
+import { MODELS, findModel } from "./models";
 
 export type ImportMessage = { role: "user" | "assistant"; text: string };
+
+/**
+ * Map an imported session's model to a REAL compare model id so its
+ * cards render (the transcript drops cards whose modelId isn't in
+ * MODELS). Tries the session's own model first (Claude Code reports e.g.
+ * "claude-opus-4-8[1m]" → "claude-opus-4-8"; Codex reports "gpt-5.4"),
+ * then falls back to a sensible default per source.
+ */
+function resolveModelId(rawModel: string | null | undefined, sourceLabel: string): string {
+  if (rawModel) {
+    const cleaned = rawModel.replace(/\[.*?\]/g, "").trim();
+    if (findModel(cleaned)) return cleaned;
+    const partial = MODELS.find((m) => cleaned.startsWith(m.id));
+    if (partial) return partial.id;
+  }
+  const src = sourceLabel.toLowerCase();
+  const fallback = src.includes("codex") ? "gpt-5.4"
+    : src.includes("cursor") ? "claude-sonnet-4-5"
+    : "claude-opus-4-8"; // Claude Code default
+  return findModel(fallback) ? fallback : MODELS[0].id;
+}
 
 export function buildImportedSession(opts: {
   title: string;
   messages: ImportMessage[];
   /** Display label for the cards, e.g. "Claude Code" / "Cursor" / "Codex". */
   sourceLabel: string;
+  /** The session's model as reported by the reader (best-effort label). */
+  model?: string | null;
   createdAt: number;
 }): CompareSession {
   const slotId = "imported";
-  const modelId = opts.sourceLabel;
+  const modelId = resolveModelId(opts.model, opts.sourceLabel);
   const turns: FrozenTurn[] = [];
 
   // Pair each user message with the next assistant message. A user
