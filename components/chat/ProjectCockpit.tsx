@@ -28,6 +28,7 @@ export function ProjectCockpit({
   onSend: (sessionId: string, prompt: string) => void;
 }) {
   const [chatPct, setChatPct] = useState(56);
+  const [codeOpen, setCodeOpen] = useState(true);
   const [codeTab, setCodeTab] = useState<string>(sessions[0]?.id ?? "");
   const rowRef = useRef<HTMLDivElement | null>(null);
 
@@ -50,12 +51,21 @@ export function ProjectCockpit({
         <span className="text-white/35 text-[12px] shrink-0">
           {sessions.length} chat{sessions.length === 1 ? "" : "s"}
         </span>
+        <button
+          type="button"
+          onClick={() => setCodeOpen((v) => !v)}
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.04] text-white/70 hover:text-white text-[12px] font-medium transition-colors shrink-0"
+          title={codeOpen ? "Hide code panel" : "Show code panel"}
+        >
+          <CodeIcon />
+          {codeOpen ? "Hide code" : "Code"}
+        </button>
       </div>
 
       <div ref={rowRef} className="flex-1 min-h-0 flex gap-0">
         <div
-          className="min-w-0 overflow-y-auto pr-3"
-          style={{ flexBasis: `${chatPct}%`, flexGrow: 0, flexShrink: 0 }}
+          className={`min-w-0 overflow-y-auto ${codeOpen ? "pr-3" : ""}`}
+          style={{ flexBasis: codeOpen ? `${chatPct}%` : "100%", flexGrow: 0, flexShrink: 0 }}
         >
           {sessions.length === 0 ? (
             <p className="text-white/40 text-[13px] px-2 py-6 leading-[1.6]">
@@ -75,6 +85,8 @@ export function ProjectCockpit({
           )}
         </div>
 
+        {codeOpen && (
+          <>
         <OuterSplitter
           onDrag={(clientX) => {
             const rect = rowRef.current?.getBoundingClientRect();
@@ -121,6 +133,8 @@ export function ProjectCockpit({
             />
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -246,6 +260,15 @@ function OuterSplitter({ onDrag }: { onDrag: (clientX: number) => void }) {
 
 function shortTitle(t: string) {
   return t.length > 18 ? t.slice(0, 17) + "…" : t;
+}
+
+function CodeIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5.5 5 L2.5 8 L5.5 11" />
+      <path d="M10.5 5 L13.5 8 L10.5 11" />
+    </svg>
+  );
 }
 
 function BackIcon() {

@@ -146,10 +146,18 @@ export function getSession(id: string): CompareSession | null {
   return readAll().find((s) => s.id === id) || null;
 }
 
-/** Upsert. Returns a new array, never mutates. */
+/** Upsert. Returns a new array, never mutates. Preserves the existing
+ *  `projectId` when the caller didn't set one — agent/compare re-saves
+ *  rebuild the session object without it, which would otherwise wipe a
+ *  chat's project assignment whenever it ran. */
 export function saveSession(session: CompareSession) {
   const all = readAll();
-  const next = [session, ...all.filter((s) => s.id !== session.id)];
+  const existing = all.find((s) => s.id === session.id);
+  const merged =
+    existing && session.projectId === undefined
+      ? { ...session, projectId: existing.projectId }
+      : session;
+  const next = [merged, ...all.filter((s) => s.id !== session.id)];
   writeAll(next);
 }
 
