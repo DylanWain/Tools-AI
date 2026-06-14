@@ -29,7 +29,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getBrowserSupabase } from "@/lib/supabase";
 
-type Tab = "overview" | "users" | "events" | "activity";
+type Tab = "overview" | "metrics" | "users" | "events" | "activity";
 
 export default function AdminPage() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
@@ -69,6 +69,7 @@ export default function AdminPage() {
       <TabNav tab={tab} onChange={setTab} />
       <div className="mt-6">
         {tab === "overview" && <OverviewTab />}
+        {tab === "metrics"  && <MetricsTab />}
         {tab === "users"    && <UsersTab />}
         {tab === "events"   && <EventsTab />}
         {tab === "activity" && <ActivityTab />}
@@ -83,7 +84,7 @@ export default function AdminPage() {
 function initialTab(): Tab {
   if (typeof window === "undefined") return "overview";
   const t = new URLSearchParams(window.location.search).get("tab");
-  if (t === "users" || t === "events" || t === "activity") return t;
+  if (t === "metrics" || t === "users" || t === "events" || t === "activity") return t;
   return "overview";
 }
 
@@ -181,6 +182,233 @@ function OverviewTab() {
           </ul>
         </Section>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Tab: Metrics — product + investor KPIs from /api/admin/metrics
+// ─────────────────────────────────────────────────────────────────────
+type Metric = { label: string; value: number | string; unit?: string; sub: string };
+type CohortRow = { cohort: string; size: number; w1: number; w2: number; w3: number };
+type SourceRow = { source: string; views: number; pct: number };
+
+type MetricsPayload = {
+  generated_at: string;
+  notes: { churn: string; sources: string; feature_adoption: string };
+  north_star: Metric;
+  tier1: {
+    retention_d1: Metric; retention_d7: Metric; retention_d30: Metric;
+    wau: Metric; dau: Metric; mau: Metric;
+    activation: Metric; net_new_mrr: Metric;
+    cohorts: CohortRow[];
+  };
+  tier2: {
+    mrr: Metric; arr: Metric; wau_growth: Metric; conversion: Metric;
+    nrr: Metric; engagement_depth: Metric; stickiness: Metric;
+  };
+  tier3: {
+    cac: Metric; ltv: Metric; ltv_cac: Metric; cac_payback: Metric;
+    gross_margin: Metric; burn_runway: Metric;
+  };
+  tier4: {
+    total_signups: Metric; total_users: Metric; subscribers: Metric;
+    downloads: Metric; page_views: Metric; time_to_value: Metric;
+    feature_adoption: Metric; churn_risk: Metric; top_sources: SourceRow[];
+  };
+};
+
+function MetricsTab() {
+  const supabase = getBrowserSupabase();
+  const [data, setData] = useState<MetricsPayload | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setErr(null);
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) { if (!cancelled) setErr("Not signed in."); return; }
+      try {
+        const res = await fetch("/api/admin/metrics", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled) return;
+        if (res.status === 403) { setErr("Forbidden — this dashboard is admin-only."); return; }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setErr(`Metrics failed (${res.status})${body?.detail ? `: ${body.detail}` : ""}.`);
+          return;
+        }
+        setData((await res.json()) as MetricsPayload);
+      } catch (e) {
+        if (!cancelled) setErr(`Metrics request failed: ${(e as Error).message}`);
+      }
+    }
+    load();
+    // Refresh every 60s — these are aggregates, no need to hammer.
+    const t = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [supabase]);
+
+  if (err) return <p className="text-red-300/90 text-[13px]">{err}</p>;
+  if (!data) return <p className="text-ivory/40 text-[13px]">Computing metrics…</p>;
+
+  const { north_star: ns, tier1, tier2, tier3, tier4 } = data;
+
+  return (
+    <div className="space-y-8">
+      {/* North Star */}
+      <Section title="North Star">
+        <div className="rounded-lg border border-[#d97757]/40 bg-[#d97757]/[.06] p-5">
+          <div className="text-[11px] text-[#d97757] uppercase tracking-wider font-mono">{ns.label}</div>
+          <div className="text-[40px] font-medium tracking-tight text-ivory mt-1 leading-none">
+            {typeof ns.value === "number" ? ns.value.toLocaleString() : ns.value}
+          </div>
+          <div className="text-[12px] text-ivory/55 mt-2">{ns.sub}</div>
+        </div>
+      </Section>
+
+      {/* Tier 1 — Survival */}
+      <Section title="Tier 1 · Survival">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard m={tier1.retention_d1} />
+          <MetricCard m={tier1.retention_d7} />
+          <MetricCard m={tier1.retention_d30} />
+          <MetricCard m={tier1.activation} />
+          <MetricCard m={tier1.wau} />
+          <MetricCard m={tier1.dau} />
+          <MetricCard m={tier1.mau} />
+          <MetricCard m={tier1.net_new_mrr} />
+        </div>
+        <div className="mt-4">
+          <CohortTable rows={tier1.cohorts} />
+        </div>
+      </Section>
+
+      {/* Tier 2 — Growth */}
+      <Section title="Tier 2 · Growth">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard m={tier2.mrr} />
+          <MetricCard m={tier2.arr} />
+          <MetricCard m={tier2.wau_growth} />
+          <MetricCard m={tier2.conversion} />
+          <MetricCard m={tier2.nrr} />
+          <MetricCard m={tier2.engagement_depth} />
+          <MetricCard m={tier2.stickiness} />
+        </div>
+      </Section>
+
+      {/* Tier 3 — Unit economics */}
+      <Section title="Tier 3 · Unit economics (for the raise)">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <MetricCard m={tier3.cac} />
+          <MetricCard m={tier3.ltv} />
+          <MetricCard m={tier3.ltv_cac} />
+          <MetricCard m={tier3.cac_payback} />
+          <MetricCard m={tier3.gross_margin} />
+          <MetricCard m={tier3.burn_runway} />
+        </div>
+      </Section>
+
+      {/* Tier 4 — Inputs (vanity) */}
+      <Section title="Tier 4 · Inputs (vanity — don't optimize)">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard m={tier4.total_signups} />
+          <MetricCard m={tier4.total_users} />
+          <MetricCard m={tier4.subscribers} />
+          <MetricCard m={tier4.downloads} />
+          <MetricCard m={tier4.page_views} />
+          <MetricCard m={tier4.time_to_value} />
+          <MetricCard m={tier4.feature_adoption} />
+          <MetricCard m={tier4.churn_risk} />
+        </div>
+        <div className="mt-4">
+          <SourcesTable rows={tier4.top_sources} />
+        </div>
+      </Section>
+
+      <p className="text-[11px] text-ivory/40 leading-relaxed border-t border-ivory/[.06] pt-4">
+        Notes · {data.notes.churn} {data.notes.sources} {data.notes.feature_adoption}
+        <br />Generated {relTime(data.generated_at)}.
+      </p>
+    </div>
+  );
+}
+
+/** Card variant that renders one Metric (label + big value + sub), with
+ *  an optional unit suffix. Mirrors the local Card but accepts the
+ *  richer Metric shape the /api/admin/metrics route returns. */
+function MetricCard({ m }: { m: Metric }) {
+  return (
+    <div className="rounded-lg border border-ivory/[.08] bg-ivory/[.02] p-4">
+      <div className="text-[11px] text-ivory/45 uppercase tracking-wider font-mono">{m.label}</div>
+      <div className="text-[22px] font-medium tracking-tight text-ivory mt-1">
+        {typeof m.value === "number" ? m.value.toLocaleString() : m.value}
+        {m.unit ? <span className="text-[13px] text-ivory/45 ml-1">{m.unit}</span> : null}
+      </div>
+      <div className="text-[11px] text-ivory/50 mt-1">{m.sub}</div>
+    </div>
+  );
+}
+
+function CohortTable({ rows }: { rows: CohortRow[] }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-ivory/[.06]">
+      <table className="w-full text-[13px]">
+        <thead className="bg-ivory/[.02] text-ivory/55 text-left text-[12px]">
+          <tr>
+            <Th>Signup-week cohort</Th>
+            <Th right>Size</Th>
+            <Th right>Wk +1 active</Th>
+            <Th right>Wk +2 active</Th>
+            <Th right>Wk +3 active</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.cohort} className="border-t border-ivory/[.04]">
+              <td className="px-3 py-2.5 text-ivory/90 font-mono text-[12.5px]">{r.cohort}</td>
+              <td className="px-3 py-2.5 text-right font-mono text-ivory/85">{r.size.toLocaleString()}</td>
+              <td className="px-3 py-2.5 text-right font-mono text-ivory/95">{r.w1}%</td>
+              <td className="px-3 py-2.5 text-right font-mono text-ivory/95">{r.w2}%</td>
+              <td className="px-3 py-2.5 text-right font-mono text-ivory/95">{r.w3}%</td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr><td colSpan={5} className="px-3 py-6 text-center text-ivory/40">Not enough signup history yet for a 3-week cohort.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SourcesTable({ rows }: { rows: SourceRow[] }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-ivory/[.06]">
+      <table className="w-full text-[13px]">
+        <thead className="bg-ivory/[.02] text-ivory/55 text-left text-[12px]">
+          <tr>
+            <Th>Top signup source (landing page proxy)</Th>
+            <Th right>Views</Th>
+            <Th right>% of views</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.source} className="border-t border-ivory/[.04]">
+              <td className="px-3 py-2.5 text-ivory/90 font-mono text-[12.5px] truncate max-w-[360px]">{r.source}</td>
+              <td className="px-3 py-2.5 text-right font-mono text-ivory/85">{r.views.toLocaleString()}</td>
+              <td className="px-3 py-2.5 text-right font-mono text-ivory/95">{r.pct}%</td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr><td colSpan={3} className="px-3 py-6 text-center text-ivory/40">No page-view events recorded yet.</td></tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -663,7 +891,7 @@ function formatDuration(ms: number | null | undefined): string {
 // Reusable bits
 // ─────────────────────────────────────────────────────────────────────
 function TabNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
-  const tabs: Array<[Tab, string]> = [["overview", "Overview"], ["users", "Users"], ["events", "Events"], ["activity", "Activity"]];
+  const tabs: Array<[Tab, string]> = [["overview", "Overview"], ["metrics", "Metrics"], ["users", "Users"], ["events", "Events"], ["activity", "Activity"]];
   return (
     <div className="inline-flex bg-ivory/[.04] rounded-full p-1 text-[13px]">
       {tabs.map(([id, label]) => (
