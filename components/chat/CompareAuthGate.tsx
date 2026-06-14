@@ -136,7 +136,7 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
         ? undefined
         : inDesktop
           ? `${DESKTOP_HANDOFF_ORIGIN}/auth/desktop-handoff`
-          : `${window.location.origin}/`;
+          : `${window.location.origin}/app`;
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: { emailRedirectTo: redirect },

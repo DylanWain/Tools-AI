@@ -1,97 +1,183 @@
 /**
- * GET / — the multi-LLM compare chat (the main product).
+ * GET / — Veronum marketing landing (dark, matches the pitch deck).
  *
- * Thin server-component shell. Reads which providers have keys
- * configured (so the client picker can honestly grey out the
- * unavailable ones), then hands off to <CompareChat /> which owns
- * layout, sidebar, sessions, and all interactivity.
- *
- * History: this used to be the Veronum marketing landing page (Hero,
- * Pricing, FAQ, demos, etc.). The marketing components still live in
- * components/ for future revival — they're no longer routed to. To put
- * the marketing back, re-import them in a new page (e.g.
- * app/about/page.tsx) and copy this file's previous structure from
- * git history.
- *
- * Auth: anonymous visitors see the magic-link sign-in gate. Once
- * signed in, every account gets $5 of free use across every model;
- * after that the paywall (Subscribe $25/mo or PAYG 3×) takes over.
- * Both flows live inside <CompareChat />.
+ * Self-contained dark sections so it doesn't touch the shared (light)
+ * Nav/Footer used by /support, /privacy, etc. The product lives at /app
+ * (where the desktop wrapper loads); the deck at /deck.
  */
-
 import type { Metadata } from "next";
-import { CompareChat } from "@/components/chat/CompareChat";
-import { providerAvailable, type ProviderId } from "@/lib/compare/models";
+import Link from "next/link";
+import { VeronumMark } from "@/components/VeronumMark";
 
 export const metadata: Metadata = {
-  title: "The Tools Website — one prompt, every model",
+  title: "Veronum — every LLM, one workspace",
   description:
-    "Compare GPT, Claude, Perplexity, Gemini, and Grok side-by-side. Pick the best answer, multi-turn from any model. $5 free, then $25/mo or pay-as-you-go.",
+    "One prompt, every model. Compare Claude, GPT, Gemini & Perplexity side-by-side, continue your Claude Code / Cursor / Codex sessions, and code 3.5× faster than any one model alone.",
 };
 
-// CompareChat reads auth state from the browser's persisted Supabase
-// session at runtime; the page must not be cached at the route level.
-export const dynamic = "force-dynamic";
+const APP_URL = "/app";
+const DOWNLOAD_URL = "https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg";
+const PLATFORMS = ["Claude", "GPT", "Gemini", "Cursor", "Perplexity", "Codex"];
 
-const ALL_PROVIDERS: ProviderId[] = ["openai", "anthropic", "perplexity", "gemini", "xai", "deepseek"];
+const FEATURES = [
+  { t: "Compare every model", d: "One prompt fans out to Claude, GPT, Gemini and Perplexity at once. Watch them answer side-by-side and keep the best." },
+  { t: "Continue any session", d: "Link your real Claude Code, Cursor and Codex sessions and pick up the thread — then switch models mid-conversation." },
+  { t: "Talk to it live", d: "Hands-free voice: speak your prompt, hear the answer. Drive your coding agent without touching the keyboard." },
+  { t: "Ten agents at once", d: "Dispatch up to ten agents in parallel on a single task. Stop babysitting one chat and start shipping." },
+];
+
+const PRICES = [
+  { name: "Free", price: "$5", unit: "of usage", blurb: "Try every model. No card required.", cta: "Start free", href: APP_URL, primary: false },
+  { name: "Pro", price: "$25", unit: "/ month", blurb: "Covers $25 of usage at cost, 2× beyond. Cancel anytime.", cta: "Subscribe", href: APP_URL, primary: true },
+  { name: "Pay-as-you-go", price: "3×", unit: "raw cost", blurb: "No monthly fee. Card on file, pay only for what you run.", cta: "Open Veronum", href: APP_URL, primary: false },
+];
+
+const FAQ = [
+  { q: "Which models can I use?", a: "Claude, GPT, Gemini, Perplexity and Grok today — with Codex and more added as they ship. One subscription covers all of them." },
+  { q: "Can I keep my existing AI chats?", a: "Yes. Veronum reads your on-disk Claude Code, Cursor and Codex sessions and opens them right in the workspace, fully continuable with any model." },
+  { q: "How is it 3.5× faster?", a: "One model is one guess, then a wait, then a retry. Veronum runs every model in parallel and surfaces the first correct answer — and can dispatch ten agents on one task." },
+  { q: "Is my code private?", a: "Your sessions are read locally and never leave your machine unless you choose to. Subscription state is anonymous; no password, no harvesting." },
+];
 
 export default function Home() {
-  // Providers with a key set ON THIS SERVER. May be empty in two
-  // legitimate cases: (a) the desktop app forwards /api/* to the live
-  // deploy where the real keys live, so local keys are irrelevant;
-  // (b) a dev server that just hasn't loaded env yet.
-  const localProviders = ALL_PROVIDERS.filter(providerAvailable);
-
-  // NEVER hard-block the whole page on local key presence. The
-  // "No model providers configured" full-screen gate used to take
-  // over whenever a server couldn't see keys — which kept happening
-  // across the desktop/dev launch permutations and was infuriating.
-  // We always render the chat. If no provider is locally available we
-  // fall back to advertising all of them: in the desktop app the
-  // /api/* rewrite forwards to the live deploy (real keys), and if a
-  // model genuinely has no key anywhere the failure is a clear
-  // per-send error, not a screen takeover.
-  const providers = localProviders.length > 0 ? localProviders : ALL_PROVIDERS;
-
   return (
-    <>
-      <CompareChat availableProviders={providers} />
-      <CaretKeyframes />
-    </>
-  );
-}
+    <div className="min-h-screen bg-slate-dark text-ivory antialiased">
+      {/* Nav */}
+      <header className="sticky top-0 z-30 bg-slate-dark/85 backdrop-blur border-b border-ivory/10">
+        <div className="u-container flex items-center justify-between h-16">
+          <Link href="/" className="flex items-center gap-2.5">
+            <VeronumMark className="h-8 w-8 rounded-lg" />
+            <span className="font-serif font-medium text-[19px] text-ivory">Veronum</span>
+          </Link>
+          <nav className="hidden md:flex items-center gap-7 text-[14px] text-ivory/70">
+            <a href="#features" className="hover:text-ivory transition">Features</a>
+            <a href="#pricing" className="hover:text-ivory transition">Pricing</a>
+            <a href="#faq" className="hover:text-ivory transition">FAQ</a>
+            <Link href="/deck" className="hover:text-ivory transition">Deck</Link>
+          </nav>
+          <Link href={APP_URL} className="inline-flex items-center rounded-full bg-ivory text-slate-dark px-4 py-2 text-[13.5px] font-medium hover:bg-ivory/90 transition">
+            Open Veronum
+          </Link>
+        </div>
+      </header>
 
-function NoProvidersConfigured() {
-  return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center px-6">
-      <div className="max-w-[60ch] text-center">
-        <h1 className="font-serif text-[28px] text-white mb-3">No model providers configured</h1>
-        <p className="text-white/60 text-[15px] leading-[1.6] mb-6">
-          Set at least one of these on the server to enable the compare chat:
+      {/* Hero */}
+      <section className="u-container pt-20 lg:pt-28 pb-16 text-center">
+        <p className="font-mono text-[12px] uppercase tracking-[0.18em] text-clay mb-7">The bridge between the LLMs</p>
+        <h1 className="font-serif font-medium leading-[0.95] text-ivory mx-auto max-w-[16ch]" style={{ fontSize: "var(--display-xxl)" }}>
+          Every LLM, one workspace.
+        </h1>
+        <p className="text-ivory/75 leading-[1.5] mx-auto max-w-[58ch] mt-7" style={{ fontSize: "var(--paragraph-l)" }}>
+          One prompt → Claude, GPT, Gemini &amp; Perplexity answer side-by-side. Keep the best,
+          continue any session, and code <span className="text-clay font-medium">3.5× faster</span> than any one of them alone.
         </p>
-        <ul className="font-mono text-[13px] text-white/75 inline-block text-left space-y-1.5">
-          <li><code>OPENAI_API_KEY</code> — GPT-4o, o1, etc.</li>
-          <li><code>ANTHROPIC_API_KEY</code> — Claude Sonnet, Haiku</li>
-          <li><code>PERPLEXITY_API_KEY</code> — Sonar (web-grounded)</li>
-          <li><code>GEMINI_API_KEY</code> — Gemini 1.5 Pro/Flash</li>
-          <li><code>XAI_API_KEY</code> — Grok</li>
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-9">
+          <Link href={APP_URL} className="inline-flex items-center rounded-full bg-clay text-ivory px-6 py-3 text-[15px] font-medium hover:opacity-90 transition">
+            Try Veronum free
+          </Link>
+          <a href={DOWNLOAD_URL} className="inline-flex items-center rounded-full border border-ivory/25 text-ivory px-6 py-3 text-[15px] font-medium hover:bg-ivory/[0.06] transition">
+            Download for Mac
+          </a>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-12 text-ivory/45 font-mono text-[12px] uppercase tracking-[0.08em]">
+          {PLATFORMS.map((p, i) => (
+            <span key={p} className="flex items-center gap-5">
+              {p}{i < PLATFORMS.length - 1 && <span className="text-clay/60">·</span>}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="u-container py-16 lg:py-24">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[80ch] mx-auto">
+          {FEATURES.map((f) => (
+            <div key={f.t} className="bg-ivory/[0.04] border border-ivory/10 rounded-2xl p-7">
+              <h3 className="font-serif font-medium text-ivory text-[22px] mb-2">{f.t}</h3>
+              <p className="text-ivory/70 text-[15px] leading-[1.55]">{f.d}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 3.5x band */}
+      <section className="u-container py-12">
+        <div className="max-w-[72ch] mx-auto text-center bg-ivory/[0.03] border border-ivory/10 rounded-3xl px-8 py-14">
+          <div className="font-serif font-medium text-clay leading-[0.9]" style={{ fontSize: "var(--display-xxl)" }}>3.5×</div>
+          <p className="font-serif text-ivory leading-[1.1] mt-3" style={{ fontSize: "var(--display-s)" }}>
+            faster than coding with Claude alone.
+          </p>
+          <p className="text-ivory/60 text-[14px] mt-4">Parallel models. Best answer wins. Ten agents on tap.</p>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="u-container py-16 lg:py-24">
+        <h2 className="font-serif font-medium text-ivory text-center mb-3" style={{ fontSize: "var(--display-l)" }}>
+          Simple pricing.
+        </h2>
+        <p className="text-ivory/60 text-center mb-12 text-[15px]">Free to start. $25/month when you go deep — or pay only for what you run.</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-[84ch] mx-auto">
+          {PRICES.map((p) => (
+            <div key={p.name} className={"rounded-2xl p-7 flex flex-col " + (p.primary ? "bg-ivory text-slate-dark" : "bg-ivory/[0.04] border border-ivory/10 text-ivory")}>
+              <div className={"font-mono text-[11px] uppercase tracking-[0.12em] mb-4 " + (p.primary ? "text-slate-dark/60" : "text-ivory/50")}>{p.name}</div>
+              <div className="flex items-baseline gap-1.5 mb-3">
+                <span className="font-serif font-medium" style={{ fontSize: "var(--display-m)" }}>{p.price}</span>
+                <span className={"text-[13px] " + (p.primary ? "text-slate-dark/60" : "text-ivory/55")}>{p.unit}</span>
+              </div>
+              <p className={"text-[14px] leading-[1.5] flex-1 mb-6 " + (p.primary ? "text-slate-dark/75" : "text-ivory/70")}>{p.blurb}</p>
+              <Link href={p.href} className={"inline-flex items-center justify-center rounded-full px-5 py-2.5 text-[14px] font-medium transition " + (p.primary ? "bg-slate-dark text-ivory hover:bg-slate-dark/90" : "bg-ivory/10 text-ivory hover:bg-ivory/15")}>
+                {p.cta}
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="u-container py-16 lg:py-24 max-w-[68ch] mx-auto">
+        <h2 className="font-serif font-medium text-ivory text-center mb-12" style={{ fontSize: "var(--display-l)" }}>
+          Questions, answered.
+        </h2>
+        <ul className="divide-y divide-ivory/10 border-t border-b border-ivory/10">
+          {FAQ.map((item) => (
+            <li key={item.q}>
+              <details className="group">
+                <summary className="flex justify-between items-center gap-4 py-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                  <span className="text-[16px] font-medium text-ivory">{item.q}</span>
+                  <span aria-hidden className="text-ivory/40 text-2xl leading-none transition-transform group-open:rotate-45 select-none">+</span>
+                </summary>
+                <p className="text-[15px] text-ivory/70 leading-relaxed pb-5">{item.a}</p>
+              </details>
+            </li>
+          ))}
         </ul>
-        <p className="text-white/40 text-[12px] mt-8">
-          On Vercel: <code className="font-mono">vercel env add OPENAI_API_KEY</code>, then redeploy.
-        </p>
-      </div>
-    </div>
-  );
-}
+      </section>
 
-function CaretKeyframes() {
-  // The streaming-token blinking caret in ResponseBox uses this keyframe.
-  return (
-    <style>{`
-      @keyframes caret-blink {
-        0%, 50% { opacity: 1; }
-        51%, 100% { opacity: 0; }
-      }
-    `}</style>
+      {/* Final CTA */}
+      <section className="u-container py-20 text-center">
+        <VeronumMark className="h-14 w-14 rounded-xl mx-auto mb-7" />
+        <h2 className="font-serif font-medium text-ivory mx-auto max-w-[18ch]" style={{ fontSize: "var(--display-l)" }}>
+          Every LLM, one workspace.
+        </h2>
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
+          <Link href={APP_URL} className="inline-flex items-center rounded-full bg-clay text-ivory px-6 py-3 text-[15px] font-medium hover:opacity-90 transition">
+            Try Veronum free
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-ivory/10">
+        <div className="u-container py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[13px] text-ivory/50">
+          <span>© 2026 Veronum</span>
+          <div className="flex items-center gap-6">
+            <Link href="/deck" className="hover:text-ivory transition">Deck</Link>
+            <Link href="/support" className="hover:text-ivory transition">Support</Link>
+            <Link href="/privacy" className="hover:text-ivory transition">Privacy</Link>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
