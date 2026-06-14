@@ -26,15 +26,20 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Veronum — Reach your Mac's Claude Code & Cursor sessions from anywhere",
+  title: "Veronum — every LLM, one workspace",
   description:
-    "Pair your Mac once, then chat with all your Claude Code and Cursor Agent sessions from your phone or any device. $5 free trial, then $25/month or pay-as-you-go.",
+    "One prompt, every model. Compare Claude, GPT, Gemini & Perplexity side-by-side, continue your Claude Code / Cursor / Codex sessions, and code 3.5× faster than any one model alone.",
   metadataBase: new URL("https://www.thetoolswebsite.com"),
   openGraph: {
-    title: "Veronum — Your Mac's Claude/Cursor sessions, anywhere",
+    title: "Veronum — every LLM, one workspace",
     description:
-      "$5 free trial, then $25/month flat or pay-as-you-go. Universal Mac app, signed + notarized.",
+      "One prompt, every model. Code 3.5× faster than Claude alone. Free to start, then $25/mo or pay-as-you-go.",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Veronum — every LLM, one workspace",
+    description: "One prompt, every model. Code 3.5× faster than Claude alone.",
   },
 };
 
