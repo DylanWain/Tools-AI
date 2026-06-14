@@ -63,7 +63,7 @@ export function Footer() {
                   { label: "Meeting transcripts", href: "#meetings" },
                   { label: "Connectors", href: "#connectors" },
                   { label: "Try in browser", href: "/app" },
-                  { label: "Download for Mac", href: "https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg" },
+                  { label: "Download for Mac", href: "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg" },
                   { label: "Pricing", href: "#pricing" },
                 ]}
               />

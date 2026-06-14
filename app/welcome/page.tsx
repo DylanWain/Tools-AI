@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 // Using the versionless name means this URL keeps working across every
 // release without a marketing-site code change.
 const DOWNLOAD_URL =
-  "https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg";
+  "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg";
 
 export default function WelcomePage() {
   return (

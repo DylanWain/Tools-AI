@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 const APP_URL = "/app";
-const DOWNLOAD_URL = "https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg";
+const DOWNLOAD_URL = "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg";
 const PLATFORMS = ["Claude", "GPT", "Gemini", "Cursor", "Perplexity", "Codex"];
 
 const STATS = [

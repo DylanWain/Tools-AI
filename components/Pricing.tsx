@@ -71,11 +71,11 @@ export function Pricing() {
           </p>
           <div className="mt-3">
             <DownloadLink
-              href="https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg"
+              href="https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg"
               source="pricing"
               className="text-[14px] text-ink underline hover:opacity-70"
             >
-              Download Veronum Bridge for Mac &rarr;
+              Download Veronum for Mac &rarr;
             </DownloadLink>
           </div>
         </div>

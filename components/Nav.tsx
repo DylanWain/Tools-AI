@@ -58,7 +58,7 @@ export function Nav() {
               this button is for first-time visitors. Styled as
               outlined-pill to step back from the primary 'Open chat'. */}
           <DownloadLink
-            href="https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg"
+            href="https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg"
             source="nav"
             className="hidden sm:inline-flex items-center border border-ink/30 text-ink px-3 sm:px-4 py-[6px] rounded-full text-[14px] sm:text-[14.5px] font-medium hover:bg-ink/[0.04] transition"
             title="Universal Mac build — Apple Silicon (M1–M4) and Intel · signed + notarized by Apple"
