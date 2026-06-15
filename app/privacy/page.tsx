@@ -47,10 +47,12 @@ export default function PrivacyPage() {
             Veronum is built local-first. The Chrome extension only reads
             an AI conversation when you explicitly click a Veronum action.
             Public shares are one click at a time, opt-in, and never
-            automatic. No tracking, no analytics on chat content.
+            automatic. The browser extension runs no analytics on your
+            chat content. The website and desktop app do use product
+            analytics — see “Product analytics” below.
           </p>
           <div className="font-mono text-[var(--detail-xs)] text-ink-faded mt-6">
-            Last updated: May 12, 2026
+            Last updated: June 15, 2026
           </div>
         </header>
 
@@ -72,7 +74,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="What Veronum does NOT collect">
+          <Section title="What the Veronum extension does NOT collect">
             <ul>
               <li>No personally identifiable information (name, email, address, ID)</li>
               <li>No authentication tokens, passwords, or session cookies</li>
@@ -111,7 +113,7 @@ export default function PrivacyPage() {
           </Section>
 
           <Section title="Third parties">
-            <p>We use exactly two third-party services:</p>
+            <p>We use the following third-party services:</p>
             <ul>
               <li>
                 <strong>Supabase</strong> — our database. Stores public
@@ -125,6 +127,11 @@ export default function PrivacyPage() {
                 timestamp, user agent) are kept for operational
                 purposes; conversation content is never logged.
               </li>
+              <li>
+                <strong>PostHog</strong> — product analytics and session
+                recording for the website and desktop app (see “Product
+                analytics” above). Hosted in the United States.
+              </li>
             </ul>
             <p>
               We do not sell, trade, or rent any user data to anyone,
@@ -135,10 +142,46 @@ export default function PrivacyPage() {
           <Section title="The desktop app">
             <p>
               Veronum Desktop (a separate macOS app, optional, free
-              trial then paid) extends the same actions into your local
-              codebase. It stores its data the same way: local-first,
-              with cloud sync to Supabase only for shared sessions you
-              opt into. Same privacy rules apply.
+              trial then paid) loads the same website and extends the
+              same actions into your local codebase. Your project files
+              stay local — cloud sync to Supabase happens only for
+              shared sessions you opt into. Like the website, the
+              desktop app runs product analytics (see below).
+            </p>
+          </Section>
+
+          <Section title="Product analytics — website & desktop app">
+            <p>
+              The website (thetoolswebsite.com) and the desktop app —
+              which loads that same website — use{" "}
+              <strong>PostHog</strong> for product analytics, so we can
+              see how Veronum is actually used and improve it. This is
+              separate from the browser extension, which runs no
+              analytics at all.
+            </p>
+            <p>We collect usage data such as:</p>
+            <ul>
+              <li>Pages and screens opened, clicks, and navigation</li>
+              <li>Approximate location (city / country) from your IP</li>
+              <li>Device, browser, and app version</li>
+              <li>
+                Product actions — e.g. sending a message, running a
+                compare, or starting an agent, including which models
+                (not the message text itself)
+              </li>
+              <li>
+                <strong>Session recordings</strong> — replays of the
+                on-screen interface, including text and input you type,
+                so we can see exactly where Veronum is confusing or
+                broken. Password fields are always hidden.
+              </li>
+            </ul>
+            <p>
+              Because using the chat requires signing in, this usage data
+              and recordings are linked to your account email. It&apos;s
+              processed by PostHog, Inc. (United States); we don&apos;t
+              sell or share it. To have your analytics data deleted, email
+              us using the address below.
             </p>
           </Section>
 

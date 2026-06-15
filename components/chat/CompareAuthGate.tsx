@@ -30,6 +30,7 @@ import { useEffect, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase";
 import { FREE_TRIAL_CENTS } from "@/lib/compare/billing";
 import { isDesktop, onDesktopAuthCallback } from "@/lib/desktop";
+import { identifyUser } from "@/lib/analytics";
 
 const DESKTOP_HANDOFF_ORIGIN = "https://thetoolswebsite.com";
 
@@ -184,11 +185,15 @@ export function CompareAuthGate({ onSignedIn }: { onSignedIn: () => void }) {
     const supabase = getBrowserSupabase();
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user?.id) {
+        identifyUser(session.user.email);
         onSignedIn();
       }
     });
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user?.id) onSignedIn();
+      if (data.session?.user?.id) {
+        identifyUser(data.session.user.email);
+        onSignedIn();
+      }
     });
     const unsub = onDesktopAuthCallback(async (url) => {
       try {

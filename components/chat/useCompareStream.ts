@@ -17,6 +17,7 @@ import { useCallback, useRef, useState } from "react";
 import type { WireAttachment } from "@/lib/compare/attachments";
 import type { ChatMessage } from "@/lib/compare/stream";
 import { getBrowserSupabase } from "@/lib/supabase";
+import { captureMessageSent } from "@/lib/analytics";
 
 export type RunState = {
   status: "idle" | "streaming" | "done" | "error";
@@ -86,6 +87,10 @@ export function useCompareStream() {
 
   const start = useCallback(async (slots: RunSlot[]) => {
     if (slots.length === 0) return;
+    captureMessageSent({
+      mode: slots.length > 1 ? "compare" : "single",
+      models: slots.map((s) => s.modelId),
+    });
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
@@ -159,6 +164,11 @@ export function useCompareStream() {
     projectFiles?: ReadonlyArray<{ path: string; content: string }>;
   }) => {
     if (input.workers.length === 0 || !input.goal.trim()) return;
+    captureMessageSent({
+      mode: "multi-agent",
+      models: input.workers.map((w) => w.modelId),
+      sessionId: input.sessionId,
+    });
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
@@ -362,6 +372,11 @@ export function useCompareStream() {
     }) => string;
   }) => {
     if (input.lineup.length === 0 || input.rounds < 1 || !input.originalPrompt.trim()) return;
+    captureMessageSent({
+      mode: "pipeline",
+      models: input.lineup.map((m) => m.id),
+      sessionId: input.sessionId,
+    });
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
