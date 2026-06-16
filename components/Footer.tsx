@@ -64,6 +64,7 @@ export function Footer() {
                   { label: "Connectors", href: "#connectors" },
                   { label: "Try in browser", href: "/app" },
                   { label: "Download for Mac", href: "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg" },
+                  { label: "Download for Windows", href: "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum-Setup.exe" },
                   { label: "Pricing", href: "#pricing" },
                 ]}
               />

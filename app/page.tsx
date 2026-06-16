@@ -22,6 +22,7 @@ export const metadata: Metadata = {
 
 const APP_URL = "/app";
 const DOWNLOAD_URL = "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg";
+const DOWNLOAD_WIN_URL = "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum-Setup.exe";
 const PLATFORMS = ["Claude", "GPT", "Gemini", "Cursor", "Perplexity", "Codex"];
 
 const STATS = [
@@ -99,6 +100,9 @@ export default function Home() {
           </Link>
           <a href={DOWNLOAD_URL} className="inline-flex items-center rounded-full border border-ivory/25 text-ivory px-6 py-3 text-[15px] font-medium hover:bg-ivory/[0.06] transition">
             Download for Mac
+          </a>
+          <a href={DOWNLOAD_WIN_URL} className="inline-flex items-center rounded-full border border-ivory/25 text-ivory px-6 py-3 text-[15px] font-medium hover:bg-ivory/[0.06] transition">
+            Download for Windows
           </a>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-12 text-ivory/45 font-mono text-[12px] uppercase tracking-[0.08em]">
