@@ -41,13 +41,11 @@ const SOURCE_LABEL: Record<string, string> = {
   perplexity: "Perplexity",
 };
 
-// Versionless filename — the veronum-overlay release workflow uploads
-// a `Veronum.dmg` copy alongside the versioned DMG on every release
-// (see scripts/post-release-upload-versionless.sh in the overlay repo).
-// Using the versionless name means this URL keeps working across every
-// release without a marketing-site code change.
+// Stable, versionless filename so this URL keeps working across every
+// veronum-desktop release without a marketing-site code change. Points at
+// the current app (veronum-desktop) — same as /welcome and /download.
 const DOWNLOAD_URL =
-  "https://github.com/DylanWain/veronum-bridge/releases/latest/download/Veronum-Bridge.dmg";
+  "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg";
 
 async function loadShare(id: string): Promise<ShareRow | null> {
   if (!/^[A-Za-z0-9]{6,32}$/.test(id)) return null;
