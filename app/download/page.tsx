@@ -22,6 +22,11 @@ const LATEST_DMG_URL =
   "https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum.dmg";
 const RELEASES_PAGE_URL =
   "https://github.com/DylanWain/veronum-overlay/releases/latest";
+// Windows installer is built from veronum-desktop (the current app). The Mac
+// DMG above still comes from veronum-overlay until a signed desktop Mac build
+// is cut, at which point both buttons should point at veronum-desktop.
+const LATEST_EXE_URL =
+  "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum-Setup.exe";
 
 export default function DownloadPage() {
   return (
@@ -47,8 +52,8 @@ export default function DownloadPage() {
         </p>
 
         <p className="text-[13.5px] text-[#7d7d76] leading-[1.6] mb-8">
-          Free to install. No password, no email asked. macOS Apple
-          Silicon · auto-updates after first install.
+          Free to install. No password, no email asked. macOS (Apple
+          Silicon) or Windows 10/11 (x64) · auto-updates after first install.
         </p>
 
         <div className="flex flex-col gap-2.5 max-w-[340px] mx-auto">
@@ -57,7 +62,14 @@ export default function DownloadPage() {
             onClick={() => captureDownloadClicked({ os: "macos", kind: "dmg" })}
             className="w-full py-3 rounded-md bg-[#1a1a18] text-white text-[13.5px] font-medium hover:bg-black transition"
           >
-            Download Veronum.dmg
+            Download for Mac
+          </a>
+          <a
+            href={LATEST_EXE_URL}
+            onClick={() => captureDownloadClicked({ os: "windows", kind: "exe" })}
+            className="w-full py-3 rounded-md bg-[#1a1a18] text-white text-[13.5px] font-medium hover:bg-black transition"
+          >
+            Download for Windows
           </a>
           <a
             href={RELEASES_PAGE_URL}
@@ -88,8 +100,8 @@ export default function DownloadPage() {
         </div>
 
         <p className="text-[11px] text-[#9a9a93] mt-8 leading-[1.6]">
-          Apple Silicon Mac required (M1+). Sign-in is anonymous via a
-          local install token; back up{" "}
+          macOS (Apple Silicon, M1+) or Windows 10/11 (x64). Sign-in is
+          anonymous via a local install token; back up{" "}
           <code className="font-mono text-[10.5px] bg-black/[0.04] px-1 py-0.5 rounded">
             ~/Library/Application Support/veronum-overlay/veronum-identity.json
           </code>{" "}
