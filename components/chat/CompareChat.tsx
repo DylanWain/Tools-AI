@@ -1875,7 +1875,7 @@ export function CompareChat({ availableProviders }: Props) {
   // session and load it. Every imported turn is pre-"picked", so the
   // whole conversation feeds forward as context — the user can continue
   // it with any model (keep going with Claude, then switch to GPT, etc.).
-  function openLinkedSession(c: LinkedOpen) {
+  async function openLinkedSession(c: LinkedOpen) {
     const session = buildImportedSession({
       title: c.title,
       messages: c.messages,
@@ -1886,6 +1886,19 @@ export function CompareChat({ availableProviders }: Props) {
     saveSession(session);
     setSessions((prev) => [session, ...prev.filter((s) => s.id !== session.id)]);
     setOpenProjectId(null);
+    // The conversation's code, for the code panel. Imported sessions have
+    // no live folder handle, so we stash the files the chat touched into
+    // the SAME IndexedDB project cache the restore effect reads — clicking
+    // the code button then shows them, on first open AND after a restart.
+    // Awaited so the write lands before loadSession triggers the read.
+    if (c.files && c.files.length > 0) {
+      await saveProjectCache(session.id, {
+        rootName: c.title || c.sourceLabel,
+        files: c.files,
+        handle: null,
+        savedAt: Date.now(),
+      });
+    }
     loadSession(session.id);
   }
 

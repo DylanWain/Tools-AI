@@ -27,7 +27,9 @@ export type LinkedProject = { id: string; name: string; fullPath: string; sessio
 /** A single session within a linked source. */
 export type LinkedSession = { id: string; title: string; size?: number; mtime: number; model?: string | null };
 export type LinkedMessage = { id?: string; role: "user" | "assistant"; text: string; timestamp?: number };
-export type LinkedSessionContent = { ok: boolean; title?: string; messages?: LinkedMessage[]; error?: string };
+/** A file the linked conversation worked on — surfaced in the code panel. */
+export type LinkedFile = { path: string; content: string };
+export type LinkedSessionContent = { ok: boolean; title?: string; messages?: LinkedMessage[]; files?: LinkedFile[]; error?: string };
 
 /** Sources with a project → session hierarchy (Claude Code, Cursor). */
 export type ProjectSessionSource = {

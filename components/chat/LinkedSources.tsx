@@ -15,13 +15,14 @@ import { useState } from "react";
 import {
   sessionReaders,
   type GlobalSessionSource,
+  type LinkedFile,
   type LinkedMessage,
   type LinkedSession,
   type LinkedSessionContent,
   type ProjectSessionSource,
 } from "@/lib/desktop";
 
-export type LinkedOpen = { title: string; messages: LinkedMessage[]; sourceLabel: string; model?: string | null };
+export type LinkedOpen = { title: string; messages: LinkedMessage[]; files?: LinkedFile[]; sourceLabel: string; model?: string | null };
 type OpenFn = (load: () => Promise<LinkedSessionContent>, title: string, sourceLabel: string, model?: string | null) => void;
 
 const ROW = "w-full text-left truncate rounded-md px-2 py-1 text-[12.5px] text-white/60 hover:text-white hover:bg-white/[0.05] transition-colors";
@@ -38,7 +39,7 @@ export function LinkedSources({ onOpen }: { onOpen: (c: LinkedOpen) => void }) {
     setLoadingId(title);
     try {
       const r = await load();
-      if (r.ok) onOpen({ title: r.title || title, messages: r.messages || [], sourceLabel, model });
+      if (r.ok) onOpen({ title: r.title || title, messages: r.messages || [], files: r.files, sourceLabel, model });
       else setError(r.error || "could not open session");
     } catch (e) {
       setError(e instanceof Error ? e.message : "could not open session");
