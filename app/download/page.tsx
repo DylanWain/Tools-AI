@@ -18,15 +18,17 @@ import Link from "next/link";
 import { VeronumMark } from "@/components/VeronumMark";
 import { captureDownloadClicked } from "@/lib/analytics";
 
+// Both installers build from veronum-desktop (the current app, with the
+// code-loads-from-previous-sessions feature) — see its .github/workflows.
+// The macOS build is currently UNSIGNED (CI has no Apple cert), so first
+// launch shows Gatekeeper's "unverified developer"; replace with a signed
+// dmg anytime via `npm run release:mac`.
 const LATEST_DMG_URL =
-  "https://github.com/DylanWain/veronum-overlay/releases/latest/download/Veronum.dmg";
-const RELEASES_PAGE_URL =
-  "https://github.com/DylanWain/veronum-overlay/releases/latest";
-// Windows installer is built from veronum-desktop (the current app). The Mac
-// DMG above still comes from veronum-overlay until a signed desktop Mac build
-// is cut, at which point both buttons should point at veronum-desktop.
+  "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum.dmg";
 const LATEST_EXE_URL =
   "https://github.com/DylanWain/veronum-desktop/releases/latest/download/Veronum-Setup.exe";
+const RELEASES_PAGE_URL =
+  "https://github.com/DylanWain/veronum-desktop/releases/latest";
 
 export default function DownloadPage() {
   return (
