@@ -43,3 +43,7 @@ next-env.d.ts
 
 # Build artifacts I don't want shipped
 /.claude
+
+# Electron build artifacts
+/dist
+/release
